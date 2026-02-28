@@ -1,0 +1,246 @@
+.settings-container {
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+
+.settings-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.settings-header h1 {
+  font-size: 2rem;
+  background: linear-gradient(135deg, var(--color-primary-orange) 0%, var(--color-primary-yellow) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.settings-content {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.settings-section-title {
+  font-size: 1.25rem;
+  color: var(--color-primary-orange);
+  margin-bottom: 0.5rem;
+  border-bottom: 2px solid var(--color-primary-orange);
+  padding-bottom: 0.5rem;
+}
+
+.settings-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 140, 0, 0.05);
+}
+
+.option-info h3 {
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+  color: inherit;
+}
+
+.option-info p {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.theme-buttons,
+.background-type-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.theme-buttons button,
+.background-type-buttons button {
+  flex: 1;
+  min-width: 100px;
+}
+
+/* Galeria de Fundos */
+.background-gallery {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.background-gallery h3 {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  color: var(--color-primary-orange);
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+}
+
+.gallery-item {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all var(--transition-normal);
+}
+
+.gallery-item img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-item:hover {
+  transform: scale(1.05);
+  border-color: var(--color-primary-orange);
+}
+
+.gallery-item.active {
+  border-color: var(--color-primary-orange);
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.3);
+}
+
+.gallery-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 0.25rem;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+/* Input Customizado */
+.custom-image-input {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.custom-image-input h3 {
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  color: var(--color-primary-orange);
+}
+
+.input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.custom-url-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-card-bg);
+  color: inherit;
+  font-size: 0.875rem;
+}
+
+.custom-url-input:focus {
+  outline: none;
+  border-color: var(--color-primary-orange);
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.1);
+}
+
+/* Preview do Fundo */
+.background-preview {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.background-preview h3 {
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  color: var(--color-primary-orange);
+}
+
+.preview-image {
+  width: 100%;
+  height: 200px;
+  border-radius: var(--radius-md);
+  background-size: cover;
+  background-position: center;
+  margin-bottom: 1rem;
+  border: 2px solid var(--color-primary-orange);
+}
+
+.background-preview button {
+  width: 100%;
+}
+
+/* Light Mode */
+body.light-mode .settings-option {
+  background: rgba(255, 140, 0, 0.1);
+}
+
+body.light-mode .custom-url-input {
+  background: #ffffff;
+  border-color: #ddd;
+}
+
+body.light-mode .custom-url-input:focus {
+  border-color: var(--color-primary-orange);
+}
+
+@media (max-width: 640px) {
+  .settings-container {
+    padding: 1rem;
+  }
+
+  .settings-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .settings-option {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .theme-buttons,
+  .background-type-buttons {
+    width: 100%;
+  }
+
+  .theme-buttons button,
+  .background-type-buttons button {
+    flex: 1;
+  }
+
+  .gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+
+  .gallery-item img {
+    height: 80px;
+  }
+
+  .input-group {
+    flex-direction: column;
+  }
+
+  .input-group button {
+    width: 100%;
+  }
+}
+
