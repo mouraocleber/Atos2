@@ -15,6 +15,7 @@ import backupRoutes from './routes/backup';
 import productRoutes from './routes/products';
 import productGroupRoutes from './routes/productGroups';
 import walletRoutes from './routes/wallet';
+import adminRoutes from './routes/admin';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -53,6 +54,7 @@ app.use('/api/backup', backupRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/product-groups', productGroupRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {

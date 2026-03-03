@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   last_login TIMESTAMP,
-  block_non_contacts BOOLEAN DEFAULT FALSE
+  block_non_contacts BOOLEAN DEFAULT FALSE,
+  role VARCHAR(20) DEFAULT 'USER' CHECK (role IN ('USER', 'ADMIN'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);

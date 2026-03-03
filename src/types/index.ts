@@ -38,6 +38,7 @@ export interface User {
   lastLogin?: Date;
   blockNonContacts: boolean;
   isActive: boolean;
+  role: 'USER' | 'ADMIN';
 }
 
 // Interface de Produto

@@ -1,10 +1,10 @@
-# version: '3.8'
+version: '3.8'
 
 services:
   # Banco de Dados PostgreSQL
   db:
     image: postgres:15-alpine
-    container_name: atos2_db
+    container_name: atos2-db
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -19,7 +19,7 @@ services:
   # Cache Redis
   redis:
     image: redis:7-alpine
-    container_name: atos2_redis
+    container_name: atos2-redis
     restart: always
     ports:
       - "6379:6379"
@@ -27,7 +27,7 @@ services:
   # Backend Atos2
   backend:
     build: .
-    container_name: atos2_backend
+    container_name: atos2-backend
     restart: always
     ports:
       - "3000:3000"

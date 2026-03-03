@@ -32,6 +32,36 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
   }
 };
 
+export const isAdmin = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Não autenticado',
+      error: 'UNAUTHENTICATED'
+    });
+  }
+
+  try {
+    const user = await require('../services/userService').default.getUserById(req.userId);
+    
+    if (!user || user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado. Requer privilégios de administrador.',
+        error: 'FORBIDDEN_ADMIN_ONLY'
+      });
+    }
+
+    next();
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao verificar permissões',
+      error: 'INTERNAL_SERVER_ERROR'
+    });
+  }
+};
+
 export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -48,4 +78,3 @@ export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: Nex
 
   next();
 };
-

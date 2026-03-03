@@ -8,6 +8,7 @@ import QRCodePage from './pages/QRCode';
 import UserSearch from './pages/UserSearch';
 import Products from './pages/Products';
 import BackupPage from './pages/Backup';
+import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/backup" element={<BackupPage />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/admin" element={<AdminDashboard />} />
         </Routes>
       </Router>
     </ThemeProvider>

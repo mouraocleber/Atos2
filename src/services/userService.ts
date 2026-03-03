@@ -28,7 +28,7 @@ export class UserService {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING id, email, phone, nickname, name, person_type, cpf, cep, 
                 address, city, state, country, profile_image, status, preferred_language, balance, 
-                is_active, created_at, updated_at, last_login, block_non_contacts`,
+                is_active, created_at, updated_at, last_login, block_non_contacts, role`,
       [
         userData.email,
         userData.phone,
@@ -54,7 +54,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts
+              is_active, created_at, updated_at, last_login, block_non_contacts, role
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -66,7 +66,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts
+              is_active, created_at, updated_at, last_login, block_non_contacts, role
        FROM users WHERE email = $1`,
       [email]
     );
@@ -78,7 +78,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts
+              is_active, created_at, updated_at, last_login, block_non_contacts, role
        FROM users WHERE nickname = $1`,
       [nickname]
     );
@@ -102,7 +102,7 @@ export class UserService {
   }
 
   async updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
-    const allowedFields = ['nickname', 'name', 'profile_image', 'status', 'latitude', 'longitude', 'block_non_contacts'];
+    const allowedFields = ['nickname', 'name', 'profile_image', 'status', 'latitude', 'longitude', 'block_non_contacts', 'role', 'is_active'];
     const updateFields: string[] = [];
     const updateValues: any[] = [];
     let paramIndex = 1;
@@ -125,7 +125,7 @@ export class UserService {
       `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramIndex}
        RETURNING id, email, phone, nickname, name, person_type, cpf, cep, 
                  address, city, state, country, profile_image, status, preferred_language, balance, 
-                 is_active, created_at, updated_at, last_login, block_non_contacts`,
+                 is_active, created_at, updated_at, last_login, block_non_contacts, role`,
       updateValues
     );
 
@@ -146,7 +146,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts
+              is_active, created_at, updated_at, last_login, block_non_contacts, role
        FROM users 
        WHERE nickname ILIKE $1 OR name ILIKE $1 OR email ILIKE $1
        LIMIT $2`,
