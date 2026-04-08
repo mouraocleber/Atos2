@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email VARCHAR(255) UNIQUE NOT NULL,
   phone VARCHAR(20) UNIQUE NOT NULL,
-  nickname VARCHAR(100) UNIQUE NOT NULL,
+  nickname VARCHAR(100) NOT NULL,
   name VARCHAR(255) NOT NULL,
   person_type VARCHAR(2) NOT NULL CHECK (person_type IN ('PF', 'PJ')),
   cpf VARCHAR(14) UNIQUE NOT NULL,
@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   status VARCHAR(255),
   preferred_language VARCHAR(10) DEFAULT 'pt-BR',
   password_hash VARCHAR(255) NOT NULL,
+  balance DECIMAL(15, 2) DEFAULT 0.00,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -316,4 +317,84 @@ CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_wallets_updated_at BEFORE UPDATE ON wallets
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- TABELAS DE AVALIAÇÕES E REPUTAÇÃO
+-- ============================================
+
+-- Tabela de Avaliações de Usuários
+CREATE TABLE IF NOT EXISTS user_reviews (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  reviewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reviewed_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating SMALLINT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  is_verified BOOLEAN DEFAULT FALSE,
+  transaction_id UUID,
+  status VARCHAR(20) DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'REPORTED', 'HIDDEN')),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT different_users_review CHECK (reviewer_id != reviewed_user_id),
+  UNIQUE(reviewer_id, reviewed_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_reviews_reviewed_user ON user_reviews(reviewed_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_reviews_reviewer ON user_reviews(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_user_reviews_rating ON user_reviews(rating);
+CREATE INDEX IF NOT EXISTS idx_user_reviews_status ON user_reviews(status);
+
+-- Tabela de Avaliações de Produtos
+CREATE TABLE IF NOT EXISTS product_reviews (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  reviewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  rating SMALLINT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  is_verified BOOLEAN DEFAULT FALSE,
+  transaction_id UUID,
+  status VARCHAR(20) DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'REPORTED', 'HIDDEN')),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+  UNIQUE(reviewer_id, product_id),
+  CONSTRAINT valid_product_rating CHECK (rating >= 1 AND rating <= 5)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_reviews_product ON product_reviews(product_id, status);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_reviewer ON product_reviews(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_rating ON product_reviews(rating);
+
+-- View para Reputação de Usuários
+CREATE OR REPLACE VIEW user_reputation AS
+SELECT
+  u.id as user_id,
+  COUNT(r.id) as total_reviews,
+  COALESCE(AVG(r.rating), 0) as average_rating,
+  COUNT(CASE WHEN r.rating = 5 THEN 1 END) as five_star_count,
+  COUNT(CASE WHEN r.rating >= 4 THEN 1 END) as four_plus_count,
+  MAX(r.created_at) as last_review_at
+FROM users u
+LEFT JOIN user_reviews r ON u.id = r.reviewed_user_id AND r.status = 'ACTIVE'
+GROUP BY u.id;
+
+-- View para Avaliações de Produtos
+CREATE OR REPLACE VIEW product_stats AS
+SELECT
+  p.id as product_id,
+  COUNT(r.id) as total_reviews,
+  COALESCE(AVG(r.rating), 0) as average_rating,
+  COUNT(CASE WHEN r.rating = 5 THEN 1 END) as five_star_count,
+  COUNT(CASE WHEN r.rating >= 4 THEN 1 END) as four_plus_count,
+  MAX(r.created_at) as last_review_at
+FROM products p
+LEFT JOIN product_reviews r ON p.id = r.product_id AND r.status = 'ACTIVE'
+GROUP BY p.id;
+
+-- Triggers para atualizar updated_at nas novas tabelas
+CREATE TRIGGER update_user_reviews_updated_at BEFORE UPDATE ON user_reviews
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_product_reviews_updated_at BEFORE UPDATE ON product_reviews
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

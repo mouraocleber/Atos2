@@ -255,6 +255,12 @@
   overflow: hidden;
 }
 
+/* Reputação do Produto */
+.product-reputation {
+  margin-top: 0.25rem;
+  width: fit-content;
+}
+
 .product-details {
   display: grid;
   grid-template-columns: 1fr 1fr;

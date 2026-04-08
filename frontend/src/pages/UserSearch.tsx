@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { UserReputation } from '../components/UserReputation';
 import './UserSearch.css';
 
 interface User {
@@ -16,6 +17,10 @@ interface User {
   personType: 'PF' | 'PJ';
   status: 'online' | 'offline';
   isConnected: boolean;
+  // Reputação
+  averageRating?: number;
+  totalReviews?: number;
+  ratingLevel?: string;
 }
 
 export const UserSearch: React.FC = () => {
@@ -25,7 +30,7 @@ export const UserSearch: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Dados de exemplo
+  // Dados de exemplo (com reputação)
   const mockUsers: User[] = [
     {
       id: 'user-1',
@@ -39,6 +44,9 @@ export const UserSearch: React.FC = () => {
       personType: 'PF',
       status: 'online',
       isConnected: true,
+      averageRating: 4.8,
+      totalReviews: 24,
+      ratingLevel: 'LENDÁRIO',
     },
     {
       id: 'user-2',
@@ -52,6 +60,9 @@ export const UserSearch: React.FC = () => {
       personType: 'PF',
       status: 'offline',
       isConnected: false,
+      averageRating: 4.2,
+      totalReviews: 8,
+      ratingLevel: 'CONFIÁVEL',
     },
     {
       id: 'user-3',
@@ -65,6 +76,9 @@ export const UserSearch: React.FC = () => {
       personType: 'PJ',
       status: 'online',
       isConnected: false,
+      averageRating: 3.8,
+      totalReviews: 5,
+      ratingLevel: 'INICIANTE',
     },
     {
       id: 'user-4',
@@ -78,6 +92,9 @@ export const UserSearch: React.FC = () => {
       personType: 'PF',
       status: 'online',
       isConnected: true,
+      averageRating: 4.6,
+      totalReviews: 15,
+      ratingLevel: 'EXCELENTE',
     },
     {
       id: 'user-5',
@@ -91,6 +108,7 @@ export const UserSearch: React.FC = () => {
       personType: 'PF',
       status: 'offline',
       isConnected: false,
+      // Sem avaliações
     },
   ];
 
@@ -245,6 +263,15 @@ export const UserSearch: React.FC = () => {
                       <span>📧 {user.email}</span>
                       <span>📱 {user.phone}</span>
                     </div>
+                    {/* Reputação do usuário */}
+                    <div className="result-reputation">
+                      <UserReputation
+                        averageRating={user.averageRating}
+                        totalReviews={user.totalReviews}
+                        ratingLevel={user.ratingLevel}
+                        size="small"
+                      />
+                    </div>
                   </div>
 
                   <div className="result-actions">
@@ -296,6 +323,14 @@ export const UserSearch: React.FC = () => {
                     <h4>{user.nickname}</h4>
                     <p>{user.name}</p>
                     <span className="suggestion-location">📍 {user.city}</span>
+                    <div className="suggestion-reputation">
+                      <UserReputation
+                        averageRating={user.averageRating}
+                        totalReviews={user.totalReviews}
+                        ratingLevel={user.ratingLevel}
+                        size="small"
+                      />
+                    </div>
                   </div>
                   <Button
                     variant="primary"
@@ -324,6 +359,15 @@ export const UserSearch: React.FC = () => {
                   <span className={`detail-status ${selectedUser.status}`}>
                     {selectedUser.status === 'online' ? '🟢 Online' : '⚫ Offline'}
                   </span>
+                  {/* Reputação */}
+                  <div className="detail-reputation">
+                    <UserReputation
+                      averageRating={selectedUser.averageRating}
+                      totalReviews={selectedUser.totalReviews}
+                      ratingLevel={selectedUser.ratingLevel}
+                      size="medium"
+                    />
+                  </div>
                 </div>
               </div>
 

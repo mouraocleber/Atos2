@@ -1,4 +1,5 @@
 import { query } from '../config/database';
+import productReviewService from './productReviewService';
 
 export interface Product {
   id: string;
@@ -12,6 +13,9 @@ export interface Product {
   status: 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED';
   createdAt: Date;
   updatedAt: Date;
+  // Avaliações (opcionais)
+  averageRating?: number;
+  totalReviews?: number;
 }
 
 export class ProductService {
@@ -58,7 +62,7 @@ export class ProductService {
   async getUserProducts(userId: string, status?: string): Promise<Product[]> {
     try {
       let sql = `SELECT id, user_id, name, description, price, category, image_url, stock, status, created_at, updated_at
-                 FROM products 
+                 FROM products
                  WHERE user_id = $1`;
       const params: any[] = [userId];
 
@@ -70,8 +74,7 @@ export class ProductService {
       sql += ` ORDER BY created_at DESC`;
 
       const result = await query(sql, params);
-
-      return result.rows.map((row: any) => ({
+      const products = result.rows.map((row: any) => ({
         id: row.id,
         userId: row.user_id,
         name: row.name,
@@ -84,6 +87,37 @@ export class ProductService {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
+
+      // Buscar avaliações de todos os produtos de uma vez (batch)
+      if (products.length > 0) {
+        const productIds = products.map(p => p.id);
+        const statsResult = await query(
+          `SELECT product_id, average_rating, total_reviews
+           FROM product_stats
+           WHERE product_id = ANY($1::uuid[])`,
+          [productIds]
+        );
+
+        // Mapear stats por product_id
+        const statsMap = new Map();
+        statsResult.rows.forEach((row: any) => {
+          statsMap.set(row.product_id, {
+            averageRating: parseFloat(row.average_rating),
+            totalReviews: parseInt(row.total_reviews)
+          });
+        });
+
+        // Adicionar avaliações aos produtos
+        products.forEach(product => {
+          const stats = statsMap.get(product.id);
+          if (stats) {
+            product.averageRating = stats.averageRating;
+            product.totalReviews = stats.totalReviews;
+          }
+        });
+      }
+
+      return products;
     } catch (error) {
       console.error('Erro ao obter produtos:', error);
       throw error;
@@ -95,7 +129,7 @@ export class ProductService {
     try {
       const result = await query(
         `SELECT id, user_id, name, description, price, category, image_url, stock, status, created_at, updated_at
-         FROM products 
+         FROM products
          WHERE id = $1`,
         [productId]
       );
@@ -106,7 +140,7 @@ export class ProductService {
 
       const row = result.rows[0];
 
-      return {
+      const product: Product = {
         id: row.id,
         userId: row.user_id,
         name: row.name,
@@ -119,6 +153,25 @@ export class ProductService {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       };
+
+      // Buscar estatísticas de avaliações
+      try {
+        const statsResult = await query(
+          `SELECT average_rating, total_reviews
+           FROM product_stats
+           WHERE product_id = $1`,
+          [productId]
+        );
+        if (statsResult.rows.length > 0) {
+          product.averageRating = parseFloat(statsResult.rows[0].average_rating);
+          product.totalReviews = parseInt(statsResult.rows[0].total_reviews);
+        }
+      } catch (error) {
+        // Ignora erro de stats, produto ainda funciona sem avaliações
+        console.error('Erro ao buscar stats do produto:', error);
+      }
+
+      return product;
     } catch (error) {
       console.error('Erro ao obter produto:', error);
       throw error;
@@ -279,8 +332,8 @@ export class ProductService {
   async getUserCategories(userId: string): Promise<string[]> {
     try {
       const result = await query(
-        `SELECT DISTINCT category 
-         FROM products 
+        `SELECT DISTINCT category
+         FROM products
          WHERE user_id = $1 AND category IS NOT NULL
          ORDER BY category`,
         [userId]
@@ -291,6 +344,14 @@ export class ProductService {
       console.error('Erro ao obter categorias:', error);
       throw error;
     }
+  }
+
+  /**
+   * Obter estatísticas de avaliações de um produto
+   * Delega para ProductReviewService
+   */
+  async getProductReviewStats(productId: string): Promise<any> {
+    return productReviewService.getProductStats(productId);
   }
 }
 

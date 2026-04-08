@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
+import path from 'path';
 import { Server as SocketIOServer } from 'socket.io';
 import authRoutes from './routes/auth';
 import messageScheduler from './services/messageScheduler';
@@ -14,7 +15,10 @@ import reportRoutes from './routes/reports';
 import backupRoutes from './routes/backup';
 import productRoutes from './routes/products';
 import productGroupRoutes from './routes/productGroups';
+import userReviewRoutes from './routes/userReviews';
+import productReviewRoutes from './routes/productReviews';
 import walletRoutes from './routes/wallet';
+import paymentRoutes from './routes/paymentRoutes';
 import adminRoutes from './routes/admin';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -26,7 +30,7 @@ const port = process.env.PORT || 3000;
 // Middleware de segurança
 app.use(helmet());
 app.use(cors({
-  origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
+  origin: true, // Reflete a origem da requisição, resolvendo o problema de '*' com credentials
   credentials: true,
 }));
 
@@ -34,11 +38,14 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Servir arquivos estáticos (Uploads)
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Criar servidor HTTP com Socket.io
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
+    origin: true,
     credentials: true,
   },
 });
@@ -53,7 +60,10 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/product-groups', productGroupRoutes);
+app.use('/api/users/reviews', userReviewRoutes);
+app.use('/api/products/reviews', productReviewRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/payments', paymentRoutes); // Mercado Pago Integration
 app.use('/api/admin', adminRoutes);
 
 // Health check
@@ -91,11 +101,18 @@ io.on('connection', (socket) => {
   });
 });
 
+import currencyService from './services/currencyService';
+
 // Iniciar servidor
-httpServer.listen(port, () => {
+httpServer.listen(port, async () => {
   console.log(`🚀 Servidor rodando em http://localhost:${port}`);
   console.log(`📊 Health check: http://localhost:${port}/health`);
   messageScheduler.start();
+  try {
+    await currencyService.initialize();
+  } catch (e) {
+    console.error('Falha ao inicializar a moeda global:', e);
+  }
 });
 
 export default app;

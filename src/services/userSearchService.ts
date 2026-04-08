@@ -28,6 +28,10 @@ export interface UserSearchResult {
   status?: string;
   preferredLanguage: string;
   createdAt: Date;
+  // Reputação (opcional - pode ser null se sem avaliações)
+  averageRating?: number;
+  totalReviews?: number;
+  ratingLevel?: string;
 }
 
 export class UserSearchService {
@@ -93,15 +97,25 @@ export class UserSearchService {
       return [];
     }
 
-    // Construir query
+    // Construir query com join na view de reputação
     const whereClause = whereConditions.join(' OR ');
     const sql = `
-      SELECT 
-        id, email, phone, nickname, name, person_type, cep, address, 
-        city, state, profile_image, status, preferred_language, created_at
-      FROM users 
-      WHERE ${whereClause} AND is_active = true
-      ORDER BY created_at DESC
+      SELECT
+        u.id, u.email, u.phone, u.nickname, u.name, u.person_type, u.cep, u.address,
+        u.city, u.state, u.profile_image, u.status, u.preferred_language, u.created_at,
+        COALESCE(r.average_rating, 0) as average_rating,
+        COALESCE(r.total_reviews, 0) as total_reviews,
+        CASE
+          WHEN COALESCE(r.average_rating, 0) >= 4.8 THEN 'LENDÁRIO'
+          WHEN COALESCE(r.average_rating, 0) >= 4.5 THEN 'EXCELENTE'
+          WHEN COALESCE(r.average_rating, 0) >= 4.0 THEN 'CONFIÁVEL'
+          WHEN COALESCE(r.average_rating, 0) >= 3.5 THEN 'INICIANTE'
+          ELSE 'NOVO'
+        END as rating_level
+      FROM users u
+      LEFT JOIN user_reputation r ON u.id = r.user_id
+      WHERE ${whereClause} AND u.is_active = true
+      ORDER BY u.created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -124,6 +138,9 @@ export class UserSearchService {
       status: row.status,
       preferredLanguage: row.preferred_language,
       createdAt: row.created_at,
+      averageRating: parseFloat(row.average_rating),
+      totalReviews: parseInt(row.total_reviews),
+      ratingLevel: row.rating_level,
     }));
   }
 
@@ -177,12 +194,22 @@ export class UserSearchService {
 
   async getPopularUsers(limit: number = 10): Promise<UserSearchResult[]> {
     const result = await query(
-      `SELECT 
-        id, email, phone, nickname, name, person_type, cep, address, 
-        city, state, profile_image, status, preferred_language, created_at
-       FROM users 
-       WHERE is_active = true
-       ORDER BY created_at DESC
+      `SELECT
+        u.id, u.email, u.phone, u.nickname, u.name, u.person_type, u.cep, u.address,
+        u.city, u.state, u.profile_image, u.status, u.preferred_language, u.created_at,
+        COALESCE(r.average_rating, 0) as average_rating,
+        COALESCE(r.total_reviews, 0) as total_reviews,
+        CASE
+          WHEN COALESCE(r.average_rating, 0) >= 4.8 THEN 'LENDÁRIO'
+          WHEN COALESCE(r.average_rating, 0) >= 4.5 THEN 'EXCELENTE'
+          WHEN COALESCE(r.average_rating, 0) >= 4.0 THEN 'CONFIÁVEL'
+          WHEN COALESCE(r.average_rating, 0) >= 3.5 THEN 'INICIANTE'
+          ELSE 'NOVO'
+        END as rating_level
+       FROM users u
+       LEFT JOIN user_reputation r ON u.id = r.user_id
+       WHERE u.is_active = true
+       ORDER BY u.created_at DESC
        LIMIT $1`,
       [limit]
     );
@@ -202,6 +229,9 @@ export class UserSearchService {
       status: row.status,
       preferredLanguage: row.preferred_language,
       createdAt: row.created_at,
+      averageRating: parseFloat(row.average_rating),
+      totalReviews: parseInt(row.total_reviews),
+      ratingLevel: row.rating_level,
     }));
   }
 

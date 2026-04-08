@@ -116,11 +116,96 @@ export interface AuthRequest {
   exp: number;
 }
 
+// ============================================
+// AVALIAÇÕES - TIPOS
+// ============================================
+
+// Status de avaliação
+export type ReviewStatus = 'ACTIVE' | 'REPORTED' | 'HIDDEN';
+
+// Interface de Avaliação de Usuário
+export interface UserReview {
+  id: string;
+  reviewerId: string;
+  reviewedUserId: string;
+  rating: number; // 1-5
+  comment?: string;
+  isVerified: boolean;
+  transactionId?: string;
+  status: ReviewStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Interface de Avaliação de Produto
+export interface ProductReview {
+  id: string;
+  reviewerId: string;
+  productId: string;
+  rating: number; // 1-5
+  comment?: string;
+  isVerified: boolean;
+  transactionId?: string;
+  status: ReviewStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Reputação de Usuário
+export interface UserReputation {
+  userId: string;
+  totalReviews: number;
+  averageRating: number;
+  fiveStarCount: number;
+  fourPlusCount: number;
+  lastReviewAt?: Date;
+  ratingLevel: 'NOVO' | 'INICIANTE' | 'CONFIÁVEL' | 'EXCELENTE' | 'LENDÁRIO';
+}
+
+// Stats de Produto
+export interface ProductStats {
+  productId: string;
+  totalReviews: number;
+  averageRating: number;
+  fiveStarCount: number;
+  fourPlusCount: number;
+  lastReviewAt?: Date;
+}
+
+// Usuário com informações de reputação
+export interface UserWithReputation extends User {
+  averageRating?: number;
+  totalReviews?: number;
+  ratingLevel?: string;
+}
+
 // Interface de Resposta de API
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data?: T;
   error?: string;
+}
+
+// Request para criar avaliação
+export interface CreateReviewRequest {
+  reviewedUserId: string;
+  rating: number;
+  comment?: string;
+  transactionId?: string;
+}
+
+// Request para criar review de produto
+export interface CreateProductReviewRequest {
+  productId: string;
+  rating: number;
+  comment?: string;
+  transactionId?: string;
+}
+
+// Request para reportar avaliação
+export interface ReportReviewRequest {
+  reason: string;
+  description?: string;
 }
 

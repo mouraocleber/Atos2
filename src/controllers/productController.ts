@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import productService from '../services/productService';
+import productReviewService from '../services/productReviewService';
 import { AppError } from '../middleware/errorHandler';
 
 export class ProductController {
@@ -192,6 +193,49 @@ export class ProductController {
       });
     } catch (error) {
       throw error;
+    }
+  }
+
+  /**
+   * Obter estatísticas de avaliações de um produto
+   * GET /api/products/:productId/review-stats
+   */
+  async getProductReviewStats(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { productId } = req.params;
+
+      if (!productId) {
+        throw new AppError(400, 'ID do produto é obrigatório', 'MISSING_PRODUCT_ID');
+      }
+
+      // Verificar se produto existe e pertence ao usuário (opcional, pode ser público)
+      const product = await productService.getProductById(productId);
+      if (!product) {
+        throw new AppError(404, 'Produto não encontrado', 'PRODUCT_NOT_FOUND');
+      }
+
+      const stats = await productReviewService.getProductStats(productId);
+
+      if (!stats) {
+        return res.json({
+          success: true,
+          message: 'Sem avaliações ainda',
+          data: {
+            totalReviews: 0,
+            averageRating: 0,
+            fiveStarCount: 0,
+            fourPlusCount: 0,
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Estatísticas de avaliações',
+        data: stats,
+      });
+    } catch (error: any) {
+      throw error instanceof AppError ? error : new AppError(500, 'Erro ao obter estatísticas', 'INTERNAL_ERROR');
     }
   }
 }

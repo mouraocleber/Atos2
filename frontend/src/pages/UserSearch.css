@@ -211,6 +211,11 @@
   color: var(--color-text-muted);
 }
 
+/* Reputação do usuário */
+.result-reputation {
+  margin-top: 0.5rem;
+}
+
 .result-actions {
   flex-shrink: 0;
 }
@@ -292,6 +297,10 @@
   color: var(--color-text-muted);
 }
 
+.suggestion-reputation {
+  margin-top: 4px;
+}
+
 /* Detalhes do Usuário */
 .detail-card {
   border: 2px solid var(--color-primary-orange);
@@ -319,6 +328,10 @@
   object-fit: cover;
   border: 3px solid var(--color-primary-orange);
   flex-shrink: 0;
+}
+
+.detail-reputation {
+  margin-top: 0.5rem;
 }
 
 .detail-header h3 {

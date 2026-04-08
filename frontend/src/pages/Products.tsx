@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { ProductReputation } from '../components/ProductReputation';
 import './Products.css';
 
 interface Product {
@@ -14,6 +15,9 @@ interface Product {
   stock: number;
   status: 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED';
   createdAt: Date;
+  // Avaliações (opcionais)
+  averageRating?: number;
+  totalReviews?: number;
 }
 
 export const Products: React.FC = () => {
@@ -32,7 +36,7 @@ export const Products: React.FC = () => {
     stock: '',
   });
 
-  // Dados de exemplo
+  // Dados de exemplo (com avaliações)
   const mockProducts: Product[] = [
     {
       id: '1',
@@ -44,6 +48,8 @@ export const Products: React.FC = () => {
       stock: 5,
       status: 'ACTIVE',
       createdAt: new Date(),
+      averageRating: 4.8,
+      totalReviews: 24,
     },
     {
       id: '2',
@@ -55,6 +61,8 @@ export const Products: React.FC = () => {
       stock: 20,
       status: 'ACTIVE',
       createdAt: new Date(),
+      averageRating: 4.2,
+      totalReviews: 8,
     },
     {
       id: '3',
@@ -66,6 +74,8 @@ export const Products: React.FC = () => {
       stock: 8,
       status: 'ACTIVE',
       createdAt: new Date(),
+      averageRating: 4.5,
+      totalReviews: 15,
     },
     {
       id: '4',
@@ -77,6 +87,8 @@ export const Products: React.FC = () => {
       stock: 3,
       status: 'ACTIVE',
       createdAt: new Date(),
+      averageRating: 3.8,
+      totalReviews: 5,
     },
     {
       id: '5',
@@ -88,6 +100,7 @@ export const Products: React.FC = () => {
       stock: 15,
       status: 'ACTIVE',
       createdAt: new Date(),
+      // Sem avaliações
     },
   ];
 
@@ -358,6 +371,17 @@ export const Products: React.FC = () => {
                   )}
                   {product.description && (
                     <p className="product-description">{product.description}</p>
+                  )}
+
+                  {/* Avaliação do Produto */}
+                  {product.averageRating !== undefined && product.totalReviews !== undefined && (
+                    <div className="product-reputation">
+                      <ProductReputation
+                        averageRating={product.averageRating}
+                        totalReviews={product.totalReviews}
+                        size="small"
+                      />
+                    </div>
                   )}
 
                   <div className="product-details">
