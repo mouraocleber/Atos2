@@ -168,14 +168,17 @@ export class WalletService {
       return 0; // Sem taxa para transferência entre usuários
     }
 
+    let fee = 0;
     // Taxa para transferência externa
     if (amount <= 999.99) {
-      return amount * 0.01; // 1%
+      fee = amount * 0.01; // 1%
     } else if (amount <= 4999.99) {
-      return amount * 0.02; // 2%
+      fee = amount * 0.02; // 2%
     } else {
-      return amount * 0.05; // 5%
+      fee = amount * 0.05; // 5%
     }
+    
+    return Math.round(fee * 100) / 100;
   }
 
   /**
@@ -196,10 +199,10 @@ export class WalletService {
     try {
       await client.query('BEGIN');
 
-      // Validar saldo
+      // Validar saldo da carteira do usuário (ignorando a moeda do pagamento para converter automaticamente)
       const balanceResult = await client.query(
-        `SELECT balance FROM wallets WHERE user_id = $1 AND currency = $2 FOR UPDATE`,
-        [data.fromUserId, data.currency]
+        `SELECT balance, currency as wallet_currency FROM wallets WHERE user_id = $1 FOR UPDATE`,
+        [data.fromUserId]
       );
 
       if (balanceResult.rows.length === 0) {
@@ -207,25 +210,42 @@ export class WalletService {
       }
 
       const currentBalance = parseFloat(balanceResult.rows[0].balance);
+      const walletCurrency = balanceResult.rows[0].wallet_currency;
+
       const isInternal = !!data.toUserId;
       const fee = this.calculateFee(data.amount, isInternal);
-      const totalAmount = data.amount + fee;
+      // Valor total do pagamento na moeda requisitada
+      const totalPaymentAmount = Math.round((data.amount + fee) * 100) / 100;
 
-      if (currentBalance < totalAmount) {
-        throw new Error('Saldo insuficiente');
+      // Calcular o valor a deduzir da carteira original se as moedas divergirem
+      let deductionAmount = totalPaymentAmount;
+      let transactionExchangeRate = 1;
+
+      if (data.currency !== walletCurrency) {
+        transactionExchangeRate = await this.getExchangeRate(data.currency, walletCurrency);
+        deductionAmount = Math.round((totalPaymentAmount * transactionExchangeRate) * 100) / 100;
       }
 
-      // Calcular conversão se necessário
+      if (currentBalance < deductionAmount) {
+        throw new Error('Saldo insuficiente na carteira para cobrir o valor convertido');
+      }
+
+      // Preparar os valores convertidos para registrar histórico
       let convertedAmount = data.amount;
-      let exchangeRate = 1;
+      let finalExchangeRate = 1;
 
       if (data.convertedCurrency && data.convertedCurrency !== data.currency) {
         if (!isCurrencySupported(data.convertedCurrency)) {
           throw new Error(`Moeda não suportada: ${data.convertedCurrency}`);
         }
-        exchangeRate = await this.getExchangeRate(data.currency, data.convertedCurrency);
-        convertedAmount = data.amount * exchangeRate;
+        finalExchangeRate = await this.getExchangeRate(data.currency, data.convertedCurrency);
+        // Arredondar valor convertido
+        convertedAmount = Math.round((data.amount * finalExchangeRate) * 100) / 100;
       }
+
+      // Se o usuário não enviou requested converted target, mas o pagamento foi em moeda diferente
+      const historicalExRate = data.convertedCurrency ? finalExchangeRate : 
+                               (data.currency !== walletCurrency ? transactionExchangeRate : null);
 
       // Criar transação
       const transactionId = uuidv4();
@@ -243,9 +263,9 @@ export class WalletService {
           data.type,
           data.amount,
           data.currency,
-          convertedAmount,
-          data.convertedCurrency || null,
-          exchangeRate !== 1 ? exchangeRate : null,
+          data.convertedCurrency ? convertedAmount : deductionAmount,
+          data.convertedCurrency || walletCurrency,
+          historicalExRate,
           fee > 0 ? fee : null,
           'COMPLETED',
           data.description,
@@ -258,7 +278,7 @@ export class WalletService {
         `UPDATE wallets 
          SET balance = balance - $1, updated_at = CURRENT_TIMESTAMP
          WHERE user_id = $2 AND currency = $3`,
-        [totalAmount, data.fromUserId, data.currency]
+        [deductionAmount, data.fromUserId, walletCurrency]
       );
 
       // Atualizar saldo do destinatário se for transferência interna
@@ -267,10 +287,11 @@ export class WalletService {
         const recipientAmount = data.convertedCurrency ? convertedAmount : data.amount;
 
         await client.query(
-          `UPDATE wallets 
-           SET balance = balance + $1, updated_at = CURRENT_TIMESTAMP
-           WHERE user_id = $2 AND currency = $3`,
-          [recipientAmount, data.toUserId, recipientCurrency]
+          `INSERT INTO wallets (user_id, currency, balance) 
+           VALUES ($1, $3, $2)
+           ON CONFLICT (user_id) 
+           DO UPDATE SET balance = wallets.balance + EXCLUDED.balance, updated_at = CURRENT_TIMESTAMP`,
+          [data.toUserId, recipientAmount, recipientCurrency]
         );
       }
 

@@ -1,0 +1,77 @@
+{
+  "expo": {
+    "name": "Atos2",
+    "slug": "atos2",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./frontend/public/logo.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./frontend/public/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0e27"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.atos2.app",
+      "buildNumber": "1"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./frontend/public/logo.png",
+        "backgroundColor": "#0a0e27"
+      },
+      "package": "com.atos2.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./frontend/public/logo.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Atos2 to access your camera"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Atos2 to access your photos",
+          "savePhotosPermission": "Allow Atos2 to save photos",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "atos2-project"
+      },
+      "apiUrl": "https://api.atos2.app",
+      "wsUrl": "wss://api.atos2.app"
+    },
+    "scheme": "atos2",
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 30000
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}
+

@@ -48,7 +48,8 @@ export class MessageService {
   async getConversation(userId1: string, userId2: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
     const result = await query(
       `SELECT id, sender_id, recipient_id, type, content, media_url, 
-              status, created_at, read_at
+              status, created_at, read_at, 
+              translated_content, translated_language, original_language
        FROM messages 
        WHERE ((sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1))
        AND status != 'SCHEDULED'
@@ -161,17 +162,22 @@ export class MessageService {
 
   async getConversationList(userId: string, limit: number = 20): Promise<any[]> {
     const result = await query(
-      `SELECT 
-        CASE 
-          WHEN sender_id = $1 THEN recipient_id 
-          ELSE sender_id 
-        END as other_user_id,
-        MAX(created_at) as last_message_at,
-        COUNT(*) FILTER (WHERE status != 'READ' AND recipient_id = $1) as unread_count
-       FROM messages 
-       WHERE sender_id = $1 OR recipient_id = $1
-       GROUP BY other_user_id
-       ORDER BY last_message_at DESC
+      `WITH user_conversations AS (
+        SELECT 
+          CASE 
+            WHEN sender_id = $1 THEN recipient_id 
+            ELSE sender_id 
+          END as other_user_id,
+          MAX(created_at) as last_message_at,
+          COUNT(*) FILTER (WHERE status != 'READ' AND recipient_id = $1) as unread_count
+         FROM messages 
+         WHERE sender_id = $1 OR recipient_id = $1
+         GROUP BY other_user_id
+       )
+       SELECT uc.other_user_id, uc.last_message_at, uc.unread_count, u.name as other_user_name, u.nickname as other_user_nickname
+       FROM user_conversations uc
+       LEFT JOIN users u ON u.id = uc.other_user_id
+       ORDER BY uc.last_message_at DESC
        LIMIT $2`,
       [userId, limit]
     );

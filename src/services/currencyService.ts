@@ -120,9 +120,17 @@ export class CurrencyService {
       // Obter taxas de câmbio de API externa
       const rates = await this.fetchExchangeRates();
 
-      // Calcular valor da moeda Global
-      const globalValue =
-        (rates.usd + rates.eur + rates.jpy + rates.cny + rates.brl) / 5;
+      // Calcular valor da moeda Global arredondado para 4 casas decimais
+      // FÓRMULA CORRIGIDA: Média do VALOR de 1 unidade de cada moeda em Dólares (USD)
+      const rawGlobalValue = (
+        (1 / rates.usd) + 
+        (1 / rates.eur) + 
+        (1 / rates.jpy) + 
+        (1 / rates.cny) + 
+        (1 / rates.brl)
+      ) / 5;
+      
+      const globalValue = Math.round(rawGlobalValue * 10000) / 10000;
 
       // Próxima atualização
       const nextUpdate = new Date();

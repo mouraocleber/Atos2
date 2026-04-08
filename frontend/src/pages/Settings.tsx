@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import './Settings.css';
 
 export const Settings: React.FC = () => {
-  const { mode, backgroundType, backgroundImage, setMode, setBackground, toggleMode } = useTheme();
+  const { mode, backgroundType, backgroundImage, setMode, setBackground } = useTheme();
   const [imageUrl, setImageUrl] = useState<string>('');
   const [showImageInput, setShowImageInput] = useState(false);
 

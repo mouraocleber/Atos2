@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import api from '../utils/api';
 import './Chat.css';
 
 interface Message {
@@ -45,51 +46,17 @@ export const Chat: React.FC = () => {
   // Carregar usuário e mensagens
   useEffect(() => {
     const loadChat = async () => {
+      if (!userId) return;
       try {
         setIsLoading(true);
-        // Simulação de carregamento
-        const mockUser: User = {
-          id: userId || '',
-          nickname: 'emily_s',
-          name: 'Emily Smith',
-          profileImage: 'https://api.dicebear.com/7.x/avataaars/svg?seed=emily',
-          status: 'online',
-        };
-        setUser(mockUser);
+        
+        // Buscar dados do usuário
+        const userRes = await api.get(`/users/${userId}`);
+        setUser(userRes.data.data);
 
-        // Simular mensagens
-        const mockMessages: Message[] = [
-          {
-            id: '1',
-            senderId: 'other',
-            content: 'Olá! Como você está?',
-            type: 'TEXT',
-            status: 'READ',
-            createdAt: new Date(Date.now() - 3600000),
-            originalLanguage: 'pt-BR',
-          },
-          {
-            id: '2',
-            senderId: 'me',
-            content: 'Oi! Tudo bem, e você?',
-            translatedContent: 'Hi! All good, and you?',
-            type: 'TEXT',
-            status: 'DELIVERED',
-            createdAt: new Date(Date.now() - 3500000),
-            originalLanguage: 'pt-BR',
-            translatedLanguage: 'en-US',
-          },
-          {
-            id: '3',
-            senderId: 'other',
-            content: 'Tudo ótimo! Você viu o projeto?',
-            type: 'TEXT',
-            status: 'READ',
-            createdAt: new Date(Date.now() - 3400000),
-            originalLanguage: 'pt-BR',
-          },
-        ];
-        setMessages(mockMessages);
+        // Buscar mensagens
+        const messagesRes = await api.get(`/messages/${userId}`);
+        setMessages(messagesRes.data.data);
       } catch (error) {
         console.error('Erro ao carregar chat:', error);
       } finally {
@@ -103,32 +70,21 @@ export const Chat: React.FC = () => {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || !userId) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      senderId: 'me',
-      content: inputValue,
-      type: 'TEXT',
-      status: 'SENT',
-      createdAt: new Date(),
-    };
+    try {
+      const response = await api.post('/messages', {
+        recipientId: userId,
+        content: inputValue,
+        type: 'TEXT'
+      });
 
-    setMessages([...messages, newMessage]);
-    setInputValue('');
-
-    // Simular resposta após 1 segundo
-    setTimeout(() => {
-      const response: Message = {
-        id: (Date.now() + 1).toString(),
-        senderId: 'other',
-        content: 'Entendi! Vou verificar isso.',
-        type: 'TEXT',
-        status: 'DELIVERED',
-        createdAt: new Date(),
-      };
-      setMessages((prev) => [...prev, response]);
-    }, 1000);
+      setMessages([...messages, response.data.data]);
+      setInputValue('');
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      alert('Erro ao enviar mensagem');
+    }
   };
 
   const formatTime = (date: Date) => {

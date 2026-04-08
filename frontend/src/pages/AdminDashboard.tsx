@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 import './AdminDashboard.css';
 
 interface Stats {
@@ -25,15 +25,13 @@ interface User {
 const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'reports'>('stats');
 
-  const API_URL = 'http://localhost:3000/api/admin';
-  const token = localStorage.getItem('token');
+  
+  
 
-  const headers = {
-    Authorization: `Bearer ${token}`
-  };
+  
 
   useEffect(() => {
     fetchStats();
@@ -42,7 +40,7 @@ const AdminDashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get(`${API_URL}/stats`, { headers });
+      const response = await api.get('/admin/stats');
       setStats(response.data.data);
     } catch (error) {
       console.error('Erro ao buscar estatísticas', error);
@@ -51,7 +49,7 @@ const AdminDashboard: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get(`${API_URL}/users`, { headers });
+      const response = await api.get('/admin/users');
       setUsers(response.data.data.users);
       setLoading(false);
     } catch (error) {
@@ -62,7 +60,7 @@ const AdminDashboard: React.FC = () => {
 
   const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
     try {
-      await axios.patch(`${API_URL}/users/${userId}/status`, { isActive: !currentStatus }, { headers });
+      await api.patch(`/admin/users/${userId}/status`, { isActive: !currentStatus });
       fetchUsers();
     } catch (error) {
       alert('Erro ao alterar status do usuário');
@@ -72,7 +70,7 @@ const AdminDashboard: React.FC = () => {
   const updateUserRole = async (userId: string, currentRole: string) => {
     const newRole = currentRole === 'ADMIN' ? 'USER' : 'ADMIN';
     try {
-      await axios.patch(`${API_URL}/users/${userId}/role`, { role: newRole }, { headers });
+      await api.patch(`/admin/users/${userId}/role`, { role: newRole });
       fetchUsers();
     } catch (error) {
       alert('Erro ao alterar papel do usuário');

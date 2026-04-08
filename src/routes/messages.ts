@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import messageController from '../controllers/messageController';
 import { authenticateToken } from '../middleware/auth';
+import { upload } from '../middleware/upload';
 import { asyncHandler } from '../middleware/errorHandler';
 
 const router = Router();
@@ -8,8 +9,8 @@ const router = Router();
 // Middleware de autenticação obrigatória
 router.use(authenticateToken);
 
-// Enviar mensagem
-router.post('/', asyncHandler((req, res) => messageController.sendMessage(req, res)));
+// Enviar mensagem (com suporte a mídia: imagem, vídeo, áudio)
+router.post('/', upload.single('media'), asyncHandler((req, res) => messageController.sendMessage(req, res)));
 
 // Obter conversa com outro usuário
 router.get('/conversation/:otherUserId', asyncHandler((req, res) => messageController.getConversation(req, res)));
@@ -29,7 +30,7 @@ router.put('/:messageId', asyncHandler((req, res) => messageController.editMessa
 router.delete('/:messageId', asyncHandler((req, res) => messageController.deleteMessage(req, res)));
 
 // Transcrever áudio
-router.post('/transcribe/audio', asyncHandler((req, res) => messageController.transcribeAudio(req, res)));
+router.post('/transcribe/audio', upload.single('audio'), asyncHandler((req, res) => messageController.transcribeAudio(req, res)));
 
 // Traduzir mensagem
 router.post('/translate', asyncHandler((req, res) => messageController.translateMessage(req, res)));

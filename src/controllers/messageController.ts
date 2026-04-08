@@ -10,10 +10,29 @@ import { Message } from '../types';
 export class MessageController {
   async sendMessage(req: AuthenticatedRequest, res: Response) {
     try {
-      const { recipientId, type, content, mediaUrl, scheduledAt } = req.body;
+      const { recipientId, content, scheduledAt } = req.body;
+      let { type } = req.body;
+      let mediaUrl = req.body.mediaUrl;
       const senderId = req.userId!;
+      
+      // Se um arquivo foi enviado via Multer, detectar tipo por MIME
+      if (req.file) {
+        const mime = req.file.mimetype;
+        const relPath = req.file.path.replace(/\\/g, '/').replace(process.cwd().replace(/\\/g, '/'), '');
 
-      if (!recipientId || !type || !content) {
+        if (mime.startsWith('image/')) {
+          type = type || 'IMAGE';
+          mediaUrl = `/uploads/images/${req.file.filename}`;
+        } else if (mime.startsWith('video/')) {
+          type = type || 'VIDEO';
+          mediaUrl = `/uploads/videos/${req.file.filename}`;
+        } else {
+          type = type || 'AUDIO';
+          mediaUrl = `/uploads/audios/${req.file.filename}`;
+        }
+      }
+
+      if (!recipientId || !type || (!content && !mediaUrl)) {
         throw new AppError(400, 'Campos obrigatórios faltando', 'MISSING_FIELDS');
       }
 
@@ -35,35 +54,59 @@ export class MessageController {
         }
       }
 
-      // Lógica de Filtragem de Palavras-Chave (Exemplo: Bloquear "spam" e "oferta")
-      const blockedKeywords = ['spam', 'oferta', 'promoção', 'ganhe dinheiro'];
-      const lowerCaseContent = content.toLowerCase();
-      const isBlocked = blockedKeywords.some(keyword => lowerCaseContent.includes(keyword));
-
-      if (isBlocked) {
-        throw new AppError(403, 'Mensagem bloqueada por conter palavras-chave proibidas', 'BLOCKED_KEYWORD');
+      // Lógica de Filtragem de Palavras-Chave (apenas para texto)
+      if (type === 'TEXT' && content) {
+        const blockedKeywords = ['spam', 'oferta', 'promoção', 'ganhe dinheiro'];
+        const lowerCaseContent = content.toLowerCase();
+        const isBlocked = blockedKeywords.some(keyword => lowerCaseContent.includes(keyword));
+        if (isBlocked) {
+          throw new AppError(403, 'Mensagem bloqueada por conter palavras-chave proibidas', 'BLOCKED_KEYWORD');
+        }
       }
 
-      // Criar mensagem
+      // Interceptar Áudio para Transcrição Automática (Whisper)
+      let finalContent = content || '';
+      if (type === 'AUDIO' && mediaUrl) {
+        try {
+          const path = require('path');
+          let localPath = mediaUrl;
+          if (localPath.startsWith('/uploads')) {
+             localPath = path.join(process.cwd(), localPath.replace(/^\//, ''));
+          } else if (localPath.startsWith('http')) {
+             const url = new URL(localPath);
+             localPath = path.join(process.cwd(), url.pathname.replace(/^\//, ''));
+          } else {
+             localPath = path.join(process.cwd(), localPath.replace(/^\//, ''));
+          }
+          console.log('[Audio Pipeline] Transcrevendo áudio via Whisper:', localPath);
+          finalContent = await translationService.transcribeAudio(localPath);
+        } catch (err) {
+          console.error('[Audio Pipeline] Falha na transcrição Whisper, pulando:', err);
+          finalContent = content || '[Áudio]';
+        }
+      }
+
+      // Criar mensagem original no BD com a Transcrição atachada
       const message = await messageService.createMessage({
         senderId,
         recipientId,
         type,
-        content,
+        content: finalContent,
         mediaUrl,
         scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
       });
 
       // Traduzir mensagem se necessário
-      let translatedMessage = message;
+      let translatedMessage: any = { ...message };
       try {
         if (type === 'TEXT' || type === 'AUDIO') {
           const senderLanguage = (await userService.getUserById(senderId))?.preferredLanguage || 'pt-BR';
           const recipientLanguage = recipient.preferredLanguage;
 
-          if (senderLanguage !== recipientLanguage) {
+          if (senderLanguage !== recipientLanguage && finalContent) {
+            console.log(`[Translate Pipeline] Traduzindo "${finalContent}" de ${senderLanguage} para ${recipientLanguage}`);
             const translatedContent = await translationService.translateText(
-              content,
+              finalContent,
               senderLanguage,
               recipientLanguage
             );
@@ -71,7 +114,7 @@ export class MessageController {
             // Salvar tradução
             await translationService.saveTranslation(
               message.id,
-              content,
+              finalContent,
               senderLanguage,
               translatedContent,
               recipientLanguage
@@ -125,12 +168,8 @@ export class MessageController {
         parseInt(offset as string)
       );
 
-      // Marcar como entregue
-      for (const msg of messages) {
-        if (msg.recipientId === userId && msg.status === 'SENT') {
-          await messageService.markAsDelivered(msg.id);
-        }
-      }
+      // O usuário abriu a conversa, portanto as mensagens foram lidas
+      await messageService.markConversationAsRead(userId, otherUserId);
 
       res.json({
         success: true,

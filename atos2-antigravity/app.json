@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Atos2",
+    "slug": "atos2-antigravity",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "atos2",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0e27"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.atos2.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0e27",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.atos2.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-video",
+      "expo-audio"
+    ],
+    "updates": {
+      "enabled": false
+    },
+    "extra": {
+      "apiUrl": "https://moody-mammals-crash.loca.lt/api"
+    }
+  }
+}

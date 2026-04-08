@@ -32,5 +32,8 @@ router.put('/:productId', asyncHandler((req, res) => productController.updatePro
 // Deletar produto
 router.delete('/:productId', asyncHandler((req, res) => productController.deleteProduct(req, res)));
 
+// Obter estatísticas de avaliações de um produto
+router.get('/:productId/review-stats', asyncHandler((req, res) => productController.getProductReviewStats(req, res)));
+
 export default router;
 

@@ -26,8 +26,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
 
 # Instalar apenas dependências de produção
-#RUN npm install --omit=dev
-RUN npm install
+RUN npm install --omit=dev
 
 # Expor a porta do backend
 EXPOSE 3000

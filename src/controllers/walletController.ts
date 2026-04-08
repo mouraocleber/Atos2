@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { WalletService } from '../services/walletService';
 import { SUPPORTED_CURRENCIES, POPULAR_CURRENCIES, MAJOR_CURRENCIES } from '../config/currencies';
+import userService from '../services/userService';
+import currencyService from '../services/currencyService';
 
 const service = new WalletService();
 
@@ -16,10 +18,10 @@ export class WalletController {
         return res.status(401).json({ error: 'Não autenticado' });
       }
 
-      const wallet = await service.getWallet(userId);
+      let wallet = await service.getWallet(userId);
 
       if (!wallet) {
-        return res.status(404).json({ error: 'Carteira não encontrada' });
+        wallet = await service.createWallet(userId, 'BRL');
       }
 
       res.json({
@@ -41,14 +43,25 @@ export class WalletController {
         return res.status(401).json({ error: 'Não autenticado' });
       }
 
-      const { currency } = req.query;
-      const balance = await service.getBalance(userId, currency as string);
+      let wallet = await service.getWallet(userId);
+      if (!wallet) {
+        wallet = await service.createWallet(userId, 'BRL');
+      }
+
+      const user = await userService.getUserById(userId);
+      // Se não houver req.query.currency, assume moeda base do país do perfil do usuário
+      const localCurrencyCode = (req.query.currency as string) || (user?.country === 'BR' ? 'BRL' : 'USD');
+
+      // Calcular conversões correspondentes
+      const localBalance = await service.convertCurrency(wallet.balance, wallet.currency, localCurrencyCode);
+      const globalBalance = await currencyService.convertToGlobal(wallet.balance, wallet.currency);
 
       res.json({
         success: true,
         data: {
-          balance,
-          currency: currency || 'BRL'
+          original: { balance: wallet.balance, currency: wallet.currency },
+          local: { balance: Math.round(localBalance * 100) / 100, currency: localCurrencyCode },
+          global: { balance: Math.round(globalBalance * 10000) / 10000, currency: 'G' }
         }
       });
     } catch (error: any) {
@@ -66,10 +79,19 @@ export class WalletController {
         return res.status(401).json({ error: 'Não autenticado' });
       }
 
-      const { amount, currency } = req.body;
+      const { amount, currency, password } = req.body;
 
       if (!amount || amount <= 0) {
         return res.status(400).json({ error: 'Valor inválido' });
+      }
+
+      if (!password) {
+        return res.status(401).json({ error: 'Senha obrigatória para movimentação na carteira' });
+      }
+
+      const isPasswordValid = await userService.verifyPassword(userId, password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: 'Senha incorreta para realizar a movimentação' });
       }
 
       const wallet = await service.addBalance(userId, amount, currency || 'BRL');
@@ -101,7 +123,8 @@ export class WalletController {
         currency,
         convertedCurrency,
         description,
-        reference
+        reference,
+        password
       } = req.body;
 
       if (!type || !amount || !currency) {
@@ -112,9 +135,31 @@ export class WalletController {
         return res.status(400).json({ error: 'Valor deve ser maior que zero' });
       }
 
+      if (!password) {
+        return res.status(401).json({ error: 'Senha obrigatória para registrar a transação' });
+      }
+
+      const isPasswordValid = await userService.verifyPassword(userId, password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: 'Senha incorreta para registrar a transação' });
+      }
+
+      let finalToUserId = toUserId;
+      if (toUserId && !toUserId.includes('-')) {
+        const { query } = require('../config/database');
+        const userRes = await query(
+          'SELECT id FROM users WHERE nickname ILIKE $1 OR email ILIKE $1 OR phone = $1',
+          [toUserId]
+        );
+        if (userRes.rows.length === 0) {
+          return res.status(404).json({ error: 'Usuário de destino não encontrado. Use o nickname, email ou telefone exato.' });
+        }
+        finalToUserId = userRes.rows[0].id;
+      }
+
       const transaction = await service.createTransaction({
         fromUserId: userId,
-        toUserId,
+        toUserId: finalToUserId,
         type,
         amount,
         currency,
@@ -313,6 +358,16 @@ export class WalletController {
       }
 
       const { transactionId } = req.params;
+      const { password } = req.body;
+
+      if (!password) {
+        return res.status(401).json({ error: 'Senha obrigatória para realizar o reembolso' });
+      }
+
+      const isPasswordValid = await userService.verifyPassword(userId, password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: 'Senha incorreta para realizar o reembolso' });
+      }
 
       const refund = await service.refundTransaction(transactionId, userId);
 

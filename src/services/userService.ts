@@ -47,7 +47,35 @@ export class UserService {
       ]
     );
 
-    return result.rows[0];
+    return this.mapUser(result.rows[0]) as User;
+  }
+
+  private mapUser(row: any): User | null {
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      phone: row.phone,
+      nickname: row.nickname,
+      name: row.name,
+      personType: row.person_type,
+      cpf: row.cpf,
+      cep: row.cep,
+      address: row.address,
+      city: row.city,
+      state: row.state,
+      country: row.country,
+      profileImage: row.profile_image,
+      status: row.status,
+      preferredLanguage: row.preferred_language,
+      balance: parseFloat(row.balance || '0'),
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastLogin: row.last_login,
+      blockNonContacts: row.block_non_contacts,
+      role: row.role,
+    } as User;
   }
 
   async getUserById(userId: string): Promise<User | null> {
@@ -59,7 +87,7 @@ export class UserService {
       [userId]
     );
 
-    return result.rows[0] || null;
+    return this.mapUser(result.rows[0]);
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
@@ -71,7 +99,31 @@ export class UserService {
       [email]
     );
 
-    return result.rows[0] || null;
+    return this.mapUser(result.rows[0]);
+  }
+
+  async getUserByPhone(phone: string): Promise<User | null> {
+    const result = await query(
+      `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
+              address, city, state, country, profile_image, status, preferred_language, balance, 
+              is_active, created_at, updated_at, last_login, block_non_contacts, role
+       FROM users WHERE phone = $1`,
+      [phone]
+    );
+
+    return this.mapUser(result.rows[0]);
+  }
+
+  async getUserByCpf(cpf: string): Promise<User | null> {
+    const result = await query(
+      `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
+              address, city, state, country, profile_image, status, preferred_language, balance, 
+              is_active, created_at, updated_at, last_login, block_non_contacts, role
+       FROM users WHERE cpf = $1`,
+      [cpf]
+    );
+
+    return this.mapUser(result.rows[0]);
   }
 
   async getUserByNickname(nickname: string): Promise<User | null> {
@@ -83,7 +135,7 @@ export class UserService {
       [nickname]
     );
 
-    return result.rows[0] || null;
+    return this.mapUser(result.rows[0]);
   }
 
   async getUserPasswordHash(userId: string): Promise<string | null> {
@@ -102,7 +154,7 @@ export class UserService {
   }
 
   async updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
-    const allowedFields = ['nickname', 'name', 'profile_image', 'status', 'latitude', 'longitude', 'block_non_contacts', 'role', 'is_active'];
+    const allowedFields = ['nickname', 'name', 'profile_image', 'status', 'latitude', 'longitude', 'block_non_contacts', 'role', 'is_active', 'preferred_language'];
     const updateFields: string[] = [];
     const updateValues: any[] = [];
     let paramIndex = 1;
@@ -129,7 +181,7 @@ export class UserService {
       updateValues
     );
 
-    return result.rows[0] || null;
+    return this.mapUser(result.rows[0]);
   }
 
   async updateBalance(userId: string, amount: number): Promise<number | null> {
@@ -153,7 +205,7 @@ export class UserService {
       [`%${query_text}%`, limit]
     );
 
-    return result.rows;
+    return result.rows.map(row => this.mapUser(row) as User);
   }
 
   private async fetchAddressByCEP(cep: string): Promise<{
@@ -181,6 +233,14 @@ export class UserService {
         state: '',
       };
     }
+  }
+
+  async updatePassword(userId: string, newPassword: string): Promise<void> {
+    const passwordHash = await hashPassword(newPassword);
+    await query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [passwordHash, userId]
+    );
   }
 }
 

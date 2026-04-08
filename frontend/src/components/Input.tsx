@@ -10,6 +10,8 @@ interface InputProps {
   className?: string;
   label?: string;
   error?: string;
+  maxLength?: number;
+  step?: string;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -21,6 +23,8 @@ export const Input: React.FC<InputProps> = ({
   className = '',
   label,
   error,
+  maxLength,
+  step,
 }) => {
   return (
     <div className="input-wrapper">
@@ -31,6 +35,8 @@ export const Input: React.FC<InputProps> = ({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        maxLength={maxLength}
+        step={step}
         className={`input ${error ? 'input-error' : ''} ${className}`}
       />
       {error && <span className="input-error-text">{error}</span>}

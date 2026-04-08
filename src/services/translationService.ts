@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import axios from 'axios';
 import { query } from '../config/database';
 import { Translation } from '../types';
 
@@ -28,6 +29,8 @@ export class TranslationService {
     ['ar-SA', 'Arabic'],
   ]);
 
+
+
   async translateText(
     text: string,
     sourceLanguage: string,
@@ -38,51 +41,45 @@ export class TranslationService {
     }
 
     try {
-      const sourceLangName = this.supportedLanguages.get(sourceLanguage) || sourceLanguage;
-      const targetLangName = this.supportedLanguages.get(targetLanguage) || targetLanguage;
+      // O DeepL usa um formato de target_lang ligeiramente diferente
+      // Ele só aceita sub-regiões para PT e EN. Os demais (FR, ES, DE, IT) devem ter apenas 2 letras.
+      const targetLangParts = targetLanguage.split('-');
+      let deeplTargetLang = targetLangParts[0].toUpperCase();
+      const validDeepLRegions = ['PT-BR', 'PT-PT', 'EN-US', 'EN-GB'];
+      const combinedTarget = targetLangParts.length > 1 ? `${deeplTargetLang}-${targetLangParts[1].toUpperCase()}` : deeplTargetLang;
+      
+      if (validDeepLRegions.includes(combinedTarget)) {
+        deeplTargetLang = combinedTarget;
+      }
 
-      const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: `Translate the following text from ${sourceLangName} to ${targetLangName}. 
-Only return the translated text, nothing else.
+      const sourceLangParts = sourceLanguage.split('-');
+      const deeplSourceLang = sourceLangParts[0].toUpperCase();
 
-Text: "${text}"`,
+      // Verificar se há chave do DeepL
+      if (!process.env.DEEPL_API_KEY) {
+        console.warn('DEEPL_API_KEY não configurada. Usando retorno de fallback.');
+        return `[Trans. Pending] ${text}`;
+      }
+
+      const response = await axios.post(
+        'https://api-free.deepl.com/v2/translate',
+        new URLSearchParams({
+          text: text,
+          source_lang: deeplSourceLang,
+          target_lang: deeplTargetLang,
+        }),
+        {
+          headers: {
+            'Authorization': `DeepL-Auth-Key ${process.env.DEEPL_API_KEY}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
-        ],
-      });
+        }
+      );
 
-      const translatedText = completion.choices[0].message.content || text;
-      return translatedText.trim();
+      return response.data.translations[0].text;
     } catch (error) {
-      console.error('Erro na tradução:', error);
+      console.error('Erro na tradução DeepL:', error);
       throw new Error('Falha ao traduzir mensagem');
-    }
-  }
-
-  async detectLanguage(text: string): Promise<string> {
-    try {
-      const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        max_tokens: 10,
-        messages: [
-          {
-            role: 'user',
-            content: `Detect the language of the following text and respond with only the language code (e.g., en-US, pt-BR, es-ES).
-
-Text: "${text}"`,
-          },
-        ],
-      });
-
-      const detectedLanguage = completion.choices[0].message.content?.trim() || 'pt-BR';
-      return detectedLanguage;
-    } catch (error) {
-      console.error('Erro ao detectar idioma:', error);
-      return 'pt-BR'; // Padrão
     }
   }
 
@@ -106,7 +103,8 @@ Text: "${text}"`,
     originalContent: string,
     originalLanguage: string,
     translatedContent: string,
-    translatedLanguage: string
+    translatedLanguage: string,
+    providerOverride?: string
   ): Promise<Translation> {
     const result = await query(
       `INSERT INTO translations (
@@ -121,7 +119,7 @@ Text: "${text}"`,
         originalLanguage,
         translatedContent,
         translatedLanguage,
-        'openai',
+        providerOverride || 'deepl',
       ]
     );
 

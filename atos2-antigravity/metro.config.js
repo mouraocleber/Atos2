@@ -1,0 +1,12 @@
+const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
+
+const config = getDefaultConfig(__dirname);
+
+// Force resolution of react-dom/client for the Expo 55 bundler
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  'react-dom/client': path.resolve(__dirname, 'node_modules/react-dom/client.js'),
+};
+
+module.exports = config;

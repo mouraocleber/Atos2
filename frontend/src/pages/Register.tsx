@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import api from '../utils/api';
 import './Register.css';
 
 type RegistrationStep = 'contact' | 'verification' | 'profile' | 'success';
@@ -20,12 +21,14 @@ export const Register: React.FC = () => {
     cpf: '',
     cep: '',
     preferredLanguage: 'pt-BR',
+    password: '', // Adicionado para o backend
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleSendCode = async () => {
     try {
       setIsVerifying(true);
+      setMessage(null);
 
       if (contactMethod === 'phone' && !phone.trim()) {
         setMessage({ type: 'error', text: 'Por favor, insira um telefone válido' });
@@ -37,8 +40,11 @@ export const Register: React.FC = () => {
         return;
       }
 
-      // Simular envio de código
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Chamada real para o backend
+      await api.post('/auth/send-code', {
+        [contactMethod]: contactMethod === 'phone' ? phone : email,
+        method: contactMethod
+      });
 
       setMessage({
         type: 'success',
@@ -46,8 +52,9 @@ export const Register: React.FC = () => {
       });
 
       setStep('verification');
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Erro ao enviar código. Tente novamente.' });
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'Erro ao enviar código. Tente novamente.';
+      setMessage({ type: 'error', text: errorMsg });
     } finally {
       setIsVerifying(false);
     }
@@ -56,19 +63,24 @@ export const Register: React.FC = () => {
   const handleVerifyCode = async () => {
     try {
       setIsVerifying(true);
+      setMessage(null);
 
       if (!verificationCode.trim() || verificationCode.length !== 6) {
         setMessage({ type: 'error', text: 'Por favor, insira um código válido' });
         return;
       }
 
-      // Simular verificação
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Chamada real para o backend
+      await api.post('/auth/verify-code', {
+        [contactMethod]: contactMethod === 'phone' ? phone : email,
+        code: verificationCode
+      });
 
       setMessage({ type: 'success', text: 'Código verificado com sucesso!' });
       setStep('profile');
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Código inválido. Tente novamente.' });
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'Código inválido. Tente novamente.';
+      setMessage({ type: 'error', text: errorMsg });
     } finally {
       setIsVerifying(false);
     }
@@ -77,19 +89,31 @@ export const Register: React.FC = () => {
   const handleCompleteProfile = async () => {
     try {
       setIsVerifying(true);
+      setMessage(null);
 
-      if (!profileData.name || !profileData.nickname || !profileData.cpf || !profileData.cep) {
+      if (!profileData.name || !profileData.nickname || !profileData.cpf || !profileData.cep || !profileData.password) {
         setMessage({ type: 'error', text: 'Por favor, preencha todos os campos obrigatórios' });
         return;
       }
 
-      // Simular criação de conta
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Chamada real para o backend
+      const response = await api.post('/auth/register', {
+        ...profileData,
+        email: contactMethod === 'email' ? email : `${profileData.nickname}@atos2.com`,
+        phone: contactMethod === 'phone' ? phone : '',
+      });
+
+      // Salvar token se retornado
+      if (response.data.data?.token) {
+        localStorage.setItem('token', response.data.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      }
 
       setMessage({ type: 'success', text: 'Conta criada com sucesso!' });
       setStep('success');
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Erro ao criar conta. Tente novamente.' });
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'Erro ao criar conta. Tente novamente.';
+      setMessage({ type: 'error', text: errorMsg });
     } finally {
       setIsVerifying(false);
     }
@@ -282,6 +306,16 @@ export const Register: React.FC = () => {
                   placeholder="00000-000"
                 />
 
+                <Input
+                  label="Senha"
+                  type="password"
+                  value={profileData.password}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, password: e.target.value })
+                  }
+                  placeholder="********"
+                />
+
                 <div>
                   <label>Idioma Preferido</label>
                   <select
@@ -338,7 +372,7 @@ export const Register: React.FC = () => {
                 </p>
               </div>
 
-              <Button variant="primary" onClick={() => (window.location.href = '/')}>
+              <Button variant="primary" onClick={() => (window.location.href = '/chat/main')}>
                 ➤ Ir para o App
               </Button>
             </div>
@@ -346,11 +380,11 @@ export const Register: React.FC = () => {
 
           {/* Progress Indicator */}
           <div className="progress-indicator">
-            <div className={`step ${step === 'contact' ? 'active' : step !== 'contact' ? 'completed' : ''}`}>
+            <div className={`step ${step === 'contact' ? 'active' : (step as string) !== 'contact' ? 'completed' : ''}`}>
               1
             </div>
-            <div className={`line ${step !== 'contact' ? 'active' : ''}`}></div>
-            <div className={`step ${step === 'verification' ? 'active' : step !== 'verification' && step !== 'contact' ? 'completed' : ''}`}>
+            <div className={`line ${(step as string) !== 'contact' ? 'active' : ''}`}></div>
+            <div className={`step ${step === 'verification' ? 'active' : (step as string) !== 'verification' && (step as string) !== 'contact' ? 'completed' : ''}`}>
               2
             </div>
             <div className={`line ${step === 'profile' || step === 'success' ? 'active' : ''}`}></div>
@@ -365,4 +399,3 @@ export const Register: React.FC = () => {
 };
 
 export default Register;
-
