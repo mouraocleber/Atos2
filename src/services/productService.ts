@@ -11,6 +11,7 @@ export interface Product {
   imageUrl?: string;
   stock: number;
   status: 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED';
+  isReservable?: boolean;
   createdAt: Date;
   updatedAt: Date;
   // Avaliações (opcionais)
@@ -27,14 +28,15 @@ export class ProductService {
     description?: string,
     category?: string,
     imageUrl?: string,
-    stock?: number
+    stock?: number,
+    isReservable?: boolean
   ): Promise<Product> {
     try {
       const result = await query(
-        `INSERT INTO products (user_id, name, description, price, category, image_url, stock, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id, user_id, name, description, price, category, image_url, stock, status, created_at, updated_at`,
-        [userId, name, description || null, price, category || null, imageUrl || null, stock || 0, 'ACTIVE']
+        `INSERT INTO products (user_id, name, description, price, category, image_url, stock, status, is_reservable)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING id, user_id, name, description, price, category, image_url, stock, status, is_reservable, created_at, updated_at`,
+        [userId, name, description || null, price, category || null, imageUrl || null, stock || 0, 'ACTIVE', isReservable === undefined ? true : isReservable]
       );
 
       const product = result.rows[0];
@@ -49,6 +51,7 @@ export class ProductService {
         imageUrl: product.image_url,
         stock: product.stock,
         status: product.status,
+        isReservable: product.is_reservable,
         createdAt: product.created_at,
         updatedAt: product.updated_at,
       };
@@ -61,7 +64,7 @@ export class ProductService {
   // Obter produtos do usuário
   async getUserProducts(userId: string, status?: string): Promise<Product[]> {
     try {
-      let sql = `SELECT id, user_id, name, description, price, category, image_url, stock, status, created_at, updated_at
+      let sql = `SELECT id, user_id, name, description, price, category, image_url, stock, status, is_reservable, created_at, updated_at
                  FROM products
                  WHERE user_id = $1`;
       const params: any[] = [userId];
@@ -74,7 +77,7 @@ export class ProductService {
       sql += ` ORDER BY created_at DESC`;
 
       const result = await query(sql, params);
-      const products = result.rows.map((row: any) => ({
+      const products: Product[] = result.rows.map((row: any) => ({
         id: row.id,
         userId: row.user_id,
         name: row.name,
@@ -84,6 +87,7 @@ export class ProductService {
         imageUrl: row.image_url,
         stock: row.stock,
         status: row.status,
+        isReservable: row.is_reservable,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
@@ -124,11 +128,42 @@ export class ProductService {
     }
   }
 
+  // Obter produtos da Vitrine (Marketplace Público)
+  async getMarketplaceProducts(): Promise<Product[]> {
+    try {
+      let sql = `SELECT id, user_id, name, description, price, category, image_url, stock, status, is_reservable, created_at, updated_at
+                 FROM products
+                 WHERE status = 'ACTIVE' AND stock > 0
+                 ORDER BY created_at DESC LIMIT 50`;
+
+      const result = await query(sql);
+      const products: Product[] = result.rows.map((row: any) => ({
+        id: row.id,
+        userId: row.user_id,
+        name: row.name,
+        description: row.description,
+        price: row.price,
+        category: row.category,
+        imageUrl: row.image_url,
+        stock: row.stock,
+        status: row.status,
+        isReservable: row.is_reservable,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+
+      return products;
+    } catch (error) {
+      console.error('Erro ao obter marketplace:', error);
+      throw error;
+    }
+  }
+
   // Obter produto específico
   async getProductById(productId: string): Promise<Product | null> {
     try {
       const result = await query(
-        `SELECT id, user_id, name, description, price, category, image_url, stock, status, created_at, updated_at
+        `SELECT id, user_id, name, description, price, category, image_url, stock, status, is_reservable, created_at, updated_at
          FROM products
          WHERE id = $1`,
         [productId]
@@ -150,6 +185,7 @@ export class ProductService {
         imageUrl: row.image_url,
         stock: row.stock,
         status: row.status,
+        isReservable: row.is_reservable,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       };
@@ -218,6 +254,10 @@ export class ProductService {
         fields.push(`status = $${paramCount++}`);
         values.push(updates.status);
       }
+      if (updates.isReservable !== undefined) {
+        fields.push(`is_reservable = $${paramCount++}`);
+        values.push(updates.isReservable);
+      }
 
       if (fields.length === 0) {
         return this.getProductById(productId);
@@ -230,7 +270,7 @@ export class ProductService {
         `UPDATE products 
          SET ${fields.join(', ')}
          WHERE id = $${paramCount} AND user_id = $${paramCount + 1}
-         RETURNING id, user_id, name, description, price, category, image_url, stock, status, created_at, updated_at`,
+         RETURNING id, user_id, name, description, price, category, image_url, stock, status, is_reservable, created_at, updated_at`,
         values
       );
 
@@ -250,6 +290,7 @@ export class ProductService {
         imageUrl: row.image_url,
         stock: row.stock,
         status: row.status,
+        isReservable: row.is_reservable,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       };
@@ -278,7 +319,7 @@ export class ProductService {
   async getProductsByCategory(userId: string, category: string): Promise<Product[]> {
     try {
       const result = await query(
-        `SELECT id, user_id, name, description, price, category, image_url, stock, status, created_at, updated_at
+        `SELECT id, user_id, name, description, price, category, image_url, stock, status, is_reservable, created_at, updated_at
          FROM products 
          WHERE user_id = $1 AND category = $2 AND status = 'ACTIVE'
          ORDER BY created_at DESC`,
@@ -295,6 +336,7 @@ export class ProductService {
         imageUrl: row.image_url,
         stock: row.stock,
         status: row.status,
+        isReservable: row.is_reservable,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));

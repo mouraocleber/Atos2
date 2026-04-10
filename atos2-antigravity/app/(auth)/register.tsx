@@ -9,6 +9,7 @@ import { useLocalization } from '../../contexts/LocalizationContext';
 import { LANGUAGES, LanguageCode } from '../../constants/translations';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { isValidEmail, isValidPhone, isValidCPF, isValidCNPJ } from '../../utils/validators';
 
 type Step = 'language' | 'contact' | 'profile';
 
@@ -39,13 +40,16 @@ export default function RegisterScreen() {
   }
 
   function handleNextStep() {
-    if (contactMethod === 'email' && !email.trim()) {
-      Alert.alert(t('signup_title'), t('email'));
-      return;
-    }
-    if (contactMethod === 'phone' && !phone.trim()) {
-      Alert.alert(t('signup_title'), t('phone'));
-      return;
+    if (contactMethod === 'email') {
+      if (!email.trim() || !isValidEmail(email.trim())) {
+        Alert.alert(t('signup_title'), 'Por favor, insira um e-mail válido.');
+        return;
+      }
+    } else {
+      if (!phone.trim() || !isValidPhone(phone.trim())) {
+        Alert.alert(t('signup_title'), 'Por favor, insira um telefone válido com código de área.');
+        return;
+      }
     }
     setStep('profile');
   }
@@ -55,6 +59,17 @@ export default function RegisterScreen() {
       Alert.alert(t('signup_title'), t('signup_subtitle'));
       return;
     }
+
+    if (personType === 'PF' && !isValidCPF(cpf.trim())) {
+      Alert.alert(t('signup_title'), 'Atenção. O CPF informado não é válido da Receita Federal.');
+      return;
+    }
+
+    if (personType === 'PJ' && !isValidCNPJ(cpf.trim())) {
+      Alert.alert(t('signup_title'), 'Atenção. O CNPJ informado não é válido da Receita Federal.');
+      return;
+    }
+
     if (password.length < 8) {
       Alert.alert(t('signup_title'), t('password_hint'));
       return;
@@ -160,7 +175,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder={t('email')}
-                  placeholderTextColor={Colors.dark.textMuted}
+                  placeholderTextColor={Colors.light.textMuted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -170,7 +185,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder={t('phone')}
-                  placeholderTextColor={Colors.dark.textMuted}
+                  placeholderTextColor={Colors.light.textMuted}
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
@@ -192,14 +207,14 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('name')}
-                placeholderTextColor={Colors.dark.textMuted}
+                placeholderTextColor={Colors.light.textMuted}
                 value={name}
                 onChangeText={setName}
               />
               <TextInput
                 style={styles.input}
                 placeholder={t('nickname')}
-                placeholderTextColor={Colors.dark.textMuted}
+                placeholderTextColor={Colors.light.textMuted}
                 value={nickname}
                 onChangeText={setNickname}
                 autoCapitalize="none"
@@ -223,7 +238,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('cpf')}
-                placeholderTextColor={Colors.dark.textMuted}
+                placeholderTextColor={Colors.light.textMuted}
                 value={cpf}
                 onChangeText={setCpf}
                 keyboardType="numeric"
@@ -231,7 +246,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('cep')}
-                placeholderTextColor={Colors.dark.textMuted}
+                placeholderTextColor={Colors.light.textMuted}
                 value={cep}
                 onChangeText={setCep}
                 keyboardType="numeric"
@@ -239,7 +254,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('password')}
-                placeholderTextColor={Colors.dark.textMuted}
+                placeholderTextColor={Colors.light.textMuted}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -251,7 +266,7 @@ export default function RegisterScreen() {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color={Colors.dark.text} />
+                  <ActivityIndicator color={Colors.light.text} />
                 ) : (
                   <Text style={styles.btnSubmitText}>{t('register')}</Text>
                 )}
@@ -284,7 +299,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
+    backgroundColor: Colors.light.background,
   },
   keyboardView: { flex: 1 },
   scrollContent: {
@@ -302,13 +317,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   title: {
-    color: '#fff',
+    color: Colors.primary,
     fontSize: FontSize.xxl,
     fontWeight: '800',
     textAlign: 'center',
   },
   subtitle: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.md,
     textAlign: 'center',
     marginTop: Spacing.xs,
@@ -324,7 +339,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Colors.dark.surfaceLight,
+    backgroundColor: Colors.light.surfaceLight,
   },
   progressActive: {
     backgroundColor: Colors.primary,
@@ -332,24 +347,24 @@ const styles = StyleSheet.create({
   progressLine: {
     width: 30,
     height: 2,
-    backgroundColor: Colors.dark.surfaceLight,
+    backgroundColor: Colors.light.surfaceLight,
   },
   form: {
     gap: Spacing.md,
   },
   langItem: {
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   langItemActive: {
     borderColor: Colors.primary,
     backgroundColor: Colors.primary + '10',
   },
   langText: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.md,
     fontWeight: '500',
     textAlign: 'center',
@@ -359,17 +374,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   input: {
-    backgroundColor: Colors.dark.surface,
-    color: '#fff',
+    backgroundColor: Colors.light.surface,
+    color: Colors.light.text,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     fontSize: FontSize.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   methodToggle: {
     flexDirection: 'row',
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.md,
     padding: 4,
     marginBottom: Spacing.sm,
@@ -381,10 +396,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   methodBtnActive: {
-    backgroundColor: Colors.dark.surfaceLight,
+    backgroundColor: Colors.light.surfaceLight,
   },
   methodBtnText: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontWeight: '600',
   },
   methodBtnTextActive: {
@@ -400,7 +415,7 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
     alignItems: 'center',
   },
   typeBtnActive: {
@@ -408,7 +423,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '10',
   },
   typeBtnText: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontSize: FontSize.sm,
   },
   typeBtnTextActive: {
@@ -437,7 +452,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnBackText: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
@@ -447,7 +462,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xxl,
   },
   footerText: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
   },
   footerLink: {

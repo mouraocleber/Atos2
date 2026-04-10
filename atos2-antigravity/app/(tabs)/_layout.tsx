@@ -38,9 +38,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="products"
         options={{
-          title: 'Produtos',
-          headerTitle: 'Produtos',
-          tabBarIcon: ({ color }) => <Feather name="package" size={24} color={color} />,
+          title: 'Vitrine',
+          headerTitle: 'Loja e Vitrine',
+          tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={24} color={color} />,
         }}
       />
       <Tabs.Screen

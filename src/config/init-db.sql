@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   balance DECIMAL(15, 2) DEFAULT 0.00,
   is_active BOOLEAN DEFAULT TRUE,
+  is_searchable BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   last_login TIMESTAMP,
@@ -35,6 +36,27 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 CREATE INDEX IF NOT EXISTS idx_users_cpf ON users(cpf);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
+
+-- Tabela de Palavras-Chave de Busca Promovida
+CREATE TABLE IF NOT EXISTS user_search_keywords (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  keyword VARCHAR(100) NOT NULL,
+  position INT NOT NULL CHECK (position >= 1 AND position <= 5),
+  price_paid DECIMAL(15, 2),
+  active BOOLEAN DEFAULT TRUE,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_keywords_keyword ON user_search_keywords(keyword);
+CREATE INDEX IF NOT EXISTS idx_user_keywords_active ON user_search_keywords(active);
+
+CREATE TRIGGER update_user_search_keywords_updated_at BEFORE UPDATE ON user_search_keywords
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 
 -- Tabela de Grupos de Produtos
 CREATE TABLE IF NOT EXISTS product_groups (

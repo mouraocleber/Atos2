@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Alert, ActivityIndicator
 } from 'react-native';
+import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
@@ -22,6 +23,19 @@ export default function SearchScreen() {
   const [results, setResults] = useState<UserResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Permission to access location was denied');
+        return;
+      }
+      let loc = await Location.getCurrentPositionAsync({});
+      setLocation(loc);
+    })();
+  }, []);
 
   async function handleSearch() {
     if (!query.trim()) return;
@@ -30,10 +44,13 @@ export default function SearchScreen() {
     try {
       // Backend aceita params separados: name, nickname, email
       const q = query.trim();
-      const response = await api.get(`/users/search`, {
-        params: { name: q, nickname: q }
-      });
-      // O backend retorna { data: { users: [...] } }
+      const params: any = { query: q };
+      if (location) {
+        params.lat = location.coords.latitude;
+        params.lon = location.coords.longitude;
+      }
+      
+      const response = await api.get(`/users/search`, { params });
       const raw = response.data.data;
       setResults(raw?.users || raw || []);
     } catch (e: any) {
@@ -44,17 +61,28 @@ export default function SearchScreen() {
     }
   }
 
-  const renderUser = ({ item }: { item: UserResult }) => (
+  const renderUser = ({ item, index }: { item: UserResult, index: number }) => {
+    // Patrocínio (usando a prop isPromoted ou o primeiro resultado como default de busca paga caso a engine esteja rodando)
+    const isPromoted = (item as any).isPromoted || index === 0;
+
+    return (
     <TouchableOpacity
-      style={styles.userCard}
+      style={[styles.userCard, isPromoted && { borderColor: Colors.secondary, backgroundColor: Colors.secondary + '05', borderWidth: 2 }]}
       activeOpacity={0.7}
       onPress={() => router.push({ pathname: '/chat/[id]', params: { id: item.id, name: item.name, status: 'offline' } })}
     >
-      <View style={styles.userAvatar}>
+      <View style={[styles.userAvatar, isPromoted && { backgroundColor: Colors.secondary }]}>
         <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
       </View>
       <View style={styles.userInfo}>
-        <Text style={styles.userName}>{item.name}</Text>
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+          <Text style={styles.userName}>{item.name}</Text>
+          {isPromoted && (
+             <View style={{backgroundColor: Colors.secondary + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: BorderRadius.sm}}>
+               <Text style={{color: Colors.secondaryDark, fontSize: 10, fontWeight: '800'}}>💎 Patrocinado</Text>
+             </View>
+          )}
+        </View>
         <Text style={styles.userNickname}>@{item.nickname}</Text>
         {item.city && (
           <Text style={styles.userLocation}>📍 {item.city}, {item.state}</Text>
@@ -64,7 +92,8 @@ export default function SearchScreen() {
         <Text style={styles.typeBadgeText}>{item.personType}</Text>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -72,7 +101,7 @@ export default function SearchScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Nome, apelido, email..."
-          placeholderTextColor={Colors.dark.textMuted}
+          placeholderTextColor={Colors.light.textMuted}
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={handleSearch}
@@ -91,13 +120,13 @@ export default function SearchScreen() {
         ListEmptyComponent={
           searched ? (
             <View style={styles.emptyContainer}>
-              <Feather name="search" size={48} color={Colors.dark.textMuted} />
+              <Feather name="search" size={48} color={Colors.light.textMuted} />
               <Text style={styles.emptyTitle}>Nenhum resultado</Text>
               <Text style={styles.emptySubtitle}>Tente buscar por outro nome ou apelido</Text>
             </View>
           ) : (
             <View style={styles.emptyContainer}>
-              <Feather name="users" size={48} color={Colors.dark.textMuted} />
+              <Feather name="users" size={48} color={Colors.light.textMuted} />
               <Text style={styles.emptyTitle}>Buscar Usuários</Text>
               <Text style={styles.emptySubtitle}>Encontre pessoas por nome, apelido ou email</Text>
             </View>
@@ -109,7 +138,7 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.dark.background },
+  container: { flex: 1, backgroundColor: Colors.light.background },
   searchRow: {
     flexDirection: 'row',
     padding: Spacing.md,
@@ -117,14 +146,14 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.full,
     padding: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontSize: FontSize.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   searchBtn: {
     width: 48,
@@ -138,13 +167,13 @@ const styles = StyleSheet.create({
   listContent: { padding: Spacing.md, gap: Spacing.sm },
   userCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     gap: Spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   userAvatar: {
     width: 48,
@@ -156,9 +185,9 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: '#fff', fontSize: FontSize.xl, fontWeight: '700' },
   userInfo: { flex: 1 },
-  userName: { color: Colors.dark.text, fontSize: FontSize.md, fontWeight: '600' },
-  userNickname: { color: Colors.dark.textMuted, fontSize: FontSize.sm },
-  userLocation: { color: Colors.dark.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
+  userName: { color: Colors.light.text, fontSize: FontSize.md, fontWeight: '600' },
+  userNickname: { color: Colors.light.textMuted, fontSize: FontSize.sm },
+  userLocation: { color: Colors.light.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
   typeBadge: {
     backgroundColor: Colors.secondary + '20',
     paddingHorizontal: Spacing.sm,
@@ -168,6 +197,6 @@ const styles = StyleSheet.create({
   typeBadgeText: { color: Colors.secondary, fontSize: FontSize.xs, fontWeight: '700' },
   emptyContainer: { alignItems: 'center', padding: Spacing.xxl, gap: Spacing.sm },
   emptyIcon: { fontSize: 48 },
-  emptyTitle: { color: Colors.dark.text, fontSize: FontSize.lg, fontWeight: '700' },
-  emptySubtitle: { color: Colors.dark.textSecondary, fontSize: FontSize.sm, textAlign: 'center' },
+  emptyTitle: { color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700' },
+  emptySubtitle: { color: Colors.light.textSecondary, fontSize: FontSize.sm, textAlign: 'center' },
 });

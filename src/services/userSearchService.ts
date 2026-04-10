@@ -11,6 +11,9 @@ export interface UserSearchFilters {
   personType?: 'PF' | 'PJ';
   limit?: number;
   offset?: number;
+  query?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface UserSearchResult {
@@ -43,66 +46,96 @@ export class UserSearchService {
     let params: any[] = [];
     let paramIndex = 1;
 
-    // Buscar por nickname
+    // Apenas ativos e pesquisáveis
+    whereConditions.push(`u.is_active = true AND u.is_searchable = true`);
+
     if (filters.nickname) {
-      whereConditions.push(`nickname ILIKE $${paramIndex}`);
+      whereConditions.push(`u.nickname ILIKE $${paramIndex}`);
       params.push(`%${filters.nickname}%`);
       paramIndex++;
     }
 
-    // Buscar por nome
     if (filters.name) {
-      whereConditions.push(`name ILIKE $${paramIndex}`);
+      whereConditions.push(`u.name ILIKE $${paramIndex}`);
       params.push(`%${filters.name}%`);
       paramIndex++;
     }
 
-    // Buscar por email
     if (filters.email) {
-      whereConditions.push(`email ILIKE $${paramIndex}`);
+      whereConditions.push(`u.email ILIKE $${paramIndex}`);
       params.push(`%${filters.email}%`);
       paramIndex++;
     }
 
-    // Buscar por telefone
     if (filters.phone) {
-      whereConditions.push(`phone ILIKE $${paramIndex}`);
+      whereConditions.push(`u.phone ILIKE $${paramIndex}`);
       params.push(`%${filters.phone}%`);
       paramIndex++;
     }
 
-    // Filtrar por cidade
     if (filters.city) {
-      whereConditions.push(`city ILIKE $${paramIndex}`);
+      whereConditions.push(`u.city ILIKE $${paramIndex}`);
       params.push(`%${filters.city}%`);
       paramIndex++;
     }
 
-    // Filtrar por estado
     if (filters.state) {
-      whereConditions.push(`state = $${paramIndex}`);
+      whereConditions.push(`u.state = $${paramIndex}`);
       params.push(filters.state.toUpperCase());
       paramIndex++;
     }
 
-    // Filtrar por tipo de pessoa
     if (filters.personType) {
-      whereConditions.push(`person_type = $${paramIndex}`);
+      whereConditions.push(`u.person_type = $${paramIndex}`);
       params.push(filters.personType);
       paramIndex++;
     }
 
-    // Se nenhum filtro foi fornecido, retornar vazio
-    if (whereConditions.length === 0) {
-      return [];
+    // Filtro global (query => busca palavra chave, name, nickname, email, phone, cep)
+    let queryParamIndex = -1;
+    if (filters.query) {
+      queryParamIndex = paramIndex;
+      whereConditions.push(`(
+        u.nickname ILIKE $${queryParamIndex} OR 
+        u.name ILIKE $${queryParamIndex} OR 
+        u.email ILIKE $${queryParamIndex} OR 
+        u.phone ILIKE $${queryParamIndex} OR 
+        u.cep ILIKE $${queryParamIndex} OR
+        uk.keyword ILIKE $${queryParamIndex}
+      )`);
+      params.push(`%${filters.query}%`);
+      paramIndex++;
     }
 
-    // Construir query com join na view de reputação
-    const whereClause = whereConditions.join(' OR ');
+    // Filtro espacial (Raio de 50km fixo se latitude e longitude forem informados)
+    if (filters.latitude && filters.longitude) {
+      // Fórmula de Haversine para 50km
+      whereConditions.push(`
+        (6371 * acos(cos(radians($${paramIndex})) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians($${paramIndex + 1})) + sin(radians($${paramIndex})) * sin(radians(u.latitude)))) <= 50
+      `);
+      params.push(filters.latitude, filters.longitude);
+      paramIndex += 2;
+    }
+
+    const whereClause = whereConditions.join(' AND ');
+    
+    // Regra de ORDER BY
+    // Se existir "query", ranqueamos quem comprou a palavra-chave que bate com o termo via uk.position. 
+    // Logo, "uk.position = 1" vem primeiro (se houver match real).
+    let orderClause = `ORDER BY u.created_at DESC`;
+    if (filters.query) {
+       orderClause = `ORDER BY 
+         CASE WHEN uk.keyword ILIKE $${queryParamIndex} AND uk.active = true AND uk.expires_at > CURRENT_TIMESTAMP THEN uk.position ELSE 99 END ASC,
+         COALESCE(r.average_rating, 0) DESC,
+         u.name ASC
+       `;
+    }
+
     const sql = `
-      SELECT
+      SELECT DISTINCT ON (u.id)
         u.id, u.email, u.phone, u.nickname, u.name, u.person_type, u.cep, u.address,
         u.city, u.state, u.profile_image, u.status, u.preferred_language, u.created_at,
+        u.latitude, u.longitude, u.is_searchable,
         COALESCE(r.average_rating, 0) as average_rating,
         COALESCE(r.total_reviews, 0) as total_reviews,
         CASE
@@ -111,17 +144,39 @@ export class UserSearchService {
           WHEN COALESCE(r.average_rating, 0) >= 4.0 THEN 'CONFIÁVEL'
           WHEN COALESCE(r.average_rating, 0) >= 3.5 THEN 'INICIANTE'
           ELSE 'NOVO'
-        END as rating_level
+        END as rating_level,
+        ${filters.query ? `CASE WHEN uk.keyword ILIKE $${queryParamIndex} AND uk.active = true AND uk.expires_at > CURRENT_TIMESTAMP THEN uk.position ELSE 99 END` : '99'} as keyword_rank,
+        COALESCE(r.average_rating, 0) as sort_rating,
+        u.name as sort_name
       FROM users u
       LEFT JOIN user_reputation r ON u.id = r.user_id
-      WHERE ${whereClause} AND u.is_active = true
-      ORDER BY u.created_at DESC
+      LEFT JOIN user_search_keywords uk ON u.id = uk.user_id AND uk.active = true AND uk.expires_at > CURRENT_TIMESTAMP
+      WHERE ${whereClause}
+      ORDER BY u.id
+    `;
+
+    // Wrapping into an outer query so we can apply the ORDER BY with DISTINCT ON and LIMIT/OFFSET
+    // PostgreSQL require ORDER BY on DISTINCT ON columns first, so we use a subquery.
+    const outerSql = `
+      SELECT * FROM (${sql}) AS sub
+      ${orderClause.replace('u.created_at', 'created_at').replace('uk.keyword', 'keyword').replace('r.average_rating', 'average_rating').replace('u.name', 'sort_name')}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    // Corrige os alias do order by no outer query
+    const finalOrderClause = filters.query 
+        ? `ORDER BY keyword_rank ASC, sort_rating DESC, sort_name ASC`
+        : `ORDER BY created_at DESC`;
+
+    const finalSql = `
+      SELECT * FROM (${sql}) AS sub
+      ${finalOrderClause}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     params.push(limit, offset);
 
-    const result = await query(sql, params);
+    const result = await query(finalSql, params);
 
     return result.rows.map((row: any) => ({
       id: row.id,
@@ -141,6 +196,7 @@ export class UserSearchService {
       averageRating: parseFloat(row.average_rating),
       totalReviews: parseInt(row.total_reviews),
       ratingLevel: row.rating_level,
+      isSearchable: row.is_searchable
     }));
   }
 
@@ -208,7 +264,7 @@ export class UserSearchService {
         END as rating_level
        FROM users u
        LEFT JOIN user_reputation r ON u.id = r.user_id
-       WHERE u.is_active = true
+       WHERE u.is_active = true AND u.is_searchable = true
        ORDER BY u.created_at DESC
        LIMIT $1`,
       [limit]
@@ -236,7 +292,7 @@ export class UserSearchService {
   }
 
   async getUsersCount(): Promise<number> {
-    const result = await query('SELECT COUNT(*) as count FROM users WHERE is_active = true');
+    const result = await query('SELECT COUNT(*) as count FROM users WHERE is_active = true AND is_searchable = true');
     return parseInt(result.rows[0]?.count || 0);
   }
 }

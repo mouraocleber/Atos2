@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import productService from '../services/productService';
 import productReviewService from '../services/productReviewService';
 import { AppError } from '../middleware/errorHandler';
+import productReservationService from '../services/productReservationService';
 
 export class ProductController {
   async createProduct(req: AuthenticatedRequest, res: Response) {
@@ -48,6 +49,22 @@ export class ProductController {
       res.json({
         success: true,
         message: 'Produtos do usuário',
+        data: {
+          products,
+          count: products.length,
+        },
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getMarketplaceProducts(req: AuthenticatedRequest, res: Response) {
+    try {
+      const products = await productService.getMarketplaceProducts();
+      res.json({
+        success: true,
+        message: 'Produtos da Vitrine',
         data: {
           products,
           count: products.length,
@@ -236,6 +253,72 @@ export class ProductController {
       });
     } catch (error: any) {
       throw error instanceof AppError ? error : new AppError(500, 'Erro ao obter estatísticas', 'INTERNAL_ERROR');
+    }
+  }
+
+  /**
+   * Reservar um produto
+   * POST /api/products/:productId/reserve
+   */
+  async reserveProduct(req: AuthenticatedRequest, res: Response) {
+    try {
+      const buyerId = req.userId!;
+      const { productId } = req.params;
+      const { reservationDate, reservationTime, observation } = req.body;
+
+      if (!productId || !reservationDate || !reservationTime) {
+        throw new AppError(400, 'Data, horário e ID do produto são obrigatórios', 'MISSING_RESERVATION_DATA');
+      }
+
+      const reservation = await productReservationService.reserveProduct(
+        buyerId,
+        productId,
+        reservationDate,
+        reservationTime,
+        observation
+      );
+
+      res.json({
+        success: true,
+        message: 'Produto reservado com sucesso',
+        data: reservation,
+      });
+    } catch (error: any) {
+      throw error instanceof AppError ? error : new AppError(400, error.message, 'RESERVATION_ERROR');
+    }
+  }
+
+  /**
+   * Minhas reservas (como comprador)
+   * GET /api/products/reservations/my-purchases
+   */
+  async getMyPurchases(req: AuthenticatedRequest, res: Response) {
+    try {
+      const buyerId = req.userId!;
+      const reservations = await productReservationService.getBuyerReservations(buyerId);
+      res.json({
+        success: true,
+        data: reservations,
+      });
+    } catch (error: any) {
+      throw error instanceof AppError ? error : new AppError(500, 'Erro interno', 'INTERNAL_ERROR');
+    }
+  }
+
+  /**
+   * Reservas que anunciantes receberam (como vendedor)
+   * GET /api/products/reservations/my-sales
+   */
+  async getMySales(req: AuthenticatedRequest, res: Response) {
+    try {
+      const sellerId = req.userId!;
+      const reservations = await productReservationService.getSellerReservations(sellerId);
+      res.json({
+        success: true,
+        data: reservations,
+      });
+    } catch (error: any) {
+      throw error instanceof AppError ? error : new AppError(500, 'Erro interno', 'INTERNAL_ERROR');
     }
   }
 }

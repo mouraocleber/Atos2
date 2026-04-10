@@ -319,6 +319,28 @@ export class AuthController {
       throw error;
     }
   }
+
+  async uploadProfileImage(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId!;
+      if (!req.file) {
+        throw new AppError(400, 'Nenhuma imagem foi enviada.', 'MISSING_FILE');
+      }
+
+      // O arquivo foi salvo. Mapeamos a URL estática:
+      const imageUrl = `/uploads/images/${req.file.filename}`;
+
+      await userService.updateUser(userId, { profile_image: imageUrl } as any);
+
+      res.json({
+        success: true,
+        message: 'Foto de perfil atualizada com sucesso!',
+        data: { profileImage: imageUrl },
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 export default new AuthController();

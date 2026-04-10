@@ -1,16 +1,20 @@
 import messageService from './messageService';
 import { Message } from '../types';
+import { Server as SocketIOServer } from 'socket.io';
 
 const SCHEDULE_INTERVAL = 60000; // 1 minuto
 
 export class MessageScheduler {
+  private io: SocketIOServer | null = null;
   private intervalId: NodeJS.Timeout | null = null;
 
-  public start() {
+  public start(io?: SocketIOServer) {
     if (this.intervalId) {
       console.log('MessageScheduler já está rodando.');
       return;
     }
+
+    if (io) this.io = io;
 
     console.log('Iniciando MessageScheduler...');
     this.intervalId = setInterval(this.processScheduledMessages.bind(this), SCHEDULE_INTERVAL);
@@ -39,7 +43,10 @@ export class MessageScheduler {
           
           if (sentMessage) {
             console.log(`Mensagem agendada ID ${message.id} enviada com sucesso.`);
-            // TODO: Adicionar lógica de notificação em tempo real (WebSockets/Push Notifications)
+            if (this.io) {
+              this.io.emit('message', sentMessage);
+              this.io.emit('new_message', sentMessage);
+            }
           } else {
             console.warn(`Falha ao enviar mensagem agendada ID ${message.id}. Status não era SCHEDULED.`);
           }

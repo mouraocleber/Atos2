@@ -11,6 +11,9 @@ router.use(authenticateToken);
 // Criar produto
 router.post('/', asyncHandler((req, res) => productController.createProduct(req, res)));
 
+// Obter produtos do marketplace (Todos os ativos)
+router.get('/marketplace', asyncHandler((req, res) => productController.getMarketplaceProducts(req, res)));
+
 // Obter produtos do usuário
 router.get('/', asyncHandler((req, res) => productController.getUserProducts(req, res)));
 
@@ -22,6 +25,15 @@ router.get('/categories', asyncHandler((req, res) => productController.getUserCa
 
 // Obter produtos por categoria
 router.get('/category/:category', asyncHandler((req, res) => productController.getProductsByCategory(req, res)));
+
+// Obter histórico de compras (reservas)
+router.get('/reservations/my-purchases', asyncHandler((req, res) => productController.getMyPurchases(req, res)));
+
+// Obter histórico de vendas (reservas)
+router.get('/reservations/my-sales', asyncHandler((req, res) => productController.getMySales(req, res)));
+
+// Reservar um produto
+router.post('/:productId/reserve', asyncHandler((req, res) => productController.reserveProduct(req, res)));
 
 // Obter produto específico
 router.get('/:productId', asyncHandler((req, res) => productController.getProductById(req, res)));

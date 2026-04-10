@@ -6,6 +6,7 @@ export interface Report {
   reporterId: string;
   reportedUserId?: string;
   messageId?: string;
+  productId?: string;
   reportType: ReportType;
   description: string;
   status: ReportStatus;
@@ -20,12 +21,13 @@ export class ReportService {
     reportType: ReportType,
     description: string,
     reportedUserId?: string,
-    messageId?: string
+    messageId?: string,
+    productId?: string
   ): Promise<Report> {
     try {
-      // Validar que pelo menos um dos dois foi fornecido
-      if (!reportedUserId && !messageId) {
-        throw new Error('Você deve denunciar um usuário ou uma mensagem');
+      // Validar que pelo menos um dos alvos foi fornecido
+      if (!reportedUserId && !messageId && !productId) {
+        throw new Error('Você deve denunciar um usuário, um produto ou uma mensagem');
       }
 
       // Validar que não está denunciando a si mesmo
@@ -40,19 +42,34 @@ export class ReportService {
 
       // Criar denúncia
       const result = await query(
-        `INSERT INTO reports (reporter_id, reported_user_id, message_id, report_type, description)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, reporter_id, reported_user_id, message_id, report_type, description, status, created_at`,
-        [reporterId, reportedUserId || null, messageId || null, reportType, description]
+        `INSERT INTO reports (reporter_id, reported_user_id, message_id, product_id, report_type, description)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, reporter_id, reported_user_id, message_id, product_id, report_type, description, status, created_at`,
+        [reporterId, reportedUserId || null, messageId || null, productId || null, reportType, description]
       );
 
       const report = result.rows[0];
+
+      // Verificação de bloqueio automático por denúncias recorrentes de produto
+      if (productId) {
+        const countRes = await query('SELECT COUNT(*) as sum FROM reports WHERE product_id = $1 AND status != \'DISMISSED\'', [productId]);
+        const total = parseInt(countRes.rows[0].sum);
+        if (total >= 3) {
+          const prodInfo = await query('SELECT user_id FROM products WHERE id = $1', [productId]);
+          if (prodInfo.rows.length > 0) {
+            const sellerId = prodInfo.rows[0].user_id;
+            await query("UPDATE products SET status = 'INACTIVE', is_active = false WHERE id = $1", [productId]);
+            await query("UPDATE users SET is_active = false, status = 'BLOCKED' WHERE id = $1", [sellerId]);
+          }
+        }
+      }
 
       return {
         id: report.id,
         reporterId: report.reporter_id,
         reportedUserId: report.reported_user_id,
         messageId: report.message_id,
+        productId: report.product_id,
         reportType: report.report_type,
         description: report.description,
         status: report.status,
@@ -67,7 +84,7 @@ export class ReportService {
   async getReportById(reportId: string): Promise<Report | null> {
     try {
       const result = await query(
-        `SELECT id, reporter_id, reported_user_id, message_id, report_type, description, 
+        `SELECT id, reporter_id, reported_user_id, message_id, product_id, report_type, description, 
                 status, resolution_notes, created_at, resolved_at
          FROM reports WHERE id = $1`,
         [reportId]
@@ -84,6 +101,7 @@ export class ReportService {
         reporterId: report.reporter_id,
         reportedUserId: report.reported_user_id,
         messageId: report.message_id,
+        productId: report.product_id,
         reportType: report.report_type,
         description: report.description,
         status: report.status,
@@ -100,7 +118,7 @@ export class ReportService {
   async getUserReports(userId: string): Promise<Report[]> {
     try {
       const result = await query(
-        `SELECT id, reporter_id, reported_user_id, message_id, report_type, description, 
+        `SELECT id, reporter_id, reported_user_id, message_id, product_id, report_type, description, 
                 status, resolution_notes, created_at, resolved_at
          FROM reports WHERE reporter_id = $1
          ORDER BY created_at DESC
@@ -113,6 +131,7 @@ export class ReportService {
         reporterId: row.reporter_id,
         reportedUserId: row.reported_user_id,
         messageId: row.message_id,
+        productId: row.product_id,
         reportType: row.report_type,
         description: row.description,
         status: row.status,
@@ -129,7 +148,7 @@ export class ReportService {
   async getReportsByUser(reportedUserId: string): Promise<Report[]> {
     try {
       const result = await query(
-        `SELECT id, reporter_id, reported_user_id, message_id, report_type, description, 
+        `SELECT id, reporter_id, reported_user_id, message_id, product_id, report_type, description, 
                 status, resolution_notes, created_at, resolved_at
          FROM reports WHERE reported_user_id = $1
          ORDER BY created_at DESC
@@ -142,6 +161,7 @@ export class ReportService {
         reporterId: row.reporter_id,
         reportedUserId: row.reported_user_id,
         messageId: row.message_id,
+        productId: row.product_id,
         reportType: row.report_type,
         description: row.description,
         status: row.status,

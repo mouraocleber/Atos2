@@ -5,6 +5,7 @@ export interface MessagePayload {
   type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'FILE';
   content: string;
   mediaUrl?: string;
+  scheduledAt?: string;
 }
 
 export interface SendMessageResponse {
@@ -41,6 +42,9 @@ export const sendMessage = async (payload: MessagePayload, mediaUri?: string): P
     formData.append('recipientId', payload.recipientId);
     formData.append('type', payload.type);
     formData.append('content', payload.content || '');
+    if (payload.scheduledAt) {
+      formData.append('scheduledAt', payload.scheduledAt);
+    }
 
     const mime = getMimeType(payload.type, mediaUri);
     const ext = mediaUri.split('.').pop() || 'm4a';

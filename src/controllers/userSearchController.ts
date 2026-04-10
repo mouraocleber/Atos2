@@ -6,11 +6,11 @@ import { AppError } from '../middleware/errorHandler';
 export class UserSearchController {
   async searchUsers(req: AuthenticatedRequest, res: Response) {
     try {
-      const { nickname, name, email, phone, city, state, personType, limit = 20, offset = 0 } = req.query;
+      const { nickname, name, email, phone, city, state, personType, limit = 20, offset = 0, query, lat, lon } = req.query;
 
       // Validar que pelo menos um filtro foi fornecido
-      if (!nickname && !name && !email && !phone && !city && !state && !personType) {
-        throw new AppError(400, 'Forneça pelo menos um critério de busca', 'MISSING_SEARCH_CRITERIA');
+      if (!nickname && !name && !email && !phone && !city && !state && !personType && !query) {
+        throw new AppError(400, 'Forneça pelo menos um critério de busca (ex: query)', 'MISSING_SEARCH_CRITERIA');
       }
 
       const results = await userSearchService.searchUsers({
@@ -21,6 +21,9 @@ export class UserSearchController {
         city: city as string,
         state: state as string,
         personType: personType as 'PF' | 'PJ',
+        query: query as string,
+        latitude: lat ? parseFloat(lat as string) : undefined,
+        longitude: lon ? parseFloat(lon as string) : undefined,
         limit: parseInt(limit as string) || 20,
         offset: parseInt(offset as string) || 0,
       });
@@ -202,6 +205,36 @@ export class UserSearchController {
         success: true,
         message: 'Total de usuários',
         data: { count },
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Endpoint para habilitar/desabilitar aparição na busca (Opt-out)
+  async updateSearchVisibility(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId;
+      const { isSearchable } = req.body;
+
+      if (!userId) {
+        throw new AppError(401, 'Usuário não autenticado', 'UNAUTHORIZED');
+      }
+
+      if (typeof isSearchable !== 'boolean') {
+        throw new AppError(400, 'isSearchable deve ser boolean', 'INVALID_PARAM');
+      }
+
+      // Atualizar o flag is_searchable na tabela users
+      const { query } = require('../config/database');
+      await query(`UPDATE users SET is_searchable = $1 WHERE id = $2`, [isSearchable, userId]);
+
+      res.json({
+        success: true,
+        message: 'Visibilidade na busca atualizada.',
+        data: {
+            isSearchable
+        }
       });
     } catch (error) {
       throw error;

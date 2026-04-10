@@ -20,6 +20,8 @@ import productReviewRoutes from './routes/productReviews';
 import walletRoutes from './routes/wallet';
 import paymentRoutes from './routes/paymentRoutes';
 import adminRoutes from './routes/admin';
+import keywordRoutes from './routes/keywordRoutes';
+import callRoutes from './routes/calls';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -65,6 +67,8 @@ app.use('/api/products/reviews', productReviewRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/payments', paymentRoutes); // Mercado Pago Integration
 app.use('/api/admin', adminRoutes);
+app.use('/api/keywords', keywordRoutes);
+app.use('/api/calls', callRoutes);
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {
@@ -107,7 +111,7 @@ import currencyService from './services/currencyService';
 httpServer.listen(port, async () => {
   console.log(`🚀 Servidor rodando em http://localhost:${port}`);
   console.log(`📊 Health check: http://localhost:${port}/health`);
-  messageScheduler.start();
+  messageScheduler.start(io);
   try {
     await currencyService.initialize();
   } catch (e) {

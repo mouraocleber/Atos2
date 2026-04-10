@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 
 // Configure o IP do seu computador aqui para o Expo Go conseguir conectar.
 // No seu terminal, rode 'ipconfig' e procure pelo Endereço IPv4.
-const BASE_URL = 'http://10.240.96.86:3001/api';
+const BASE_URL = 'http://10.213.69.86:3001/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

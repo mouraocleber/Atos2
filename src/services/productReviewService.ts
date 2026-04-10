@@ -33,6 +33,16 @@ export class ProductReviewService {
       throw new Error('Você já avaliou este produto');
     }
 
+    // Verificar se comprou/reservou
+    const reservationCheck = await query(
+      "SELECT id FROM product_reservations WHERE buyer_id = $1 AND product_id = $2 AND status = 'COMPLETED'",
+      [reviewerId, productId]
+    );
+
+    if (reservationCheck.rows.length === 0) {
+      throw new Error('Avaliação permitida apenas para quem comprou ou reservou este item');
+    }
+
     try {
       const result = await query(
         `INSERT INTO product_reviews (reviewer_id, product_id, rating, comment, transaction_id, status)

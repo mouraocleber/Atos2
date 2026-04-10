@@ -104,11 +104,11 @@ export default function ChatScreen() {
       {/* Search */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputWrapper}>
-          <Feather name="search" size={20} color={Colors.dark.textMuted} style={styles.searchIcon} />
+          <Feather name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar conversas..."
-            placeholderTextColor={Colors.dark.textMuted}
+            placeholderTextColor={Colors.light.textMuted}
             value={search}
             onChangeText={setSearch}
           />
@@ -132,7 +132,7 @@ export default function ChatScreen() {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Feather name="message-square" size={48} color={Colors.dark.textMuted} />
+            <Feather name="message-square" size={48} color={Colors.light.textMuted} />
             <Text style={styles.emptyTitle}>Nenhuma conversa</Text>
             <Text style={styles.emptySubtitle}>Busque usuários para começar a conversar</Text>
           </View>
@@ -150,7 +150,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
+    backgroundColor: Colors.light.background,
   },
   searchContainer: {
     padding: Spacing.md,
@@ -159,10 +159,10 @@ const styles = StyleSheet.create({
   searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
     paddingHorizontal: Spacing.md,
   },
   searchIcon: {
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     paddingVertical: Spacing.md,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontSize: FontSize.md,
   },
   welcomeBar: {
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   welcomeText: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
   },
   welcomeName: {
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     gap: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border + '40',
+    borderBottomColor: Colors.light.border + '40',
   },
   avatarContainer: {
     position: 'relative',
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: Colors.success,
     borderWidth: 2,
-    borderColor: Colors.dark.background,
+    borderColor: Colors.light.background,
   },
   conversationInfo: {
     flex: 1,
@@ -235,13 +235,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   conversationName: {
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontSize: FontSize.md,
     fontWeight: '600',
     flex: 1,
   },
   time: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontSize: FontSize.xs,
   },
   messageRow: {
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   lastMessage: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
     flex: 1,
   },
@@ -275,12 +275,12 @@ const styles = StyleSheet.create({
   },
   emptyIcon: { fontSize: 48 },
   emptyTitle: {
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontSize: FontSize.lg,
     fontWeight: '700',
   },
   emptySubtitle: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
     textAlign: 'center',
   },

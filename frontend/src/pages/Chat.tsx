@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import api from '../utils/api';
 import './Chat.css';
 
@@ -65,6 +66,27 @@ export const Chat: React.FC = () => {
     };
 
     loadChat();
+
+    // Socket.io Real-time connection e Sons
+    const socket = io('http://localhost:3000'); // Assume o servidor backend local
+    socket.on('message', (incomingMessage: Message) => {
+       setMessages((prevMessages) => {
+         // Evitar duplicações caso a API e o socket choquem (não inserimos repetidas)
+         if (!prevMessages.find(m => m.id === incomingMessage.id)) {
+           // Tocar o som maravilhoso 'Ruash' caso a msg seja recebida
+           if (incomingMessage.senderId === userId || incomingMessage.senderId === 'other') {
+              const ring = new Audio('/ruash.wav');
+              ring.play().catch(e => console.warn('Bloqueio do navegador para Autoplay:', e));
+           }
+           return [...prevMessages, incomingMessage];
+         }
+         return prevMessages;
+       });
+    });
+
+    return () => {
+       socket.disconnect();
+    };
   }, [userId]);
 
   const handleSendMessage = async (e: React.FormEvent) => {

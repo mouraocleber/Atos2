@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 
-const ips = ['172.20.10.8', '26.52.34.169'];
+const ips = ['10.213.69.86', '172.20.10.8', '26.52.34.169'];
 
 async function generate() {
   console.log('\nGerando QR Codes...\n');

@@ -10,7 +10,8 @@ import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
-// Removed expo-av temporarily to fix crash
+import { useAudioPlayer } from 'expo-audio';
+import { io, Socket } from 'socket.io-client';
 
 import { getConversation, sendMessage } from '../../services/chat';
 import api from '../../services/api';
@@ -42,14 +43,44 @@ export default function ChatRoomScreen() {
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
+  // Call / VoIP Modal
+  const [callModalVisible, setCallModalVisible] = useState(false);
+  const [callStatus, setCallStatus] = useState<string>('');
+
+  // Schedule Message
+  const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+
   // Áudio
   const [recording, setRecording] = useState<any | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const soundRef = useRef<any | null>(null);
 
+  // Som nativo de RUASH
+  const ruashPlayer = useAudioPlayer(require('../../assets/sounds/ruash.wav'));
+  const prevMessagesLength = useRef(0);
+
   const flatListRef = useRef<FlatList>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Lógica de disparo do SOM
+  useEffect(() => {
+    if (messages.length > prevMessagesLength.current) {
+      const lastMsg = messages[messages.length - 1];
+      const isMe = lastMsg?.senderId === user?.id || (lastMsg as any)?.sender_id === user?.id;
+      
+      if (!isMe && prevMessagesLength.current > 0) {
+        try {
+          ruashPlayer?.play();
+        } catch(e) {
+          console.log("Erro ao tocar ruash:", e);
+        }
+      }
+      prevMessagesLength.current = messages.length;
+    }
+  }, [messages, user]);
 
   // Pulso animado no botão de gravação
   useEffect(() => {
@@ -80,11 +111,46 @@ export default function ChatRoomScreen() {
     }
   }, [id]);
 
+  const socketRef = useRef<Socket | null>(null);
+
   useEffect(() => {
     loadLiveMessages(true);
-    const interval = setInterval(() => loadLiveMessages(false), 3000);
-    return () => clearInterval(interval);
-  }, [loadLiveMessages]);
+    
+    // Conecta ao Socket.io nativo
+    const socket = io(SERVER_MEDIA_BASE, {
+      transports: ['websocket'],
+      query: { userId: user?.id }
+    });
+    
+    socketRef.current = socket;
+
+    socket.on('newMessage', (newMsg: Message) => {
+      // Adiciona mensagem instantânea em milissegundos
+      setMessages(prev => {
+        const out = [...prev, newMsg];
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        return out;
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [loadLiveMessages, user?.id, id]);
+
+  // ─── VOICE CALL ─────────────────────────────────────────────────────────────
+  const handleStartCall = async () => {
+    setCallModalVisible(true);
+    setCallStatus('Conectando à Central Voz...');
+    try {
+      const response = await api.get('/calls/token');
+      if (response.data?.data?.token) {
+        setTimeout(() => setCallStatus(`Chamando ${name}... \n(Requer build nativo p/ som)`), 1500);
+      }
+    } catch(e: any) {
+      setTimeout(() => setCallStatus('API Twilio não conectada no .env'), 1500);
+    }
+  };
 
   // ─── SEND TEXT ───────────────────────────────────────────────────────────────
   const handleSendText = async () => {
@@ -92,8 +158,23 @@ export default function ChatRoomScreen() {
     if (!textToSend || isSending) return;
     setInputValue('');
     setIsSending(true);
+
+    let scheduledIso: string | undefined;
+    if (scheduleDate && scheduleTime) {
+       try {
+         const [day, month, year] = scheduleDate.split('/');
+         const [hour, min] = scheduleTime.split(':');
+         if (year && hour) {
+            const dateObj = new Date(parseInt(year), parseInt(month)-1, parseInt(day), parseInt(hour), parseInt(min));
+            scheduledIso = dateObj.toISOString();
+         }
+       } catch(e) {}
+    }
+
     try {
-      await sendMessage({ recipientId: id as string, type: 'TEXT', content: textToSend });
+      await sendMessage({ recipientId: id as string, type: 'TEXT', content: textToSend, scheduledAt: scheduledIso });
+      setScheduleDate('');
+      setScheduleTime('');
       loadLiveMessages(true);
     } catch (err) {
       console.log('Error sending text', err);
@@ -298,12 +379,12 @@ export default function ChatRoomScreen() {
             <View style={[styles.actionPopover, isMe ? styles.actionPopoverMe : styles.actionPopoverOther]}>
               {transContent && (
                 <TouchableOpacity style={styles.actionBtn}>
-                  <Feather name="globe" size={16} color={Colors.dark.text} />
+                  <Feather name="globe" size={16} color={Colors.light.text} />
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.actionBtn}><Feather name="smile" size={16} color={Colors.dark.text} /></TouchableOpacity>
-              {isMe && <TouchableOpacity style={styles.actionBtn}><Feather name="edit-2" size={16} color={Colors.dark.text} /></TouchableOpacity>}
-              <TouchableOpacity style={styles.actionBtn}><Feather name="flag" size={16} color={Colors.dark.text} /></TouchableOpacity>
+              <TouchableOpacity style={styles.actionBtn}><Feather name="smile" size={16} color={Colors.light.text} /></TouchableOpacity>
+              {isMe && <TouchableOpacity style={styles.actionBtn}><Feather name="edit-2" size={16} color={Colors.light.text} /></TouchableOpacity>}
+              <TouchableOpacity style={styles.actionBtn}><Feather name="flag" size={16} color={Colors.light.text} /></TouchableOpacity>
             </View>
           )}
         </View>
@@ -316,7 +397,7 @@ export default function ChatRoomScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={24} color={Colors.dark.text} />
+          <Feather name="arrow-left" size={24} color={Colors.light.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerName} numberOfLines={1}>{name || 'Chat'}</Text>
@@ -325,7 +406,7 @@ export default function ChatRoomScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerActionBtn}><Feather name="phone" size={20} color={Colors.primary} /></TouchableOpacity>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={handleStartCall}><Feather name="phone" size={20} color={Colors.primary} /></TouchableOpacity>
           <TouchableOpacity style={styles.headerActionBtn}><Feather name="video" size={20} color={Colors.primary} /></TouchableOpacity>
           <TouchableOpacity style={styles.headerActionBtn}><Feather name="more-vertical" size={20} color={Colors.primary} /></TouchableOpacity>
         </View>
@@ -390,7 +471,11 @@ export default function ChatRoomScreen() {
         {/* Input Bar */}
         <View style={styles.inputContainer}>
           <TouchableOpacity style={styles.inputAction} onPress={() => setShowMediaMenu(true)}>
-            <Feather name="paperclip" size={24} color={showMediaMenu ? Colors.primary : Colors.dark.textSecondary} />
+            <Feather name="paperclip" size={24} color={showMediaMenu ? Colors.primary : Colors.light.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.inputAction} onPress={() => setScheduleModalVisible(true)}>
+            <Feather name="clock" size={24} color={(scheduleDate && scheduleTime) ? Colors.secondaryDark : Colors.light.textSecondary} />
           </TouchableOpacity>
 
           <TextInput
@@ -398,7 +483,7 @@ export default function ChatRoomScreen() {
             value={inputValue}
             onChangeText={setInputValue}
             placeholder="Digite uma mensagem..."
-            placeholderTextColor={Colors.dark.textMuted}
+            placeholderTextColor={Colors.light.textMuted}
             multiline
           />
 
@@ -429,22 +514,71 @@ export default function ChatRoomScreen() {
           </View>
         )}
       </KeyboardAvoidingView>
+
+      {/* VoIP Call Screen */}
+      <Modal visible={callModalVisible} animationType="slide" transparent>
+        <View style={{flex: 1, backgroundColor: Colors.dark.background, justifyContent: 'center', alignItems: 'center'}}>
+           <View style={{alignItems: 'center', marginBottom: 40}}>
+              <View style={{width: 100, height: 100, borderRadius: 50, backgroundColor: Colors.primary+'20', justifyContent: 'center', alignItems: 'center', marginBottom: 20}}>
+                 <Feather name="phone-outgoing" size={40} color={Colors.primary} />
+              </View>
+              <Text style={{color: '#fff', fontSize: 24, fontWeight: 'bold'}}>{name}</Text>
+              <Text style={{color: Colors.light.textMuted, fontSize: 16, marginTop: 12, textAlign: 'center'}}>{callStatus}</Text>
+           </View>
+           
+           <TouchableOpacity style={{width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.error, justifyContent: 'center', alignItems: 'center', marginTop: 80}} onPress={() => setCallModalVisible(false)}>
+              <Feather name="phone-off" size={28} color="#fff" />
+           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Schedule Message Modal */}
+      <Modal visible={scheduleModalVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.mediaMenuOverlay}>
+          <View style={styles.mediaMenuSheet}>
+            <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
+               <Feather name="clock" size={24} color={Colors.primary} style={{marginRight: 12}} />
+               <Text style={styles.mediaMenuTitle}>Agendar Mensagem</Text>
+            </View>
+            <Text style={{color: Colors.light.textMuted, marginBottom: 16}}>
+               A próxima mensagem que você enviar neste cofre sairá exatamente no horário configurado.
+            </Text>
+
+            <TextInput style={{backgroundColor: Colors.light.surfaceLight, borderRadius: 8, padding: 16, color: Colors.light.text, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 12}} placeholder="Data (DD/MM/AAAA)" placeholderTextColor={Colors.light.textMuted} value={scheduleDate} onChangeText={setScheduleDate} />
+            <TextInput style={{backgroundColor: Colors.light.surfaceLight, borderRadius: 8, padding: 16, color: Colors.light.text, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 20}} placeholder="Horário (HH:MM)" placeholderTextColor={Colors.light.textMuted} value={scheduleTime} onChangeText={setScheduleTime} />
+
+            <View style={{flexDirection: 'row', gap: 12}}>
+               <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.light.surfaceLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.light.border}} onPress={() => { setScheduleDate(''); setScheduleTime(''); setScheduleModalVisible(false); }}>
+                  <Text style={{color: Colors.error, fontWeight: 'bold'}}>Remover Agendamento</Text>
+               </TouchableOpacity>
+
+               <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.primary, alignItems: 'center'}} onPress={() => {
+                  if(!scheduleDate || !scheduleTime) return Alert.alert('Atenção', 'Preencha Data e Hora');
+                  setScheduleModalVisible(false);
+               }}>
+                  <Text style={{color: '#fff', fontWeight: 'bold'}}>Confirmar Horário</Text>
+               </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.dark.background },
+  container: { flex: 1, backgroundColor: Colors.light.background },
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    padding: Spacing.md, backgroundColor: Colors.dark.surface,
-    borderBottomWidth: 1, borderBottomColor: Colors.dark.border,
+    padding: Spacing.md, backgroundColor: Colors.light.surface,
+    borderBottomWidth: 1, borderBottomColor: Colors.light.border,
   },
   backButton: { padding: Spacing.sm, marginRight: Spacing.xs },
   headerInfo: { flex: 1 },
-  headerName: { color: Colors.dark.text, fontSize: FontSize.lg, fontWeight: '700' },
-  headerStatus: { color: Colors.dark.textMuted, fontSize: FontSize.xs, marginTop: 2 },
+  headerName: { color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700' },
+  headerStatus: { color: Colors.light.textMuted, fontSize: FontSize.xs, marginTop: 2 },
   headerStatusOnline: { color: Colors.success },
   headerActions: { flexDirection: 'row', gap: Spacing.sm },
   headerActionBtn: { padding: Spacing.sm },
@@ -467,10 +601,10 @@ const styles = StyleSheet.create({
 
   messageBubble: { padding: Spacing.md, borderRadius: BorderRadius.lg },
   messageBubbleMedia: { padding: 4, overflow: 'hidden' },
-  messageBubbleMe: { backgroundColor: '#005c4b', borderBottomRightRadius: 4 },
+  messageBubbleMe: { backgroundColor: '#0ea5e9', borderBottomRightRadius: 4 },
   messageBubbleOther: {
-    backgroundColor: '#1f2937', borderBottomLeftRadius: 4,
-    borderWidth: 1, borderColor: '#374151',
+    backgroundColor: '#ffffff', borderBottomLeftRadius: 4,
+    borderWidth: 1, borderColor: '#e2e8f0',
   },
 
   // Media
@@ -490,24 +624,24 @@ const styles = StyleSheet.create({
 
   messageText: { fontSize: FontSize.md, lineHeight: 22 },
   messageTextMe: { color: '#ffffff' },
-  messageTextOther: { color: '#e5e7eb' },
+  messageTextOther: { color: '#1e293b' },
 
   translationBox: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1 },
   translationBoxMe: { borderTopColor: 'rgba(255,255,255,0.2)' },
-  translationBoxOther: { borderTopColor: Colors.dark.border },
+  translationBoxOther: { borderTopColor: Colors.light.border },
   translationLabel: { fontSize: FontSize.xs, opacity: 0.8, marginBottom: 2, fontWeight: '600' },
 
   messageFooter: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 4, gap: 4 },
   messageTime: { fontSize: 10 },
   messageTimeMe: { color: 'rgba(255,255,255,0.7)' },
-  messageTimeOther: { color: Colors.dark.textMuted },
+  messageTimeOther: { color: Colors.light.textMuted },
   messageStatus: { color: 'rgba(255,255,255,0.9)', fontSize: 10, fontWeight: 'bold' },
 
   actionPopover: {
-    flexDirection: 'row', backgroundColor: Colors.dark.surface,
+    flexDirection: 'row', backgroundColor: Colors.light.surface,
     padding: Spacing.xs, borderRadius: BorderRadius.full,
     marginTop: 4, alignSelf: 'flex-start',
-    borderWidth: 1, borderColor: Colors.dark.border,
+    borderWidth: 1, borderColor: Colors.light.border,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4,
   },
   actionPopoverMe: { alignSelf: 'flex-end' },
@@ -519,17 +653,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-end',
     padding: Spacing.md,
     paddingBottom: Platform.OS === 'ios' ? Spacing.xl : Spacing.md,
-    backgroundColor: Colors.dark.surface,
-    borderTopWidth: 1, borderTopColor: Colors.dark.border, gap: Spacing.sm,
+    backgroundColor: Colors.light.surface,
+    borderTopWidth: 1, borderTopColor: Colors.light.border, gap: Spacing.sm,
   },
   inputAction: { padding: Spacing.sm, paddingBottom: 10 },
   textInput: {
     flex: 1, minHeight: 40, maxHeight: 100,
-    backgroundColor: Colors.dark.background,
+    backgroundColor: Colors.light.background,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md, paddingTop: 12, paddingBottom: 12,
-    color: Colors.dark.text, fontSize: FontSize.md,
-    borderWidth: 1, borderColor: Colors.dark.border,
+    color: Colors.light.text, fontSize: FontSize.md,
+    borderWidth: 1, borderColor: Colors.light.border,
   },
   sendButton: {
     width: 44, height: 44, borderRadius: 22,
@@ -559,16 +693,16 @@ const styles = StyleSheet.create({
   // Media Menu Sheet
   mediaMenuOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   mediaMenuSheet: {
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: Spacing.xl, paddingBottom: 40,
   },
   mediaMenuTitle: {
-    color: Colors.dark.text, fontSize: FontSize.lg, fontWeight: '700',
+    color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700',
     marginBottom: Spacing.xl, textAlign: 'center',
   },
   mediaMenuGrid: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xl },
   mediaMenuOption: { alignItems: 'center', gap: Spacing.sm },
   mediaMenuIcon: { width: 60, height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  mediaMenuLabel: { color: Colors.dark.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
+  mediaMenuLabel: { color: Colors.light.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
 });

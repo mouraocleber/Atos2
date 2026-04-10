@@ -2,6 +2,7 @@ import { Router } from 'express';
 import authController from '../controllers/authController';
 import { authenticateToken, optionalAuth } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
+import { upload } from '../middleware/upload';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.post('/refresh-token', authenticateToken, asyncHandler((req, res) => auth
 router.get('/me', authenticateToken, asyncHandler((req, res) => authController.me(req, res)));
 router.put('/me', authenticateToken, asyncHandler((req, res) => authController.updateProfile(req, res)));
 router.put('/change-password', authenticateToken, asyncHandler((req, res) => authController.changePassword(req, res)));
+router.post('/profile-image', authenticateToken, upload.single('image'), asyncHandler((req, res) => authController.uploadProfileImage(req, res)));
 
 export default router;
 

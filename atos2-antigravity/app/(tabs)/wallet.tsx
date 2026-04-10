@@ -191,28 +191,28 @@ export default function WalletScreen() {
             style={styles.actionBtn}
             onPress={() => { setPixData(null); setDepositModalVisible(true); }}
           >
-            <Feather name="arrow-down" size={24} color={Colors.dark.textSecondary} />
+            <Feather name="arrow-down" size={24} color={Colors.light.textSecondary} />
             <Text style={styles.actionLabel}>Depositar</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => setModalVisible(true)}
           >
-            <Feather name="arrow-up-right" size={24} color={Colors.dark.textSecondary} />
+            <Feather name="arrow-up-right" size={24} color={Colors.light.textSecondary} />
             <Text style={styles.actionLabel}>Transferir</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => setModalVisible(true)}
           >
-            <Feather name="credit-card" size={24} color={Colors.dark.textSecondary} />
+            <Feather name="credit-card" size={24} color={Colors.light.textSecondary} />
             <Text style={styles.actionLabel}>Pagar</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={openScanner}
           >
-            <Feather name="camera" size={24} color={Colors.dark.textSecondary} />
+            <Feather name="camera" size={24} color={Colors.light.textSecondary} />
             <Text style={styles.actionLabel}>Ler QR</Text>
           </TouchableOpacity>
         </View>
@@ -282,7 +282,7 @@ export default function WalletScreen() {
                 <TextInput
                   style={styles.inputModal}
                   placeholder="Valor (Ex: 50.00)"
-                  placeholderTextColor={Colors.dark.textMuted}
+                  placeholderTextColor={Colors.light.textMuted}
                   keyboardType="decimal-pad"
                   value={depositAmount}
                   onChangeText={setDepositAmount}
@@ -333,7 +333,7 @@ export default function WalletScreen() {
             <TextInput
               style={styles.inputModal}
               placeholder="UUID de Destino (Opcional)"
-              placeholderTextColor={Colors.dark.textMuted}
+              placeholderTextColor={Colors.light.textMuted}
               value={txTarget}
               onChangeText={setTxTarget}
             />
@@ -341,7 +341,7 @@ export default function WalletScreen() {
             <TextInput
               style={styles.inputModal}
               placeholder="Valor Local a Transferir"
-              placeholderTextColor={Colors.dark.textMuted}
+              placeholderTextColor={Colors.light.textMuted}
               keyboardType="decimal-pad"
               value={txAmount}
               onChangeText={setTxAmount}
@@ -350,7 +350,7 @@ export default function WalletScreen() {
             <TextInput
               style={styles.inputModal}
               placeholder="🔒 Senha de Segurança"
-              placeholderTextColor={Colors.dark.textMuted}
+              placeholderTextColor={Colors.light.textMuted}
               secureTextEntry
               value={txPassword}
               onChangeText={setTxPassword}
@@ -371,7 +371,7 @@ export default function WalletScreen() {
       {/* Receipt Modal */}
       <Modal visible={!!selectedTx} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: Colors.dark.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: Colors.light.surface }]}>
             {selectedTx && (
               <>
                 <View style={{alignItems: 'center', marginBottom: 20}}>
@@ -384,28 +384,28 @@ export default function WalletScreen() {
                   </Text>
                 </View>
 
-                <View style={{ backgroundColor: Colors.dark.background, padding: 15, borderRadius: 10, marginBottom: 20 }}>
+                <View style={{ backgroundColor: Colors.light.background, padding: 15, borderRadius: 10, marginBottom: 20 }}>
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
-                    <Text style={{color: Colors.dark.textMuted}}>Tipo de Operação</Text>
-                    <Text style={{color: Colors.dark.textPrimary, fontWeight: 'bold'}}>{typeLabels[selectedTx.type].label}</Text>
+                    <Text style={{color: Colors.light.textMuted}}>Tipo de Operação</Text>
+                    <Text style={{color: Colors.light.textPrimary, fontWeight: 'bold'}}>{typeLabels[selectedTx.type].label}</Text>
                   </View>
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
-                    <Text style={{color: Colors.dark.textMuted}}>Data da Operação</Text>
-                    <Text style={{color: Colors.dark.textPrimary}}>{new Date(selectedTx.created_at).toLocaleString('pt-BR')}</Text>
+                    <Text style={{color: Colors.light.textMuted}}>Data da Operação</Text>
+                    <Text style={{color: Colors.light.textPrimary}}>{new Date(selectedTx.created_at).toLocaleString('pt-BR')}</Text>
                   </View>
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
-                    <Text style={{color: Colors.dark.textMuted}}>Status</Text>
+                    <Text style={{color: Colors.light.textMuted}}>Status</Text>
                     <Text style={{color: selectedTx.status === 'COMPLETED' ? Colors.success : Colors.warning, fontWeight: 'bold'}}>{selectedTx.status}</Text>
                   </View>
                   {selectedTx.description && (
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
-                    <Text style={{color: Colors.dark.textMuted}}>Descrição</Text>
-                    <Text style={{color: Colors.dark.textPrimary}}>{selectedTx.description}</Text>
+                    <Text style={{color: Colors.light.textMuted}}>Descrição</Text>
+                    <Text style={{color: Colors.light.textPrimary}}>{selectedTx.description}</Text>
                   </View>
                   )}
-                  <View style={{marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: Colors.dark.border}}>
-                    <Text style={{color: Colors.dark.textMuted, fontSize: 12}}>ID da Transação</Text>
-                    <Text style={{color: Colors.dark.textSecondary, fontSize: 10, marginTop: 4}}>{selectedTx.id}</Text>
+                  <View style={{marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: Colors.light.border}}>
+                    <Text style={{color: Colors.light.textMuted, fontSize: 12}}>ID da Transação</Text>
+                    <Text style={{color: Colors.light.textSecondary, fontSize: 10, marginTop: 4}}>{selectedTx.id}</Text>
                   </View>
                 </View>
 
@@ -423,10 +423,10 @@ export default function WalletScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.dark.background },
+  container: { flex: 1, backgroundColor: Colors.light.background },
   balanceCard: {
     margin: Spacing.md,
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: 1,
@@ -438,18 +438,18 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   balanceLabel: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
   balanceValue: {
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontSize: 36,
     fontWeight: '800',
     marginTop: Spacing.xs,
   },
   balanceCurrency: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontSize: FontSize.xs,
     marginTop: 2,
   },
@@ -460,16 +460,16 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
-    backgroundColor: Colors.dark.surfaceLight,
+    backgroundColor: Colors.light.surfaceLight,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
     alignItems: 'center',
     gap: 4,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   actionLabel: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.xs,
     fontWeight: '600',
   },
@@ -479,20 +479,20 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   sectionTitle: {
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontSize: FontSize.lg,
     fontWeight: '700',
   },
   listContent: { paddingHorizontal: Spacing.md, gap: Spacing.xs },
   transactionItem: {
     flexDirection: 'row',
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     gap: Spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   transactionIcon: {
     width: 44,
@@ -503,12 +503,12 @@ const styles = StyleSheet.create({
   },
   transactionInfo: { flex: 1 },
   transactionDesc: {
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
   transactionDate: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontSize: FontSize.xs,
     marginTop: 2,
   },
@@ -520,18 +520,18 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center'
   },
   modalContent: {
-    width: '85%', backgroundColor: Colors.dark.surface, borderRadius: BorderRadius.lg,
-    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.dark.border
+    width: '85%', backgroundColor: Colors.light.surface, borderRadius: BorderRadius.lg,
+    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.light.border
   },
   modalTitle: {
-    color: Colors.dark.text, fontSize: FontSize.lg, fontWeight: '700', textAlign: 'center'
+    color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700', textAlign: 'center'
   },
   modalSubtitle: {
     color: Colors.primary, fontSize: FontSize.xs, textAlign: 'center', marginBottom: Spacing.lg
   },
   inputModal: {
-    backgroundColor: Colors.dark.surfaceLight, borderRadius: BorderRadius.sm, padding: Spacing.md,
-    color: Colors.dark.text, fontSize: FontSize.md, borderWidth: 1, borderColor: Colors.dark.border,
+    backgroundColor: Colors.light.surfaceLight, borderRadius: BorderRadius.sm, padding: Spacing.md,
+    color: Colors.light.text, fontSize: FontSize.md, borderWidth: 1, borderColor: Colors.light.border,
     marginBottom: Spacing.md
   },
   modalActions: {
@@ -539,10 +539,10 @@ const styles = StyleSheet.create({
   },
   modalBtnCancel: {
     flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center',
-    backgroundColor: Colors.dark.surfaceLight, borderWidth: 1, borderColor: Colors.dark.border
+    backgroundColor: Colors.light.surfaceLight, borderWidth: 1, borderColor: Colors.light.border
   },
   modalBtnText: {
-    color: Colors.dark.textSecondary, fontWeight: '600'
+    color: Colors.light.textSecondary, fontWeight: '600'
   },
   modalBtnSubmit: {
     flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center',

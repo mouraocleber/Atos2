@@ -314,7 +314,7 @@ export class UserReviewService {
   /**
    * Calcular nível de reputação baseado na média
    */
-  private calculateRatingLevel(averageRating: number): string {
+  private calculateRatingLevel(averageRating: number): "NOVO" | "INICIANTE" | "CONFIÁVEL" | "EXCELENTE" | "LENDÁRIO" {
     if (averageRating >= 4.8) return 'LENDÁRIO';
     if (averageRating >= 4.5) return 'EXCELENTE';
     if (averageRating >= 4.0) return 'CONFIÁVEL';

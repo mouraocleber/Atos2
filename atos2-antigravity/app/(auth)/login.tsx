@@ -62,7 +62,7 @@ export default function LoginScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('email_placeholder')}
-                placeholderTextColor={Colors.dark.textMuted}
+                placeholderTextColor={Colors.light.textMuted}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -77,7 +77,7 @@ export default function LoginScreen() {
                 <TextInput
                   style={[styles.input, styles.passwordInput]}
                   placeholder="••••••••"
-                  placeholderTextColor={Colors.dark.textMuted}
+                  placeholderTextColor={Colors.light.textMuted}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -123,7 +123,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
+    backgroundColor: Colors.light.background,
   },
   keyboardView: {
     flex: 1,
@@ -145,38 +145,38 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FontSize.title,
     fontWeight: '800',
-    color: Colors.dark.text,
+    color: Colors.light.text,
     letterSpacing: 1,
   },
   subtitle: {
     fontSize: FontSize.md,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   form: {
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     gap: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   inputGroup: {
     gap: Spacing.xs,
   },
   label: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: Colors.dark.surfaceLight,
+    backgroundColor: Colors.light.surfaceLight,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontSize: FontSize.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   passwordContainer: {
     position: 'relative',
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   footerText: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
   },
   registerLink: {

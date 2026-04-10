@@ -9,7 +9,7 @@ export class ReportController {
   async createReport(req: AuthenticatedRequest, res: Response) {
     try {
       const reporterId = req.userId!;
-      const { reportType, description, reportedUserId, messageId } = req.body;
+      const { reportType, description, reportedUserId, messageId, productId } = req.body;
 
       if (!reportType || !description) {
         throw new AppError(400, 'Tipo de denúncia e descrição são obrigatórios', 'MISSING_REPORT_DATA');
@@ -27,7 +27,8 @@ export class ReportController {
         reportType,
         description,
         reportedUserId,
-        messageId
+        messageId,
+        productId
       );
 
       // Se for denúncia de golpe, bloquear automaticamente
@@ -45,6 +46,7 @@ export class ReportController {
         data: {
           id: report.id,
           reportType: report.reportType,
+          productId: report.productId,
           status: report.status,
           createdAt: report.createdAt,
         },
