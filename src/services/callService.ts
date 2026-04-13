@@ -14,9 +14,9 @@ export class CallService {
    */
   generateToken(identity: string): string {
     const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-    const twilioApiKey = process.env.TWILIO_API_KEY;
-    const twilioApiSecret = process.env.TWILIO_API_SECRET;
-    const twilioTwiMLAppSid = process.env.TWILIO_TWIML_APP_SID;
+    const twilioApiKey = process.env.TWILIO_API_SID; // SK...
+    const twilioApiSecret = process.env.TWILIO_API_KEY; // secret...
+    const twilioTwiMLAppSid = process.env.TWILIO_TWIML_APP_SID || 'APa0000000000000000000000000000000'; // mockup se não houver APP SID no .env
 
     if (!twilioAccountSid || !twilioApiKey || !twilioApiSecret) {
       throw new Error('Chaves de ambiente do Twilio não configuradas no backend.');

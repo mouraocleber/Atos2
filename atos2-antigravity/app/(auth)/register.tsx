@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator, Image
+  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator, Image, FlatList, Modal
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -10,14 +10,23 @@ import { LANGUAGES, LanguageCode } from '../../constants/translations';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { isValidEmail, isValidPhone, isValidCPF, isValidCNPJ } from '../../utils/validators';
+import { Feather, FontAwesome } from '@expo/vector-icons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 
-type Step = 'language' | 'contact' | 'profile';
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '', // Configured via EAS / Env
+});
+
+type Step = 'contact' | 'profile';
 
 export default function RegisterScreen() {
   const { signUp } = useAuth();
   const { t, setAppLanguage, language: currentLang } = useLocalization();
-  const [step, setStep] = useState<Step>('language');
+  const [step, setStep] = useState<Step>('contact');
   const [loading, setLoading] = useState(false);
+  const [langSearch, setLangSearch] = useState('');
+  const [showLangModal, setShowLangModal] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Contact step
   const [contactMethod, setContactMethod] = useState<'phone' | 'email'>('email');
@@ -33,10 +42,20 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [language, setLanguage] = useState<LanguageCode>('pt-BR');
 
+  const filteredLanguages = useMemo(() => {
+    const q = langSearch.trim().toLowerCase();
+    if (!q) return LANGUAGES;
+    return LANGUAGES.filter(l =>
+      l.label.toLowerCase().includes(q) ||
+      l.english.toLowerCase().includes(q) ||
+      l.code.toLowerCase().includes(q)
+    );
+  }, [langSearch]);
+
   async function handleSelectLanguage(code: LanguageCode) {
     setLanguage(code);
     await setAppLanguage(code);
-    setStep('contact');
+    setShowLangModal(false);
   }
 
   function handleNextStep() {
@@ -54,7 +73,36 @@ export default function RegisterScreen() {
     setStep('profile');
   }
 
+  async function handleGoogleSignIn() {
+    try {
+      setLoading(true);
+      await GoogleSignin.hasPlayServices();
+      const result = await GoogleSignin.signIn();
+      const user = result.data ? result.data.user : (result as any).user;
+      
+      if (user) {
+        setContactMethod('email');
+        setEmail(user.email);
+        setName(user.name || '');
+        setStep('profile');
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // Cancelado pelo usuário
+      } else {
+        Alert.alert('Google Sign-In', 'Não foi possivel concluir o login com o Google.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleRegister() {
+    if (!agreedToTerms) {
+      Alert.alert(t('signup_title'), 'Você precisa aceitar os Termos de Uso e a Política de Privacidade para continuar.');
+      return;
+    }
+
     if (!name.trim() || !nickname.trim() || !cpf.trim() || !cep.trim() || !password.trim()) {
       Alert.alert(t('signup_title'), t('signup_subtitle'));
       return;
@@ -108,6 +156,11 @@ export default function RegisterScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
+            <TouchableOpacity style={styles.headerLangBtn} onPress={() => setShowLangModal(true)}>
+              <Text style={styles.headerLangCode}>{language.toUpperCase()}</Text>
+              <Feather name="chevron-down" size={16} color={Colors.light.textSecondary} />
+            </TouchableOpacity>
+
             <Image 
               source={require('../../assets/logo.png')} 
               style={styles.logoImage} 
@@ -115,43 +168,74 @@ export default function RegisterScreen() {
             />
             <Text style={styles.title}>{t('signup_title')}</Text>
             <Text style={styles.subtitle}>
-              {step === 'language' ? t('signup_subtitle') : 
-               step === 'contact' ? t('contact_method') : t('profile_title')}
+              {step === 'contact' ? t('contact_method') : t('profile_title')}
             </Text>
           </View>
 
-          {/* Step 0: Language Selection */}
-          {step === 'language' && (
-            <View style={styles.form}>
-              <Text style={styles.label}>{t('select_language')}</Text>
-              {LANGUAGES.map((lang) => (
-                <TouchableOpacity
-                  key={lang.code}
-                  style={[
-                    styles.langItem,
-                    language === lang.code && styles.langItemActive
-                  ]}
-                  onPress={() => handleSelectLanguage(lang.code as LanguageCode)}
-                >
-                  <Text style={[
-                    styles.langText,
-                    language === lang.code && styles.langTextActive
-                  ]}>
-                    {lang.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* Modal de Busca de Idioma */}
+          <Modal visible={showLangModal} animationType="slide" transparent={true}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Selecionar Idioma</Text>
+                  <TouchableOpacity onPress={() => setShowLangModal(false)}>
+                    <Feather name="x" size={24} color={Colors.light.text} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Barra de Busca Modal */}
+                <View style={styles.searchBar}>
+                  <Feather name="search" size={16} color={Colors.light.textMuted} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Pesquisar idioma..."
+                    placeholderTextColor={Colors.light.textMuted}
+                    value={langSearch}
+                    onChangeText={setLangSearch}
+                    autoCorrect={false}
+                  />
+                </View>
+
+                <FlatList
+                  data={filteredLanguages}
+                  keyExtractor={item => item.code}
+                  numColumns={2}
+                  columnWrapperStyle={{ gap: Spacing.sm }}
+                  contentContainerStyle={{ gap: Spacing.sm, paddingBottom: Spacing.xl }}
+                  renderItem={({ item: lang }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.langItem,
+                        language === lang.code && styles.langItemActive
+                      ]}
+                      onPress={() => handleSelectLanguage(lang.code as LanguageCode)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[
+                        styles.langText,
+                        language === lang.code && styles.langTextActive
+                      ]} numberOfLines={1}>
+                        {lang.label}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  ListEmptyComponent={() => (
+                    <View style={styles.emptySearch}>
+                      <Feather name="globe" size={32} color={Colors.light.textMuted} />
+                      <Text style={styles.emptyText}>Nenhum idioma encontrado</Text>
+                    </View>
+                  )}
+                />
+              </View>
             </View>
-          )}
+          </Modal>
 
           {/* Progress */}
-          {step !== 'language' && (
-            <View style={styles.progress}>
-              <View style={[styles.progressDot, step === 'contact' || step === 'profile' ? styles.progressActive : null]} />
-              <View style={styles.progressLine} />
-              <View style={[styles.progressDot, step === 'profile' ? styles.progressActive : null]} />
-            </View>
-          )}
+          <View style={styles.progress}>
+            <View style={[styles.progressDot, step === 'contact' || step === 'profile' ? styles.progressActive : null]} />
+            <View style={styles.progressLine} />
+            <View style={[styles.progressDot, step === 'profile' ? styles.progressActive : null]} />
+          </View>
 
           {/* Step 1: Contact */}
           {step === 'contact' && (
@@ -170,6 +254,21 @@ export default function RegisterScreen() {
                   <Text style={[styles.methodBtnText, contactMethod === 'phone' && styles.methodBtnTextActive]}>{t('phone')}</Text>
                 </TouchableOpacity>
               </View>
+
+              <View style={styles.socialSeparator}>
+                <View style={styles.separatorLine} />
+                <Text style={styles.separatorText}>ou</Text>
+                <View style={styles.separatorLine} />
+              </View>
+
+              <TouchableOpacity 
+                style={styles.googleBtn} 
+                onPress={handleGoogleSignIn}
+                disabled={loading}
+              >
+                <FontAwesome name="google" size={20} color="#DB4437" />
+                <Text style={styles.googleBtnText}>Continuar com o Google</Text>
+              </TouchableOpacity>
 
               {contactMethod === 'email' ? (
                 <TextInput
@@ -196,7 +295,7 @@ export default function RegisterScreen() {
                 <Text style={styles.btnSubmitText}>{t('next')}</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.btnBack} onPress={() => setStep('language')}>
+              <TouchableOpacity style={styles.btnBack} onPress={() => router.back()}>
                 <Text style={styles.btnBackText}>{t('back')}</Text>
               </TouchableOpacity>
             </View>
@@ -260,6 +359,20 @@ export default function RegisterScreen() {
                 secureTextEntry
               />
               
+              <TouchableOpacity 
+                style={styles.checkboxContainer} 
+                onPress={() => setAgreedToTerms(!agreedToTerms)}
+              >
+                <Feather 
+                  name={agreedToTerms ? "check-square" : "square"} 
+                  size={20} 
+                  color={agreedToTerms ? Colors.primary : Colors.light.textMuted} 
+                />
+                <Text style={styles.checkboxText}>
+                  Li e concordo com os <Text style={styles.linkText}>Termos de Uso</Text> e a <Text style={styles.linkText}>Política de Privacidade</Text>.
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity 
                 style={styles.btnSubmit} 
                 onPress={handleRegister}
@@ -352,20 +465,56 @@ const styles = StyleSheet.create({
   form: {
     gap: Spacing.md,
   },
-  langItem: {
+  // ---- Language selection styles ----
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.light.surface,
-    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    marginBottom: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.light.text,
+    fontSize: FontSize.sm,
+    paddingVertical: 0,
+  },
+  langGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  langItem: {
+    width: '47.5%',
+    backgroundColor: Colors.light.surface,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.light.border,
+    alignItems: 'center',
+    gap: 4,
   },
   langItemActive: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: Colors.primary + '12',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  langFlag: {
+    fontSize: 28,
+    lineHeight: 34,
   },
   langText: {
     color: Colors.light.textSecondary,
-    fontSize: FontSize.md,
+    fontSize: FontSize.xs,
     fontWeight: '500',
     textAlign: 'center',
   },
@@ -373,6 +522,16 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: '700',
   },
+  emptySearch: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xxl,
+    gap: Spacing.sm,
+  },
+  emptyText: {
+    color: Colors.light.textMuted,
+    fontSize: FontSize.sm,
+  },
+
   input: {
     backgroundColor: Colors.light.surface,
     color: Colors.light.text,
@@ -409,6 +568,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.md,
     marginBottom: Spacing.xs,
+  },
+  socialSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.sm,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.light.border,
+  },
+  separatorText: {
+    marginHorizontal: Spacing.sm,
+    color: Colors.light.textMuted,
+    fontSize: FontSize.sm,
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  googleBtnText: {
+    color: '#333',
+    fontWeight: '600',
+    fontSize: FontSize.md,
   },
   typeBtn: {
     flex: 1,
@@ -469,5 +660,63 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: FontSize.sm,
     fontWeight: '700',
+  },
+  headerLangBtn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.surfaceLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  headerLangCode: {
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.light.background,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    height: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.sm,
+    gap: Spacing.sm,
+    paddingRight: Spacing.md,
+  },
+  checkboxText: {
+    fontSize: FontSize.xs,
+    color: Colors.light.textSecondary,
+    flex: 1,
+    lineHeight: 18,
+  },
+  linkText: {
+    color: Colors.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

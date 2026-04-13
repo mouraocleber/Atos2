@@ -24,6 +24,7 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [searchRadius, setSearchRadius] = useState<'20' | 'all'>('20');
 
   useEffect(() => {
     (async () => {
@@ -45,9 +46,10 @@ export default function SearchScreen() {
       // Backend aceita params separados: name, nickname, email
       const q = query.trim();
       const params: any = { query: q };
-      if (location) {
+      if (location && searchRadius === '20') {
         params.lat = location.coords.latitude;
         params.lon = location.coords.longitude;
+        params.radius = 20;
       }
       
       const response = await api.get(`/users/search`, { params });
@@ -112,6 +114,26 @@ export default function SearchScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Filtro de Distância */}
+      <View style={styles.radiusToggleContainer}>
+        <TouchableOpacity 
+          style={[styles.radiusToggleBtn, searchRadius === '20' && styles.radiusToggleBtnActive]} 
+          onPress={() => setSearchRadius('20')}
+        >
+          <Text style={[styles.radiusToggleText, searchRadius === '20' && styles.radiusToggleTextActive]}>
+            Próximos (Até 20km)
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.radiusToggleBtn, searchRadius === 'all' && styles.radiusToggleBtnActive]} 
+          onPress={() => setSearchRadius('all')}
+        >
+          <Text style={[styles.radiusToggleText, searchRadius === 'all' && styles.radiusToggleTextActive]}>
+            Todos (Global)
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         data={results}
         keyExtractor={(item) => item.id}
@@ -164,6 +186,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   searchBtnText: { fontSize: 20 },
+  radiusToggleContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  radiusToggleBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    alignItems: 'center',
+    backgroundColor: Colors.light.surface,
+  },
+  radiusToggleBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  radiusToggleText: {
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
+  },
+  radiusToggleTextActive: {
+    color: '#fff',
+  },
   listContent: { padding: Spacing.md, gap: Spacing.sm },
   userCard: {
     flexDirection: 'row',

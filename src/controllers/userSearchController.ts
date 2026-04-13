@@ -6,7 +6,7 @@ import { AppError } from '../middleware/errorHandler';
 export class UserSearchController {
   async searchUsers(req: AuthenticatedRequest, res: Response) {
     try {
-      const { nickname, name, email, phone, city, state, personType, limit = 20, offset = 0, query, lat, lon } = req.query;
+      const { nickname, name, email, phone, city, state, personType, limit = 20, offset = 0, query, lat, lon, radius } = req.query;
 
       // Validar que pelo menos um filtro foi fornecido
       if (!nickname && !name && !email && !phone && !city && !state && !personType && !query) {
@@ -24,6 +24,7 @@ export class UserSearchController {
         query: query as string,
         latitude: lat ? parseFloat(lat as string) : undefined,
         longitude: lon ? parseFloat(lon as string) : undefined,
+        radius: radius ? parseFloat(radius as string) : undefined,
         limit: parseInt(limit as string) || 20,
         offset: parseInt(offset as string) || 0,
       });

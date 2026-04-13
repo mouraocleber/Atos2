@@ -18,50 +18,25 @@ export class KeywordController {
       throw new AppError(400, 'Palavra-chave inválida', 'INVALID_KEYWORD');
     }
 
+    if (keyword.length > 16) {
+      throw new AppError(400, 'A palavra-chave pode ter no máximo 16 caracteres', 'KEYWORD_TOO_LONG');
+    }
+
     if (position < 1 || position > 5) {
       throw new AppError(400, 'A posição deve estar entre 1 e 5', 'INVALID_POSITION');
     }
 
-    // Regra de preços detalhada (onde X=1 Global)
-    const basePrice = 1; 
-    let cost = 0;
-    switch (position) {
-      case 1: cost = basePrice * 10; break;
-      case 2: cost = basePrice * 6; break;
-      case 3: cost = basePrice * 4; break;
-      case 4: cost = basePrice * 2; break;
-      case 5: cost = basePrice * 1; break;
+    // Regra: Apenas PRO ou BUSINESS podem registrar keywords livremente.
+    const { default: userServiceObj } = await import('../services/userService');
+    const user = await userServiceObj.getUserById(userId);
+
+    if (user?.plan === 'FREE' || !user?.plan) {
+      throw new AppError(403, 'Acesso Negado: O gerenciamento de palavras-chave requer plano PRO ou BUSINESS.', 'UPGRADE_REQUIRED');
     }
 
-    // 1. Checar saldo do usuário na carteira Global ('G' ou 'BRL', assumindo 'G' para moeda do app)
-    // Se o Atos2 usa BRL como primary ou G, vamos checar saldo disponível no record do usuário ou wallet
-    // Em Atos2, a "Global" geralmente é gerenciada na coluna balance dos users ou tabela wallets
-    const walletRes = await query(`SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = 'G'`, [userId]);
-    
-    // Fallback: se não achar 'G', as carteiras podem ser BRL. 
-    const wallet = walletRes.rows[0];
-    
-    if (!wallet) {
-      throw new AppError(400, 'Carteira Global não encontrada', 'WALLET_NOT_FOUND');
-    }
-
-    if (parseFloat(wallet.balance) < cost) {
-      throw new AppError(400, 'Saldo insuficiente', 'INSUFFICIENT_FUNDS');
-    }
-
-    // 2. Transação (debitar do wallet e inserir a keyword)
     try {
       // Iniciar Transaction Postgres
       await query('BEGIN');
-
-      // Debita valor
-      await query('UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE id = $2', [cost, wallet.id]);
-
-      // Registrar Extrato / Transação
-      await query(`
-        INSERT INTO transactions (from_user_id, type, amount, currency, status, description, reference)
-        VALUES ($1, 'PAYMENT', $2, 'G', 'COMPLETED', $3, 'KEYWORD_BUY')
-      `, [userId, cost, `Compra de palavra-chave: "${keyword}" (posição ${position})`]);
 
       // Calcular expiração (30 dias)
       const expiresAt = new Date();
@@ -70,24 +45,23 @@ export class KeywordController {
       // Inserir ou Atualizar a keyword
       await query(`
         INSERT INTO user_search_keywords (user_id, keyword, position, price_paid, expires_at, active)
-        VALUES ($1, $2, $3, $4, $5, true)
+        VALUES ($1, $2, $3, 0, $4, true)
         ON CONFLICT (user_id, position) DO UPDATE SET
           keyword = EXCLUDED.keyword,
-          price_paid = EXCLUDED.price_paid,
+          price_paid = 0,
           expires_at = EXCLUDED.expires_at,
           active = true,
           updated_at = CURRENT_TIMESTAMP
-      `, [userId, keyword.toLowerCase().trim(), position, cost, expiresAt]);
+      `, [userId, keyword.toLowerCase().trim(), position, expiresAt]);
 
       await query('COMMIT');
 
       res.json({
         success: true,
-        message: 'Palavra-chave adquirida com sucesso',
+        message: 'Palavra-chave registrada com sucesso',
         data: {
           keyword: keyword.toLowerCase().trim(),
           position,
-          cost,
           expiresAt
         }
       });

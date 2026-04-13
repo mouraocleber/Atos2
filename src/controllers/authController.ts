@@ -77,6 +77,8 @@ export class AuthController {
             cpf: user.cpf,
             preferredLanguage: user.preferredLanguage,
             balance: user.balance,
+            plan: user.plan,
+            planExpiresAt: user.planExpiresAt,
           },
           token,
           refreshToken,
@@ -121,6 +123,8 @@ export class AuthController {
             cpf: user.cpf,
             preferredLanguage: user.preferredLanguage,
             balance: user.balance,
+            plan: user.plan,
+            planExpiresAt: user.planExpiresAt,
           },
           token,
           refreshToken,
@@ -188,6 +192,8 @@ export class AuthController {
             preferredLanguage: user.preferredLanguage,
             balance: user.balance,
             isActive: user.isActive,
+            plan: user.plan,
+            planExpiresAt: user.planExpiresAt,
             createdAt: user.createdAt,
             lastLogin: user.lastLogin,
           },
@@ -337,6 +343,114 @@ export class AuthController {
         message: 'Foto de perfil atualizada com sucesso!',
         data: { profileImage: imageUrl },
       });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async upgradePlan(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId!;
+      const { plan, billingCycle = 'MONTHLY' } = req.body;
+
+      if (!['PRO', 'BUSINESS'].includes(plan)) {
+        throw new AppError(400, 'Plano inválido (deve ser PRO ou BUSINESS).', 'INVALID_PLAN');
+      }
+      if (!['MONTHLY', 'ANNUAL'].includes(billingCycle)) {
+        throw new AppError(400, 'Ciclo de faturamento inválido.', 'INVALID_CYCLE');
+      }
+
+      const PRICES = {
+        PRO: { MONTHLY: 4.00, ANNUAL: 38.40 }, // 4 * 12 * 0.8
+        BUSINESS: { MONTHLY: 40.00, ANNUAL: 384.00 } // 40 * 12 * 0.8
+      };
+
+      const cost = (PRICES as any)[plan][billingCycle];
+
+      // 1. Checar Carteira Global (G) (Para obter a carteira)
+      const walletRes = await query(`SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = 'G'`, [userId]);
+      const wallet = walletRes.rows[0];
+      
+      if (!wallet) {
+        throw new AppError(400, 'Carteira Global não encontrada.', 'WALLET_NOT_FOUND');
+      }
+
+      const currentUser = await userService.getUserById(userId);
+      if (!currentUser) throw new AppError(404, 'Usuário não encontrado', 'USER_NOT_FOUND');
+
+      const isFirstTimeFree = currentUser.plan === 'FREE';
+
+      // Se for renovação e não tiver o bônus, verificar saldo
+      if (!isFirstTimeFree && parseFloat(wallet.balance) < cost) {
+        throw new AppError(400, `Saldo insuficiente. Custo de renovação/upgrade: ${cost} G`, 'INSUFFICIENT_FUNDS');
+      }
+
+      try {
+        await query('BEGIN');
+
+        let expiresAt = new Date();
+        
+        if (isFirstTimeFree) {
+          // Conceder Trial de 90 Dias sem cobrar
+          expiresAt.setDate(expiresAt.getDate() + 90);
+        } else {
+          // Cobrar (Renovação ou Upgrade de conta recorrente)
+          await query('UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE id = $2', [cost, wallet.id]);
+
+          await query(`
+            INSERT INTO transactions (from_user_id, type, amount, currency, status, description, reference)
+            VALUES ($1, 'PAYMENT', $2, 'G', 'COMPLETED', $3, 'PLAN_UPGRADE')
+          `, [userId, cost, `Assinatura Plano ${plan} (${billingCycle})`]);
+
+          expiresAt = currentUser.planExpiresAt && currentUser.planExpiresAt > new Date() 
+            ? new Date(currentUser.planExpiresAt) 
+            : new Date();
+          
+          if (billingCycle === 'ANNUAL') expiresAt.setDate(expiresAt.getDate() + 365);
+          else expiresAt.setDate(expiresAt.getDate() + 30);
+        }
+
+        await query(`UPDATE users SET plan = $1, plan_expires_at = $2 WHERE id = $3`, [plan, expiresAt, userId]);
+
+        await query('COMMIT');
+
+        res.json({
+          success: true,
+          message: isFirstTimeFree 
+            ? `Parabéns! Conta atualizada para ${plan}. Você ganhou 90 dias de acesso 100% gratuito!`
+            : `Assinatura de ${plan} ativada/estendida com sucesso!`,
+          data: { plan, planExpiresAt: expiresAt, deductedAmount: isFirstTimeFree ? 0 : cost }
+        });
+
+      } catch (err) {
+        await query('ROLLBACK');
+        console.error('Erro no Upgrade de Plano:', err);
+        throw new AppError(500, 'Erro interno ao processar pagamento', 'TRANSACTION_FAILED');
+      }
+
+    } catch (error) {
+      throw error;
+    }
+  }
+  /**
+   * Verifica se a senha fornecida corresponde à senha do usuário autenticado.
+   * Usado pelo app mobile para autenticar no lock screen e na carteira (fallback bio).
+   */
+  async verifyPassword(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId!;
+      const { password } = req.body;
+
+      if (!password) {
+        throw new AppError(400, 'Senha é obrigatória', 'MISSING_FIELDS');
+      }
+
+      const isValid = await userService.verifyPassword(userId, password);
+      if (!isValid) {
+        throw new AppError(401, 'Senha incorreta', 'INVALID_PASSWORD');
+      }
+
+      res.json({ success: true, message: 'Senha confirmada com sucesso' });
     } catch (error) {
       throw error;
     }

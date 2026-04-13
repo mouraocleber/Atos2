@@ -362,6 +362,77 @@
   background: linear-gradient(90deg, #0066FF 0%, #1E90FF 100%);
 }
 
+/* Social Login Styles */
+.social-login-separator {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 1rem 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+}
+
+.social-login-separator::before,
+.social-login-separator::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 140, 0, 0.2);
+}
+
+.social-login-separator span {
+  padding: 0 10px;
+}
+
+.google-login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: white;
+  color: #333;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.google-login-btn:hover {
+  background: #f8f9fa;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.google-login-btn img {
+  width: 20px;
+  height: 20px;
+}
+
+.social-imported-info {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  margin-top: -0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.social-imported-info p {
+  color: #4ade80;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.input-readonly {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
 /* Responsivo */
 @media (max-width: 768px) {
   .register-card {

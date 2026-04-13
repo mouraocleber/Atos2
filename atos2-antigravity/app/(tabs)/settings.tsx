@@ -1,29 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Modal,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Switch, Image
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBiometric } from '../../contexts/BiometricContext';
 import api from '../../services/api';
-
-const LANGUAGES = [
-  { code: 'pt-BR', label: '🇧🇷 Português (Brasil)' },
-  { code: 'en-US', label: '🇺🇸 English (US)' },
-  { code: 'es-ES', label: '🇪🇸 Español' },
-  { code: 'fr-FR', label: '🇫🇷 Français' },
-  { code: 'de-DE', label: '🇩🇪 Deutsch' },
-  { code: 'zh-CN', label: '🇨🇳 中文' },
-  { code: 'ja-JP', label: '🇯🇵 日本語' },
-];
+import CachedImage from '../../components/CachedImage';
+import QRCode from 'react-native-qrcode-svg';
+import { clearMediaCache, getMediaCacheSize } from '../../services/MediaCacheService';
+import { LANGUAGES } from '../../constants/translations';
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
+  const { isBiometricSupported, isBiometricEnabled, setBiometricEnabled } = useBiometric();
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [bioToggling, setBioToggling] = useState(false);
+
+  async function handleToggleBiometric(value: boolean) {
+    setBioToggling(true);
+    const success = await setBiometricEnabled(value);
+    setBioToggling(false);
+    if (!success && value) {
+      Alert.alert(
+        'Biometria indisponível',
+        'Seu dispositivo não possui biometria configurada ou a autenticação foi cancelada. Configure no sistema operacional e tente novamente.'
+      );
+    }
+  }
   const SERVER_MEDIA_BASE = (api.defaults.baseURL as string).replace('/api', '');
+
+  // Cache System
+  const [cacheSize, setCacheSize] = useState<number>(0);
+  useFocusEffect(
+    React.useCallback(() => {
+      getMediaCacheSize().then(setCacheSize);
+    }, [])
+  );
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+  };
+
+  const handleClearCache = () => {
+    if (cacheSize === 0) return Alert.alert('Limpar Armazenamento', 'Não há mídias cacheadas para limpar.');
+    Alert.alert('Limpar Armazenamento', `Deseja liberar ${formatBytes(cacheSize)} do armazenamento do seu aparelho? As mídias serão baixadas novamente quando precisar.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Limpar Agora', style: 'destructive', onPress: async () => {
+         await clearMediaCache();
+         setCacheSize(0);
+         Alert.alert('Sucesso', 'Armazenamento liberado!');
+      }}
+    ])
+  };
 
   // Edit Profile Modal
   const [editVisible, setEditVisible] = useState(false);
@@ -42,6 +77,17 @@ export default function SettingsScreen() {
   const [langVisible, setLangVisible] = useState(false);
   const [selectedLang, setSelectedLang] = useState(user?.preferredLanguage || 'pt-BR');
   const [langSaving, setLangSaving] = useState(false);
+  const [langSearch, setLangSearch] = useState('');
+
+  const filteredLangs = useMemo(() => {
+    const q = langSearch.trim().toLowerCase();
+    if (!q) return LANGUAGES;
+    return LANGUAGES.filter(l =>
+      l.label.toLowerCase().includes(q) ||
+      l.english.toLowerCase().includes(q) ||
+      l.code.toLowerCase().includes(q)
+    );
+  }, [langSearch]);
 
   // Download Schedule
   const [dlVisible, setDlVisible] = useState(false);
@@ -51,6 +97,7 @@ export default function SettingsScreen() {
 
   // Monetization & Search Status
   const [isSearchable, setIsSearchable] = useState(user?.isSearchable !== false);
+  const [qrModalVisible, setQrModalVisible] = useState(false);
   const [kwVisible, setKwVisible] = useState(false);
   const [kwWord, setKwWord] = useState('');
   const [kwPosition, setKwPosition] = useState('1');
@@ -111,14 +158,50 @@ export default function SettingsScreen() {
     if (!kwWord.trim() || !kwPosition) return Alert.alert('Atenção', 'Preencha a palavra e a posição (1-5)');
     setKwSaving(true);
     try {
+      if (user?.plan === 'FREE') {
+         throw new Error('Acesso Negado. Requer Plano PRO ou BUSINESS');
+      }
       await api.post('/keywords', { keyword: kwWord.trim(), position: parseInt(kwPosition) });
-      Alert.alert('Sucesso', 'Palavra-chave Promovida por 1 G (Mensal)! 🎉');
+      Alert.alert('Sucesso', 'Palavra-chave adicionada com sucesso! 🎉');
       setKwVisible(false);
       setKwWord('');
     } catch(e: any) {
-      Alert.alert('Erro', e?.response?.data?.message || 'Falha ao processar assinatura');
+      Alert.alert('Acesso Bloqueado', e?.response?.data?.message || e.message || 'Falha ao salvar palavra-chave');
     } finally {
       setKwSaving(false);
+    }
+  }
+
+  async function handleUpgradePlan(planType: 'PRO' | 'BUSINESS') {
+    const prices = {
+      PRO: { m: 4.00, a: 38.40 },
+      BUSINESS: { m: 40.00, a: 384.00 }
+    };
+    const { m, a } = prices[planType];
+
+    Alert.alert(
+      `Assinar Plano ${planType}`,
+      `Seu plano atual é ${user?.plan || 'FREE'}.\n\nMensal: ${m} G\nAnual: ${a} G (20% Off)\n\n* Por vir do FREE, você ganhará 90 Dias de acesso totalmente gratuito agora, sem cobranças na sua carteira!`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: `Mensal (${m} G após 90d)`,
+          onPress: () => confirmUpgrade(planType, 'MONTHLY')
+        },
+        { 
+          text: `Anual (${a} G após 90d)`,
+          onPress: () => confirmUpgrade(planType, 'ANNUAL')
+        }
+      ]
+    );
+  }
+
+  async function confirmUpgrade(planType: 'PRO' | 'BUSINESS', billingCycle: 'MONTHLY' | 'ANNUAL') {
+    try {
+      const res = await api.post('/auth/upgrade-plan', { plan: planType, billingCycle });
+      Alert.alert('Sucesso 🎉', res.data.message);
+    } catch(e: any) {
+      Alert.alert('Erro', e?.response?.data?.message || 'Falha ao realizar upgrade');
     }
   }
 
@@ -201,7 +284,9 @@ export default function SettingsScreen() {
     </TouchableOpacity>
   );
 
-  const currentLangLabel = LANGUAGES.find(l => l.code === selectedLang)?.label || selectedLang;
+  const currentLangLabel = LANGUAGES.find(l => l.code === selectedLang)
+    ? `${LANGUAGES.find(l => l.code === selectedLang)!.flag} ${LANGUAGES.find(l => l.code === selectedLang)!.label}`
+    : selectedLang;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -211,7 +296,7 @@ export default function SettingsScreen() {
           {avatarUploading ? (
              <ActivityIndicator color="#fff" />
           ) : user?.profileImage ? (
-             <Image source={{ uri: user.profileImage.startsWith('http') ? user.profileImage : SERVER_MEDIA_BASE + user.profileImage }} style={{width: 64, height: 64, borderRadius: 32}} />
+             <CachedImage url={user.profileImage} style={{width: 64, height: 64, borderRadius: 32}} />
           ) : (
              <Text style={styles.profileAvatarText}>{user?.name?.charAt(0) || '?'}</Text>
           )}
@@ -235,12 +320,64 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Segurança */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Segurança</Text>
+        <View style={styles.menuGroup}>
+          <MenuItem
+            icon="shield"
+            title="Usar Biometria"
+            subtitle={
+              !isBiometricSupported
+                ? 'Dispositivo não suporta biometria'
+                : isBiometricEnabled
+                ? 'Ativa — usada no app e na Carteira'
+                : 'Desativada — será pedida senha manual'
+            }
+            rightComponent={
+              bioToggling ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Switch
+                  value={isBiometricEnabled}
+                  onValueChange={handleToggleBiometric}
+                  disabled={!isBiometricSupported || bioToggling}
+                  trackColor={{ true: Colors.primary, false: Colors.light.border }}
+                  thumbColor={isBiometricEnabled ? '#fff' : Colors.light.textMuted}
+                />
+              )
+            }
+          />
+        </View>
+      </View>
+
       {/* Monetização e Busca */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Promoção e Busca</Text>
+        <Text style={styles.sectionTitle}>Meu Plano e Privacidade</Text>
         <View style={styles.menuGroup}>
-          <MenuItem icon="eye" title="Aparecer nas Buscas" subtitle="Exibe seu perfil num raio de 20km." rightComponent={<Switch value={isSearchable} onValueChange={toggleSearchable} trackColor={{true: Colors.success}} />} />
-          <MenuItem icon="award" title="Promover Vocação (Palavras-Chave)" subtitle="Custo Diário: 1 G" onPress={() => setKwVisible(true)} />
+          <MenuItem 
+            icon="star" 
+            title={`Plano Atual: ${user?.plan || 'FREE'}`} 
+            subtitle={user?.plan === 'FREE' ? "Faça upgrade para PRO ou BUSINESS" : `Expira em: ${user?.planExpiresAt ? new Date(user.planExpiresAt).toLocaleDateString() : 'Ativo'}`} 
+            onPress={user?.plan === 'FREE' ? undefined : undefined} // só exibição, abaixo terá botão de upgrade
+          />
+          {user?.plan === 'FREE' && (
+            <>
+              <MenuItem icon="trending-up" title="Faça Upgrade para PRO (4 G/mês)" subtitle="Ou Anual com 20% Off + 90 Dias Grátis!" onPress={() => handleUpgradePlan('PRO')} rightComponent={<Feather name="chevron-right" size={20} color={Colors.primary} />} />
+              <MenuItem icon="briefcase" title="Faça Upgrade para BUSINESS (40 G/mês)" subtitle="Acesso Vitrine! (Anual 20% Off + 90 Dias Grátis)" onPress={() => handleUpgradePlan('BUSINESS')} rightComponent={<Feather name="chevron-right" size={20} color={Colors.primary} />} />
+            </>
+          )}
+
+          <MenuItem icon="eye-off" title="Ocultar meu Perfil Nativamente" subtitle="Remove seu perfil 100% de qualquer busca (Funcionalidade Global)" rightComponent={<Switch value={!isSearchable} onValueChange={(val) => toggleSearchable(!val)} trackColor={{true: Colors.error}} />} />
+          <MenuItem icon="award" title="Palavras-Chave de Destaque" subtitle="Apenas para contas PRO e BUSINESS" onPress={() => setKwVisible(true)} />
+        </View>
+      </View>
+
+      {/* Contatos / QR Code */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Conexões Rápidas</Text>
+        <View style={styles.menuGroup}>
+          <MenuItem icon="figma" title="Meu QR Code Pessoal" subtitle="Adicione amigos pela Câmera na Carteira" onPress={() => setQrModalVisible(true)} />
         </View>
       </View>
 
@@ -250,6 +387,7 @@ export default function SettingsScreen() {
         <View style={styles.menuGroup}>
           <MenuItem icon="globe" title="Idioma das Traduções" subtitle={currentLangLabel} onPress={() => setLangVisible(true)} />
           <MenuItem icon="download-cloud" title="Agendar Downloads" subtitle={dlMode === 'wifi' ? "Apenas Wi-Fi" : dlMode === 'always' ? "Qualquer Rede" : `Madrugada (${dlStart} - ${dlEnd})`} onPress={() => setDlVisible(true)} />
+          <MenuItem icon="hard-drive" title="Uso de Dados e Memória" subtitle={`Armazenamento Local: ${formatBytes(cacheSize)}`} onPress={handleClearCache} />
         </View>
       </View>
 
@@ -312,25 +450,73 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* Language Modal */}
-      <Modal visible={langVisible} transparent animationType="slide">
+      <Modal visible={langVisible} transparent animationType="slide" onDismiss={() => setLangSearch('')}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <Text style={styles.modalTitle}>Idioma das Traduções</Text>
             <Text style={styles.modalSubtitle}>As mensagens recebidas serão traduzidas para o idioma escolhido</Text>
-            {LANGUAGES.map(lang => (
-              <TouchableOpacity
-                key={lang.code}
-                style={[styles.langOption, selectedLang === lang.code && styles.langOptionActive]}
-                onPress={() => handleSaveLanguage(lang.code)}
-                disabled={langSaving}
-              >
-                <Text style={[styles.langOptionText, selectedLang === lang.code && styles.langOptionTextActive]}>{lang.label}</Text>
-                {selectedLang === lang.code && <Feather name="check" size={18} color={Colors.primary} />}
-              </TouchableOpacity>
-            ))}
+
+            {/* Busca */}
+            <View style={styles.langSearchBar}>
+              <Feather name="search" size={14} color={Colors.light.textMuted} style={{ marginRight: 6 }} />
+              <TextInput
+                style={styles.langSearchInput}
+                placeholder="Pesquisar... / Search..."
+                placeholderTextColor={Colors.light.textMuted}
+                value={langSearch}
+                onChangeText={setLangSearch}
+                autoCorrect={false}
+              />
+              {langSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setLangSearch('')}>
+                  <Feather name="x" size={14} color={Colors.light.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              {filteredLangs.map(lang => (
+                <TouchableOpacity
+                  key={lang.code}
+                  style={[styles.langOption, selectedLang === lang.code && styles.langOptionActive]}
+                  onPress={() => handleSaveLanguage(lang.code)}
+                  disabled={langSaving}
+                >
+                  <Text style={styles.langOptionFlag}>{lang.flag}</Text>
+                  <Text style={[styles.langOptionText, selectedLang === lang.code && styles.langOptionTextActive]}>{lang.label}</Text>
+                  {selectedLang === lang.code && <Feather name="check" size={18} color={Colors.primary} />}
+                </TouchableOpacity>
+              ))}
+              {filteredLangs.length === 0 && (
+                <View style={{ alignItems: 'center', padding: Spacing.xl }}>
+                  <Text style={{ color: Colors.light.textMuted }}>Nenhum idioma encontrado</Text>
+                </View>
+              )}
+            </ScrollView>
+
             {langSaving && <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.sm }} />}
-            <TouchableOpacity style={[styles.modalBtnCancel, { marginTop: Spacing.md }]} onPress={() => setLangVisible(false)}>
+            <TouchableOpacity style={[styles.modalBtnCancel, { marginTop: Spacing.md }]} onPress={() => { setLangVisible(false); setLangSearch(''); }}>
               <Text style={[styles.modalBtnText, { textAlign: 'center' }]}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Perfil QR Code Modal */}
+      <Modal visible={qrModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, {alignItems: 'center'}]}>
+            <Text style={styles.modalTitle}>Meu QR Code de Contato</Text>
+            <Text style={styles.modalSubtitle}>Mostre este código para outro usuário escanear e iniciar uma conversa.</Text>
+            <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 10, marginVertical: 20}}>
+              {user?.id ? (
+                <QRCode value={`atos2://connect?user=${user.id}`} size={200} />
+              ) : (
+                <ActivityIndicator color={Colors.primary} />
+              )}
+            </View>
+            <TouchableOpacity style={[styles.modalBtnCancel, { width: '80%' }]} onPress={() => setQrModalVisible(false)}>
+              <Text style={[styles.modalBtnText, {textAlign: 'center'}]}>Fechar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -341,23 +527,29 @@ export default function SettingsScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vocações Premium</Text>
-            <Text style={styles.modalSubtitle}>Assuma o Topo da busca 20km para até 5 palavras-chave!</Text>
+            <Text style={styles.modalSubtitle}>Assuma o Topo da busca 20km para até 5 palavras-chave (Exclusivo PRO/BUSINESS)!</Text>
             
-            <TextInput style={styles.inputModal} placeholder="Palavra-Chave (Ex: Bolos)" placeholderTextColor={Colors.light.textMuted} value={kwWord} onChangeText={setKwWord} />
+            <TextInput style={styles.inputModal} placeholder="Palavra-Chave (Ex: Bolos)" maxLength={16} placeholderTextColor={Colors.light.textMuted} value={kwWord} onChangeText={setKwWord} />
             <TextInput style={styles.inputModal} placeholder="Posição Desejada (1 a 5)" placeholderTextColor={Colors.light.textMuted} value={kwPosition} onChangeText={setKwPosition} keyboardType="numeric" />
             
             <View style={{backgroundColor: Colors.secondary + '20', padding: Spacing.sm, borderRadius: BorderRadius.sm, marginBottom: Spacing.md}}>
-               <Text style={{color: Colors.secondaryDark, textAlign: 'center', fontWeight: 'bold'}}>Transação Instantânea: 1 G</Text>
-               <Text style={{color: Colors.secondaryDark, textAlign: 'center', fontSize: 10}}>Tempo de Assinatura: Este mês</Text>
+               <Text style={{color: Colors.secondaryDark, textAlign: 'center', fontWeight: 'bold'}}>Incluso na assinatura PRO / BUSINESS</Text>
+               <Text style={{color: Colors.secondaryDark, textAlign: 'center', fontSize: 10}}>Tempo de Assinatura: Contínuo</Text>
             </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setKwVisible(false)} disabled={kwSaving}>
                 <Text style={styles.modalBtnText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtnSubmit, {backgroundColor: Colors.secondary}]} onPress={handleBuyKeyword} disabled={kwSaving}>
-                {kwSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnSubmitText}>Assinar por 1 G</Text>}
-              </TouchableOpacity>
+              {user?.plan !== 'FREE' ? (
+                <TouchableOpacity style={[styles.modalBtnSubmit, {backgroundColor: Colors.secondary}]} onPress={handleBuyKeyword} disabled={kwSaving}>
+                  {kwSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnSubmitText}>Salvar Vocação</Text>}
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.modalBtnSubmit, {backgroundColor: Colors.light.border}]}>
+                   <Text style={{color: Colors.light.textSecondary}}>Requer Upgrade</Text>
+                </View>
+              )}
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -433,8 +625,11 @@ const styles = StyleSheet.create({
   modalBtnText: { color: Colors.light.textSecondary, fontWeight: '600' },
   modalBtnSubmit: { flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center', backgroundColor: Colors.primary },
   modalBtnSubmitText: { color: '#fff', fontWeight: '700' },
-  langOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.light.border, marginBottom: Spacing.xs },
+  langSearchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.light.surfaceLight, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 6, borderWidth: 1, borderColor: Colors.light.border, marginBottom: Spacing.sm },
+  langSearchInput: { flex: 1, color: Colors.light.text, fontSize: FontSize.sm, paddingVertical: 0 },
+  langOption: { flexDirection: 'row', alignItems: 'center', padding: Spacing.sm, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.light.border, marginBottom: Spacing.xs, gap: Spacing.sm },
   langOptionActive: { backgroundColor: Colors.primary + '15', borderColor: Colors.primary },
-  langOptionText: { color: Colors.light.text, fontSize: FontSize.md },
+  langOptionFlag: { fontSize: 22, width: 30, textAlign: 'center' },
+  langOptionText: { flex: 1, color: Colors.light.text, fontSize: FontSize.sm },
   langOptionTextActive: { color: Colors.primary, fontWeight: '700' },
 });

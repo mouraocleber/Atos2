@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Modal, TextInput, ActivityIndicator, RefreshControl, KeyboardAvoidingView
+  View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Modal, TextInput, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { useStripe } from '@stripe/stripe-react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBiometric } from '../../contexts/BiometricContext';
 import { getBalance, getTransactionHistory, createTransaction, WalletBalanceResponse } from '../../services/wallet';
-import { api } from '../../services/api';
+import api from '../../services/api';
 
 interface Transaction {
   id: string;
@@ -31,6 +33,122 @@ const typeLabels: Record<string, { icon: any; label: string; color: string }> = 
 
 export default function WalletScreen() {
   const { user } = useAuth();
+  const { isBiometricEnabled, authenticate } = useBiometric();
+
+  // Guarda de segurança — começa bloqueada a cada vez que a tela monta
+  const [walletUnlocked, setWalletUnlocked] = useState(false);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlockLoading, setUnlockLoading] = useState(false);
+  const [showUnlockPassword, setShowUnlockPassword] = useState(false);
+
+  useEffect(() => {
+    // Reset da trava sempre que a tela é (re)montada
+    setWalletUnlocked(false);
+    setShowUnlockPassword(false);
+    setUnlockPassword('');
+  }, []);
+
+  async function handleWalletBiometric() {
+    setUnlockLoading(true);
+    const success = await authenticate('Autentique-se para acessar sua Carteira Atos2');
+    setUnlockLoading(false);
+    if (success) {
+      setWalletUnlocked(true);
+    } else {
+      setShowUnlockPassword(true);
+    }
+  }
+
+  async function handleWalletPasswordUnlock() {
+    if (!unlockPassword.trim()) {
+      return Alert.alert('Atenção', 'Digite sua senha para continuar.');
+    }
+    setUnlockLoading(true);
+    try {
+      await api.post('/auth/verify-password', { password: unlockPassword });
+      setWalletUnlocked(true);
+    } catch {
+      Alert.alert('Senha incorreta', 'Verifique sua senha e tente novamente.');
+    } finally {
+      setUnlockLoading(false);
+    }
+  }
+
+  // ─── Tela de bloqueio da carteira ────────────────────────────────────────
+  if (!walletUnlocked) {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: Spacing.xl }]}
+      >
+        <View style={styles.walletLockWrapper}>
+          <View style={styles.walletLockIcon}>
+            <Feather name="credit-card" size={40} color={Colors.primary} />
+          </View>
+          <Text style={styles.walletLockTitle}>Carteira Protegida</Text>
+          <Text style={styles.walletLockSubtitle}>
+            Confirme sua identidade para acessar sua carteira e realizar transações.
+          </Text>
+
+          {isBiometricEnabled && !showUnlockPassword && (
+            <TouchableOpacity
+              style={styles.walletLockBtn}
+              onPress={handleWalletBiometric}
+              disabled={unlockLoading}
+            >
+              {unlockLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Feather name="shield" size={20} color="#fff" />
+                  <Text style={styles.walletLockBtnText}>Usar Biometria</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {(showUnlockPassword || !isBiometricEnabled) && (
+            <View style={{ width: '100%', marginTop: Spacing.md }}>
+              <TextInput
+                style={styles.inputModal}
+                placeholder="🔒 Sua senha"
+                placeholderTextColor={Colors.light.textMuted}
+                secureTextEntry
+                value={unlockPassword}
+                onChangeText={setUnlockPassword}
+                onSubmitEditing={handleWalletPasswordUnlock}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={styles.walletLockBtn}
+                onPress={handleWalletPasswordUnlock}
+                disabled={unlockLoading}
+              >
+                {unlockLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.walletLockBtnText}>Desbloquear Carteira</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {isBiometricEnabled && !showUnlockPassword && (
+            <TouchableOpacity
+              style={{ marginTop: Spacing.lg }}
+              onPress={() => setShowUnlockPassword(true)}
+            >
+              <Text style={{ color: Colors.primary, fontWeight: '600', fontSize: FontSize.sm }}>
+                Usar senha em vez disso
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const [balanceData, setBalanceData] = useState<WalletBalanceResponse | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +175,8 @@ export default function WalletScreen() {
   // Receipt State
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+
   const loadData = async () => {
     try {
       const [bal, hist] = await Promise.all([getBalance(), getTransactionHistory()]);
@@ -72,16 +192,44 @@ export default function WalletScreen() {
     }
   };
 
-  const handleDepositPix = async () => {
+  const handleDepositStripe = async (mode: 'deposit' | 'charge' = 'deposit') => {
     if (!depositAmount || parseFloat(depositAmount.replace(',', '.')) <= 0) {
       return Alert.alert('Atenção', 'Informe um valor válido.');
     }
     setDepositLoading(true);
     try {
-      const resp = await api.post('/payments/deposit/pix', { amount: parseFloat(depositAmount.replace(',', '.')) });
-      setPixData(resp.data.data.pix);
+      const amountCents = Math.round(parseFloat(depositAmount.replace(',', '.')) * 100);
+      const { data } = await api.post('/stripe/create_intent', { amount: amountCents });
+
+      if (!data.client_secret) throw new Error('Credenciais de cobrança inválidas');
+
+      const initResponse = await initPaymentSheet({
+        merchantDisplayName: 'Atos2 Pay',
+        paymentIntentClientSecret: data.client_secret,
+        returnURL: 'atos2://stripe-redirect',
+        style: 'alwaysDark'
+      });
+      
+      if (initResponse.error) return Alert.alert('Erro', initResponse.error.message);
+
+      setDepositModalVisible(false);
+
+      const presentResponse = await presentPaymentSheet();
+      
+      if (presentResponse.error) {
+         if (presentResponse.error.code !== 'Canceled') {
+            Alert.alert('Aviso', presentResponse.error.message);
+         }
+      } else {
+         const sucessoMsg = mode === 'charge' 
+            ? 'Cobrança efetuada! O valor já foi creditado na sua carteira G.'
+            : 'Depósito concluído via Stripe PIX / Aproximação.';
+         Alert.alert('Sucesso 🎉', sucessoMsg);
+         setDepositAmount('');
+         loadData();
+      }
     } catch (e: any) {
-      Alert.alert('Erro', e?.response?.data?.error || 'Falha ao gerar o código PIX.');
+      Alert.alert('Falha Segura', e?.response?.data?.error || e.message || 'Erro no Gateway');
     } finally {
       setDepositLoading(false);
     }
@@ -189,10 +337,17 @@ export default function WalletScreen() {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => { setPixData(null); setDepositModalVisible(true); }}
+            onPress={() => { setDepositAmount(''); setDepositModalVisible(true); }}
           >
             <Feather name="arrow-down" size={24} color={Colors.light.textSecondary} />
             <Text style={styles.actionLabel}>Depositar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => { setDepositAmount(''); setDepositModalVisible(true); }} // Abre modal que possui opção de cobrar
+          >
+            <Feather name="dollar-sign" size={24} color={Colors.light.textSecondary} />
+            <Text style={styles.actionLabel}>Cobrar</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
@@ -200,13 +355,6 @@ export default function WalletScreen() {
           >
             <Feather name="arrow-up-right" size={24} color={Colors.light.textSecondary} />
             <Text style={styles.actionLabel}>Transferir</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => setModalVisible(true)}
-          >
-            <Feather name="credit-card" size={24} color={Colors.light.textSecondary} />
-            <Text style={styles.actionLabel}>Pagar</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
@@ -270,55 +418,37 @@ export default function WalletScreen() {
         </View>
       </Modal>
 
-      {/* Deposit PIX Modal */}
-      <Modal visible={depositModalVisible} transparent animationType="slide">
-        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+      {/* Stripe Deposit / Charge Modal */}
+      <Modal visible={depositModalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Depositar via PIX</Text>
-            
-            {!pixData ? (
-              <>
-                <Text style={styles.modalSubtitle}>Adicione saldo instantâneo à sua carteira (Em BRL)</Text>
-                <TextInput
-                  style={styles.inputModal}
-                  placeholder="Valor (Ex: 50.00)"
-                  placeholderTextColor={Colors.light.textMuted}
-                  keyboardType="decimal-pad"
-                  value={depositAmount}
-                  onChangeText={setDepositAmount}
-                />
-                <View style={styles.modalActions}>
-                  <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setDepositModalVisible(false)}>
-                    <Text style={styles.modalBtnText}>Cancelar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.modalBtnSubmit} onPress={handleDepositPix} disabled={depositLoading}>
-                    {depositLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnSubmitText}>Gerar Pix</Text>}
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : (
-              <>
-                <Text style={styles.modalSubtitle}>Escaneie ou copie o código Pix abaixo:</Text>
-                
-                <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 10, marginVertical: 10, alignSelf: 'center'}}>
-                  <QRCode value={pixData.qr_code} size={150} />
-                </View>
+            <Text style={styles.modalTitle}>Stripe Gateway</Text>
+            <Text style={{marginBottom: 16, color: Colors.light.textSecondary, textAlign: 'center'}}>
+              Digite o valor para gerar a cobrança unificada (PIX / NFC). O valor cairá instantaneamente em sua carteira {balanceData?.local?.currency}.
+            </Text>
 
-                <TouchableOpacity 
-                  style={[styles.modalBtnSubmit, { marginBottom: Spacing.md, backgroundColor: Colors.info }]} 
-                  onPress={async () => {
-                    await Clipboard.setStringAsync(pixData.qr_code);
-                    Alert.alert('Copiado', 'Pix Copia e Cola salvo na área de transferência!');
-                  }}
-                >
-                  <Text style={styles.modalBtnSubmitText}>📋 Copiar Pix Copia e Cola</Text>
-                </TouchableOpacity>
+            <TextInput
+              style={styles.inputModal}
+              placeholder="0,00"
+              placeholderTextColor={Colors.light.textMuted}
+              keyboardType="numeric"
+              value={depositAmount}
+              onChangeText={setDepositAmount}
+            />
 
-                <TouchableOpacity style={styles.modalBtnCancel} onPress={() => { setDepositModalVisible(false); loadData(); }}>
-                  <Text style={styles.modalBtnText}>Fechar</Text>
-                </TouchableOpacity>
-              </>
-            )}
+            <View style={{flexDirection: 'column', gap: 10, marginTop: 16}}>
+               <TouchableOpacity style={[styles.modalBtnSubmit, {backgroundColor: '#6366f1'}]} onPress={() => handleDepositStripe('charge')} disabled={depositLoading}>
+                 {depositLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnSubmitText}>Cobrar de um Cliente</Text>}
+               </TouchableOpacity>
+
+               <TouchableOpacity style={styles.modalBtnSubmit} onPress={() => handleDepositStripe('deposit')} disabled={depositLoading}>
+                 {depositLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnSubmitText}>Depositar p/ Mim Mesmo</Text>}
+               </TouchableOpacity>
+               
+               <TouchableOpacity style={[styles.modalBtnCancel, {marginTop: 6}]} onPress={() => { setDepositModalVisible(false); loadData(); }} disabled={depositLoading}>
+                 <Text style={styles.modalBtnText}>Cancelar</Text>
+               </TouchableOpacity>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -387,11 +517,11 @@ export default function WalletScreen() {
                 <View style={{ backgroundColor: Colors.light.background, padding: 15, borderRadius: 10, marginBottom: 20 }}>
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
                     <Text style={{color: Colors.light.textMuted}}>Tipo de Operação</Text>
-                    <Text style={{color: Colors.light.textPrimary, fontWeight: 'bold'}}>{typeLabels[selectedTx.type].label}</Text>
+                    <Text style={{color: Colors.light.text, fontWeight: 'bold'}}>{typeLabels[selectedTx.type].label}</Text>
                   </View>
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
                     <Text style={{color: Colors.light.textMuted}}>Data da Operação</Text>
-                    <Text style={{color: Colors.light.textPrimary}}>{new Date(selectedTx.created_at).toLocaleString('pt-BR')}</Text>
+                    <Text style={{color: Colors.light.text}}>{new Date(selectedTx.created_at).toLocaleString('pt-BR')}</Text>
                   </View>
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
                     <Text style={{color: Colors.light.textMuted}}>Status</Text>
@@ -400,7 +530,7 @@ export default function WalletScreen() {
                   {selectedTx.description && (
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
                     <Text style={{color: Colors.light.textMuted}}>Descrição</Text>
-                    <Text style={{color: Colors.light.textPrimary}}>{selectedTx.description}</Text>
+                    <Text style={{color: Colors.light.text}}>{selectedTx.description}</Text>
                   </View>
                   )}
                   <View style={{marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: Colors.light.border}}>
@@ -550,5 +680,56 @@ const styles = StyleSheet.create({
   },
   modalBtnSubmitText: {
     color: '#fff', fontWeight: '700'
-  }
+  },
+  // Wallet Lock Screen styles
+  walletLockWrapper: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  walletLockIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.primary + '18',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    borderWidth: 2,
+    borderColor: Colors.primary + '40',
+  },
+  walletLockTitle: {
+    color: Colors.light.text,
+    fontSize: FontSize.xl,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  walletLockSubtitle: {
+    color: Colors.light.textSecondary,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: Spacing.xl,
+  },
+  walletLockBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    width: '100%',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  walletLockBtnText: {
+    color: '#fff',
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
 });

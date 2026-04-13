@@ -2,16 +2,15 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Configure o IP do seu computador aqui para o Expo Go conseguir conectar.
-// No seu terminal, rode 'ipconfig' e procure pelo Endereço IPv4.
-const BASE_URL = 'http://10.213.69.86:3001/api';
+// Backend hospedado no DigitalOcean (IP fixo — sem dependência do computador local)
+export const SERVER_URL = 'http://159.223.107.51:3001';
+const BASE_URL = `${SERVER_URL}/api`;
 
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
-    'Bypass-Tunnel-Reminder': 'true',
   },
 });
 

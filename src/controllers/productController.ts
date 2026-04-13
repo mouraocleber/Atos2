@@ -11,6 +11,13 @@ export class ProductController {
       const userId = req.userId!;
       const { name, price, description, category, imageUrl, stock } = req.body;
 
+      // Import userService in this file if not already imported
+      const { default: userServiceObj } = await import('../services/userService');
+      const user = await userServiceObj.getUserById(userId);
+      if (user?.plan !== 'BUSINESS') {
+        throw new AppError(403, 'Requer Plano BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
+      }
+
       if (!name || !price) {
         throw new AppError(400, 'Nome e preço são obrigatórios', 'MISSING_PRODUCT_DATA');
       }
@@ -105,6 +112,12 @@ export class ProductController {
       const { productId } = req.params;
       const updates = req.body;
 
+      const { default: userServiceObj } = await import('../services/userService');
+      const user = await userServiceObj.getUserById(userId);
+      if (user?.plan !== 'BUSINESS') {
+        throw new AppError(403, 'Requer Plano BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
+      }
+
       if (!productId) {
         throw new AppError(400, 'ID do produto é obrigatório', 'MISSING_PRODUCT_ID');
       }
@@ -134,6 +147,12 @@ export class ProductController {
     try {
       const userId = req.userId!;
       const { productId } = req.params;
+
+      const { default: userServiceObj } = await import('../services/userService');
+      const user = await userServiceObj.getUserById(userId);
+      if (user?.plan !== 'BUSINESS') {
+        throw new AppError(403, 'Requer Plano BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
+      }
 
       if (!productId) {
         throw new AppError(400, 'ID do produto é obrigatório', 'MISSING_PRODUCT_ID');

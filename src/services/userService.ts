@@ -24,11 +24,11 @@ export class UserService {
     const result = await query(
       `INSERT INTO users (
         email, phone, nickname, name, person_type, cpf, cep, 
-        address, city, state, country, password_hash, preferred_language, block_non_contacts
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        address, city, state, country, password_hash, preferred_language, block_non_contacts, is_searchable
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING id, email, phone, nickname, name, person_type, cpf, cep, 
                 address, city, state, country, profile_image, status, preferred_language, balance, 
-                is_active, created_at, updated_at, last_login, block_non_contacts, role`,
+                is_active, created_at, updated_at, last_login, block_non_contacts, role, plan, plan_expires_at`,
       [
         userData.email,
         userData.phone,
@@ -44,6 +44,7 @@ export class UserService {
         passwordHash,
         userData.preferredLanguage || 'pt-BR',
         userData.blockNonContacts || false,
+        true, // is_searchable = true por padrão para novos usuários
       ]
     );
 
@@ -75,6 +76,8 @@ export class UserService {
       lastLogin: row.last_login,
       blockNonContacts: row.block_non_contacts,
       role: row.role,
+      plan: row.plan || 'FREE',
+      planExpiresAt: row.plan_expires_at,
     } as User;
   }
 
@@ -82,7 +85,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts, role
+              is_active, created_at, updated_at, last_login, block_non_contacts, role, plan, plan_expires_at
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -94,7 +97,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts, role
+              is_active, created_at, updated_at, last_login, block_non_contacts, role, plan, plan_expires_at
        FROM users WHERE email = $1`,
       [email]
     );
@@ -106,7 +109,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts, role
+              is_active, created_at, updated_at, last_login, block_non_contacts, role, plan, plan_expires_at
        FROM users WHERE phone = $1`,
       [phone]
     );
@@ -118,7 +121,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts, role
+              is_active, created_at, updated_at, last_login, block_non_contacts, role, plan, plan_expires_at
        FROM users WHERE cpf = $1`,
       [cpf]
     );
@@ -130,7 +133,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts, role
+              is_active, created_at, updated_at, last_login, block_non_contacts, role, plan, plan_expires_at
        FROM users WHERE nickname = $1`,
       [nickname]
     );
@@ -177,7 +180,7 @@ export class UserService {
       `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramIndex}
        RETURNING id, email, phone, nickname, name, person_type, cpf, cep, 
                  address, city, state, country, profile_image, status, preferred_language, balance, 
-                 is_active, created_at, updated_at, last_login, block_non_contacts, role`,
+                 is_active, created_at, updated_at, last_login, block_non_contacts, role, plan, plan_expires_at`,
       updateValues
     );
 
@@ -198,7 +201,7 @@ export class UserService {
     const result = await query(
       `SELECT id, email, phone, nickname, name, person_type, cpf, cep, 
               address, city, state, country, profile_image, status, preferred_language, balance, 
-              is_active, created_at, updated_at, last_login, block_non_contacts, role
+              is_active, created_at, updated_at, last_login, block_non_contacts, role, plan, plan_expires_at
        FROM users 
        WHERE nickname ILIKE $1 OR name ILIKE $1 OR email ILIKE $1
        LIMIT $2`,

@@ -29,7 +29,18 @@
         "CAMERA",
         "RECORD_AUDIO",
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.NFC",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ],
       "softwareKeyboardLayoutMode": "resize"
     },
@@ -40,13 +51,35 @@
     "plugins": [
       "expo-router",
       "expo-video",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.atos2.app",
+          "enableGooglePay": true
+        }
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "updates": {
       "enabled": false
     },
     "extra": {
-      "apiUrl": "https://moody-mammals-crash.loca.lt/api"
+      "apiUrl": "https://moody-mammals-crash.loca.lt/api",
+      "router": {},
+      "eas": {
+        "projectId": "1f93e4c0-6838-4ca0-8d29-3cef0bd49943"
+      }
     }
   }
 }

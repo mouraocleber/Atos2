@@ -10,6 +10,9 @@ interface User {
   personType: 'PF' | 'PJ';
   profileImage?: string;
   preferredLanguage?: string;
+  isSearchable?: boolean;
+  plan?: 'FREE' | 'PRO' | 'BUSINESS';
+  planExpiresAt?: Date;
 }
 
 interface AuthContextData {

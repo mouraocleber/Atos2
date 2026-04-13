@@ -14,6 +14,7 @@ export interface UserSearchFilters {
   query?: string;
   latitude?: number;
   longitude?: number;
+  radius?: number;
 }
 
 export interface UserSearchResult {
@@ -107,14 +108,15 @@ export class UserSearchService {
       paramIndex++;
     }
 
-    // Filtro espacial (Raio de 50km fixo se latitude e longitude forem informados)
-    if (filters.latitude && filters.longitude) {
-      // Fórmula de Haversine para 50km
+    // Filtro espacial (Raio se latitude e longitude e raio forem informados)
+    if (filters.latitude && filters.longitude && filters.radius) {
+      // Fórmula de Haversine para encontrar usuários dentro do raio
       whereConditions.push(`
-        (6371 * acos(cos(radians($${paramIndex})) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians($${paramIndex + 1})) + sin(radians($${paramIndex})) * sin(radians(u.latitude)))) <= 50
+        u.latitude IS NOT NULL AND u.longitude IS NOT NULL AND
+        (6371 * acos(cos(radians($${paramIndex})) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians($${paramIndex + 1})) + sin(radians($${paramIndex})) * sin(radians(u.latitude)))) <= $${paramIndex + 2}
       `);
-      params.push(filters.latitude, filters.longitude);
-      paramIndex += 2;
+      params.push(filters.latitude, filters.longitude, filters.radius);
+      paramIndex += 3;
     }
 
     const whereClause = whereConditions.join(' AND ');
@@ -132,7 +134,7 @@ export class UserSearchService {
     }
 
     const sql = `
-      SELECT DISTINCT ON (u.id)
+      SELECT
         u.id, u.email, u.phone, u.nickname, u.name, u.person_type, u.cep, u.address,
         u.city, u.state, u.profile_image, u.status, u.preferred_language, u.created_at,
         u.latitude, u.longitude, u.is_searchable,
@@ -145,38 +147,19 @@ export class UserSearchService {
           WHEN COALESCE(r.average_rating, 0) >= 3.5 THEN 'INICIANTE'
           ELSE 'NOVO'
         END as rating_level,
-        ${filters.query ? `CASE WHEN uk.keyword ILIKE $${queryParamIndex} AND uk.active = true AND uk.expires_at > CURRENT_TIMESTAMP THEN uk.position ELSE 99 END` : '99'} as keyword_rank,
-        COALESCE(r.average_rating, 0) as sort_rating,
-        u.name as sort_name
+        MIN(CASE WHEN uk.active = true AND uk.expires_at > CURRENT_TIMESTAMP ${filters.query ? `AND uk.keyword ILIKE $${queryParamIndex}` : ''} THEN uk.position ELSE 99 END) as keyword_rank
       FROM users u
       LEFT JOIN user_reputation r ON u.id = r.user_id
-      LEFT JOIN user_search_keywords uk ON u.id = uk.user_id AND uk.active = true AND uk.expires_at > CURRENT_TIMESTAMP
+      LEFT JOIN user_search_keywords uk ON u.id = uk.user_id
       WHERE ${whereClause}
-      ORDER BY u.id
-    `;
-
-    // Wrapping into an outer query so we can apply the ORDER BY with DISTINCT ON and LIMIT/OFFSET
-    // PostgreSQL require ORDER BY on DISTINCT ON columns first, so we use a subquery.
-    const outerSql = `
-      SELECT * FROM (${sql}) AS sub
-      ${orderClause.replace('u.created_at', 'created_at').replace('uk.keyword', 'keyword').replace('r.average_rating', 'average_rating').replace('u.name', 'sort_name')}
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `;
-
-    // Corrige os alias do order by no outer query
-    const finalOrderClause = filters.query 
-        ? `ORDER BY keyword_rank ASC, sort_rating DESC, sort_name ASC`
-        : `ORDER BY created_at DESC`;
-
-    const finalSql = `
-      SELECT * FROM (${sql}) AS sub
-      ${finalOrderClause}
+      GROUP BY u.id, r.average_rating, r.total_reviews
+      ORDER BY keyword_rank ASC, average_rating DESC, u.name ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     params.push(limit, offset);
 
-    const result = await query(finalSql, params);
+    const result = await query(sql, params);
 
     return result.rows.map((row: any) => ({
       id: row.id,

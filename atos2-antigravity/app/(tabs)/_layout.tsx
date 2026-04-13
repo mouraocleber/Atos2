@@ -1,9 +1,12 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tabs
       screenOptions={{
@@ -18,8 +21,8 @@ export default function TabsLayout() {
           backgroundColor: Colors.dark.surface,
           borderTopColor: Colors.dark.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + Math.max(15, insets.bottom),
+          paddingBottom: 8 + Math.max(15, insets.bottom),
           paddingTop: 4,
         },
         tabBarActiveTintColor: Colors.primary,
@@ -57,6 +60,14 @@ export default function TabsLayout() {
           title: 'Buscar',
           headerTitle: 'Buscar Usuários',
           tabBarIcon: ({ color }) => <Feather name="search" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="receive"
+        options={{
+          title: 'Cobrar',
+          headerTitle: 'Máquina de Cartão',
+          tabBarIcon: ({ color }) => <Feather name="aperture" size={24} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -14,6 +14,11 @@ export default function Index() {
     );
   }
 
+  // Sessão persistente: usuário já logado vai direto para Home
+  if (user) {
+    return <Redirect href="/(tabs)/chat" />;
+  }
+
   return <Redirect href="/(auth)/login" />;
 }
 

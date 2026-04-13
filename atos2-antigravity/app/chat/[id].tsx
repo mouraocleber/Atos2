@@ -10,14 +10,20 @@ import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
-import { useAudioPlayer } from 'expo-audio';
+import { useAudioPlayer, useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
 import { io, Socket } from 'socket.io-client';
+import { WebView } from 'react-native-webview';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as FileSystem from 'expo-file-system';
 
 import { getConversation, sendMessage } from '../../services/chat';
-import api from '../../services/api';
+import api, { SERVER_URL } from '../../services/api';
 
-// Base da URL do servidor (sem /api) para exibir arquivos de mídia
-const SERVER_MEDIA_BASE = (api.defaults.baseURL as string).replace('/api', '');
+// Base da URL do servidor (sem /api) para exibir arquivos de mídia e sockets
+const SERVER_MEDIA_BASE = SERVER_URL;
+
+import { getCachedMedia } from '../../services/MediaCacheService';
+import CachedImage from '../../components/CachedImage';
 
 interface Message {
   id: string;
@@ -43,17 +49,18 @@ export default function ChatRoomScreen() {
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
-  // Call / VoIP Modal
-  const [callModalVisible, setCallModalVisible] = useState(false);
-  const [callStatus, setCallStatus] = useState<string>('');
+  // Call / VoIP Modal & Moderation
+  const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
+  const [videoCallMode, setVideoCallMode] = useState<'video' | 'audio' | null>(null);
 
   // Schedule Message
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState('');
-  const [scheduleTime, setScheduleTime] = useState('');
+  const [scheduleDateObj, setScheduleDateObj] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Áudio
-  const [recording, setRecording] = useState<any | null>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const soundRef = useRef<any | null>(null);
@@ -138,18 +145,37 @@ export default function ChatRoomScreen() {
     };
   }, [loadLiveMessages, user?.id, id]);
 
-  // ─── VOICE CALL ─────────────────────────────────────────────────────────────
-  const handleStartCall = async () => {
-    setCallModalVisible(true);
-    setCallStatus('Conectando à Central Voz...');
-    try {
-      const response = await api.get('/calls/token');
-      if (response.data?.data?.token) {
-        setTimeout(() => setCallStatus(`Chamando ${name}... \n(Requer build nativo p/ som)`), 1500);
-      }
-    } catch(e: any) {
-      setTimeout(() => setCallStatus('API Twilio não conectada no .env'), 1500);
-    }
+  // ─── LIGAÇÕES (WEBVIEW WEBRTC) E MODERAÇÃO ────────────────────────────────
+  const handleStartCall = (mode: 'video' | 'audio') => {
+    setHeaderMenuVisible(false);
+    setVideoCallMode(mode);
+  };
+  
+  const handleBlockUser = async () => {
+    setHeaderMenuVisible(false);
+    Alert.alert('Bloquear', 'Impedir mensagens e ocultar atividades deste contato?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Bloquear', style: 'destructive', onPress: async () => {
+         try {
+           await api.post('/block', { blockedUserId: id, reason: 'Manual' });
+           Alert.alert('Sucesso', 'Usuário bloqueado.');
+           router.back();
+         } catch(e) { Alert.alert('Erro', 'Não foi possível bloquear.'); }
+      }}
+    ]);
+  };
+
+  const handleReportUser = async () => {
+    setHeaderMenuVisible(false);
+    Alert.alert('Denunciar', 'Acionar Tribunal Atos2 contra o usuário?', [
+       { text: 'Cancelar', style: 'cancel' },
+       { text: 'Denunciar Perfil', style: 'destructive', onPress: async () => {
+         try {
+           await api.post('/reports', { reportedUserId: id, reportType: 'HARASSMENT', description: 'Denúncia de chat' });
+           Alert.alert('Denúncia Recebida', 'Equipe Atos2 avaliará esta conta.');
+         } catch(e) { Alert.alert('Erro', 'Tente novamente depois.'); }
+       }}
+    ])
   };
 
   // ─── SEND TEXT ───────────────────────────────────────────────────────────────
@@ -160,21 +186,13 @@ export default function ChatRoomScreen() {
     setIsSending(true);
 
     let scheduledIso: string | undefined;
-    if (scheduleDate && scheduleTime) {
-       try {
-         const [day, month, year] = scheduleDate.split('/');
-         const [hour, min] = scheduleTime.split(':');
-         if (year && hour) {
-            const dateObj = new Date(parseInt(year), parseInt(month)-1, parseInt(day), parseInt(hour), parseInt(min));
-            scheduledIso = dateObj.toISOString();
-         }
-       } catch(e) {}
+    if (scheduleDateObj) {
+       scheduledIso = scheduleDateObj.toISOString();
     }
 
     try {
       await sendMessage({ recipientId: id as string, type: 'TEXT', content: textToSend, scheduledAt: scheduledIso });
-      setScheduleDate('');
-      setScheduleTime('');
+      setScheduleDateObj(null);
       loadLiveMessages(true);
     } catch (err) {
       console.log('Error sending text', err);
@@ -250,15 +268,74 @@ export default function ChatRoomScreen() {
 
   // ─── AUDIO RECORDING ─────────────────────────────────────────────────────────
   const startRecording = async () => {
-    Alert.alert('Aviso', 'A gravação de áudio está temporariamente desativada em prol do erro do Expo.');
+    try {
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Aviso', 'Permissão de microfone necessária.');
+        return;
+      }
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setIsRecording(true);
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Erro', 'Não foi possível iniciar o microfone.');
+    }
   };
 
   const stopRecordingAndSend = async () => {
+    if (!isRecording) return;
+    setIsRecording(false);
+    try {
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      if (uri) {
+        setIsSending(true);
+        await sendMessage({ recipientId: id as string, type: 'AUDIO', content: '' }, uri);
+        loadLiveMessages(true);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  // ─── AUDIO PLAYBACK ──────────────────────────────────────────────────────────
   const playAudio = async (msgId: string, url: string) => {
-    Alert.alert('Aviso', 'A reprodução de áudio está temporariamente desativada em prol do erro do Expo.');
+    try {
+      const cachedUrl = await getCachedMedia(url) || url;
+      if (soundRef.current) {
+        try { soundRef.current.remove(); } catch(_) {}
+        if (playingAudioId === msgId) {
+          setPlayingAudioId(null);
+          soundRef.current = null;
+          return;
+        }
+      }
+
+      // Cria player de áudio compatível baixando para System FS
+      const { createAudioPlayer } = await import('expo-audio');
+      
+      let finalUrl = cachedUrl;
+      if (finalUrl.startsWith('http')) {
+        const fileUri = FileSystem.cacheDirectory + 'playback_' + msgId + '.m4a';
+        await FileSystem.downloadAsync(finalUrl, fileUri);
+        finalUrl = fileUri;
+      }
+      
+      const newPlayer = createAudioPlayer({ uri: finalUrl });
+      soundRef.current = newPlayer;
+      setPlayingAudioId(msgId);
+      newPlayer.play();
+
+      // Timeout fallback para parar indicador
+      setTimeout(() => {
+        if (playingAudioId === msgId) setPlayingAudioId(null);
+      }, 30000);
+    } catch(e) {
+      console.warn('Erro ao tocar áudio:', e);
+      Alert.alert('Erro', 'Formato de áudio não suportado no dispositivo.');
+    }
   };
 
   // ─── RENDER MESSAGE ───────────────────────────────────────────────────────────
@@ -300,8 +377,11 @@ export default function ChatRoomScreen() {
           >
             {/* IMAGE */}
             {item.type === 'IMAGE' && mediaUrl && (
-              <TouchableOpacity onPress={() => setFullscreenImage(mediaUrl)} activeOpacity={0.9}>
-                <Image source={{ uri: mediaUrl }} style={styles.mediaImage} resizeMode="cover" />
+              <TouchableOpacity onPress={async () => {
+                 const cached = await getCachedMedia(mediaUrl);
+                 setFullscreenImage(cached);
+              }} activeOpacity={0.9}>
+                <CachedImage url={mediaUrl} style={styles.mediaImage} resizeMode="cover" />
               </TouchableOpacity>
             )}
 
@@ -406,10 +486,27 @@ export default function ChatRoomScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={handleStartCall}><Feather name="phone" size={20} color={Colors.primary} /></TouchableOpacity>
-          <TouchableOpacity style={styles.headerActionBtn}><Feather name="video" size={20} color={Colors.primary} /></TouchableOpacity>
-          <TouchableOpacity style={styles.headerActionBtn}><Feather name="more-vertical" size={20} color={Colors.primary} /></TouchableOpacity>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => handleStartCall('audio')}><Feather name="phone" size={20} color={Colors.primary} /></TouchableOpacity>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => handleStartCall('video')}><Feather name="video" size={20} color={Colors.primary} /></TouchableOpacity>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => setHeaderMenuVisible(true)}>
+             <Feather name="more-vertical" size={20} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
+
+        {headerMenuVisible && (
+          <Modal transparent visible animationType="fade" onRequestClose={() => setHeaderMenuVisible(false)}>
+             <Pressable style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.1)'}} onPress={() => setHeaderMenuVisible(false)}>
+                 <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: Colors.light.surface, borderRadius: 8, elevation: 4, width: 180, overflow: 'hidden'}}>
+                     <TouchableOpacity style={{padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.light.border}} onPress={handleBlockUser}>
+                         <Text style={{color: Colors.error, fontWeight: 'bold'}}>Bloquear Usuário</Text>
+                     </TouchableOpacity>
+                     <TouchableOpacity style={{padding: 16}} onPress={handleReportUser}>
+                         <Text style={{color: Colors.error, fontWeight: 'bold'}}>Denunciar Usuário</Text>
+                     </TouchableOpacity>
+                 </View>
+             </Pressable>
+          </Modal>
+        )}
       </View>
 
       {/* Fullscreen Image Modal */}
@@ -475,7 +572,7 @@ export default function ChatRoomScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.inputAction} onPress={() => setScheduleModalVisible(true)}>
-            <Feather name="clock" size={24} color={(scheduleDate && scheduleTime) ? Colors.secondaryDark : Colors.light.textSecondary} />
+            <Feather name="clock" size={24} color={(scheduleDateObj) ? Colors.secondaryDark : Colors.light.textSecondary} />
           </TouchableOpacity>
 
           <TextInput
@@ -515,21 +612,26 @@ export default function ChatRoomScreen() {
         )}
       </KeyboardAvoidingView>
 
-      {/* VoIP Call Screen */}
-      <Modal visible={callModalVisible} animationType="slide" transparent>
-        <View style={{flex: 1, backgroundColor: Colors.dark.background, justifyContent: 'center', alignItems: 'center'}}>
-           <View style={{alignItems: 'center', marginBottom: 40}}>
-              <View style={{width: 100, height: 100, borderRadius: 50, backgroundColor: Colors.primary+'20', justifyContent: 'center', alignItems: 'center', marginBottom: 20}}>
-                 <Feather name="phone-outgoing" size={40} color={Colors.primary} />
-              </View>
-              <Text style={{color: '#fff', fontSize: 24, fontWeight: 'bold'}}>{name}</Text>
-              <Text style={{color: Colors.light.textMuted, fontSize: 16, marginTop: 12, textAlign: 'center'}}>{callStatus}</Text>
-           </View>
-           
-           <TouchableOpacity style={{width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.error, justifyContent: 'center', alignItems: 'center', marginTop: 80}} onPress={() => setCallModalVisible(false)}>
-              <Feather name="phone-off" size={28} color="#fff" />
-           </TouchableOpacity>
-        </View>
+      {/* WebView Call Screen (Jitsi) */}
+      <Modal visible={!!videoCallMode} animationType="slide" transparent>
+        <SafeAreaView style={{flex: 1, backgroundColor: '#000'}}>
+          <View style={{height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, backgroundColor: '#111'}}>
+             <Text style={{color: '#fff', fontWeight: 'bold'}}>Chamada Segura (Atos2)</Text>
+             <TouchableOpacity onPress={() => setVideoCallMode(null)}>
+                <Feather name="x" size={24} color={Colors.error} />
+             </TouchableOpacity>
+          </View>
+          {!!videoCallMode && (
+             <WebView
+               source={{ uri: `https://meet.jit.si/Atos2Call_${id}?config.startWithVideoMuted=${videoCallMode==='audio'}` }}
+               allowsInlineMediaPlayback={true}
+               mediaPlaybackRequiresUserAction={false}
+               style={{flex: 1}}
+               javaScriptEnabled={true}
+               domStorageEnabled={true}
+             />
+          )}
+        </SafeAreaView>
       </Modal>
 
       {/* Schedule Message Modal */}
@@ -544,19 +646,43 @@ export default function ChatRoomScreen() {
                A próxima mensagem que você enviar neste cofre sairá exatamente no horário configurado.
             </Text>
 
-            <TextInput style={{backgroundColor: Colors.light.surfaceLight, borderRadius: 8, padding: 16, color: Colors.light.text, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 12}} placeholder="Data (DD/MM/AAAA)" placeholderTextColor={Colors.light.textMuted} value={scheduleDate} onChangeText={setScheduleDate} />
-            <TextInput style={{backgroundColor: Colors.light.surfaceLight, borderRadius: 8, padding: 16, color: Colors.light.text, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 20}} placeholder="Horário (HH:MM)" placeholderTextColor={Colors.light.textMuted} value={scheduleTime} onChangeText={setScheduleTime} />
+            <TouchableOpacity style={{backgroundColor: Colors.light.surfaceLight, borderRadius: 8, padding: 16, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between'}} onPress={() => setShowDatePicker(true)}>
+               <Text style={{color: scheduleDateObj ? Colors.light.text : Colors.light.textMuted}}>
+                  {scheduleDateObj ? scheduleDateObj.toLocaleDateString() : 'Escolher Data...'}
+               </Text>
+               <Feather name="calendar" size={18} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={{backgroundColor: Colors.light.surfaceLight, borderRadius: 8, padding: 16, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between'}} onPress={() => setShowTimePicker(true)}>
+               <Text style={{color: scheduleDateObj ? Colors.light.text : Colors.light.textMuted}}>
+                  {scheduleDateObj ? scheduleDateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Escolher Horário...'}
+               </Text>
+               <Feather name="clock" size={18} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+            
+            {(showDatePicker || showTimePicker) && (
+               <DateTimePicker
+                 value={scheduleDateObj || new Date()}
+                 mode={showDatePicker ? 'date' : 'time'}
+                 is24Hour={true}
+                 onChange={(event: any, date?: Date) => {
+                    setShowDatePicker(false);
+                    setShowTimePicker(false);
+                    if (date) setScheduleDateObj(date);
+                 }}
+               />
+            )}
 
             <View style={{flexDirection: 'row', gap: 12}}>
-               <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.light.surfaceLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.light.border}} onPress={() => { setScheduleDate(''); setScheduleTime(''); setScheduleModalVisible(false); }}>
-                  <Text style={{color: Colors.error, fontWeight: 'bold'}}>Remover Agendamento</Text>
+               <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.light.surfaceLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.light.border}} onPress={() => { setScheduleDateObj(null); setScheduleModalVisible(false); }}>
+                  <Text style={{color: Colors.error, fontWeight: 'bold'}}>Remover</Text>
                </TouchableOpacity>
 
                <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.primary, alignItems: 'center'}} onPress={() => {
-                  if(!scheduleDate || !scheduleTime) return Alert.alert('Atenção', 'Preencha Data e Hora');
+                  if(!scheduleDateObj) return Alert.alert('Atenção', 'Preencha Data e Hora');
                   setScheduleModalVisible(false);
                }}>
-                  <Text style={{color: '#fff', fontWeight: 'bold'}}>Confirmar Horário</Text>
+                  <Text style={{color: '#fff', fontWeight: 'bold'}}>Confirmar</Text>
                </TouchableOpacity>
             </View>
           </View>

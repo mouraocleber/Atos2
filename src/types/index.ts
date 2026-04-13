@@ -39,6 +39,9 @@ export interface User {
   blockNonContacts: boolean;
   isActive: boolean;
   role: 'USER' | 'ADMIN';
+  plan: 'FREE' | 'PRO' | 'BUSINESS';
+  planExpiresAt?: Date;
+  hideNameSearch?: boolean;
 }
 
 // Interface de Produto

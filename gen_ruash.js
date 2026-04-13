@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const sampleRate = 44100;
-const duration = 1.5; // 1.5 segundos para dar a fluidez do sopro
+const duration = 1.5; // Retornando aos 1.5 segundos
 const numSamples = Math.floor(sampleRate * duration);
 const numChannels = 1;
 
@@ -24,37 +24,54 @@ buffer.writeUInt32LE(numSamples * 2, 40);
 
 let offset = 44;
 
-// Variáveis para o filtro Paul Kellet (Pink Noise) - o som clássico do Vento contínuo e suave
-let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+// Modificador de ruído para som GRAVE (Brown Noise) - Vento pesado e denso
+let lastBrown = 0;
 
 for (let i = 0; i < numSamples; i++) {
   const t = i / sampleRate;
 
-  // Envelope super macio 'Sopro' (vento batendo suave e indo embora)
-  // Sobe gradualmente até 0.5s e desce flutuando até 1.5s
-  let envelope = 0;
-  if (t < 0.5) {
-    envelope = Math.pow(t / 0.5, 1.5); // Attack curvo suave
+  // Formato "Sopro" - O ar sai rápido dos pulmões (0.2s) e vai se esgotando suavemente até 1.5s
+  let envelope = 0.0;
+  if (t < 0.2) {
+    envelope = t / 0.2; // Entrada rápida e intensa (impulso de sopro)
   } else {
-    envelope = Math.pow(Math.max(0, 1 - ((t - 0.5) / 1.0)), 2); // Decay contínuo e orgânico
+    envelope = Math.max(0, 1.0 - ((t - 0.2) / 1.3)); // Vai morrendo até o fim
   }
+  
+  // Curva exponencial para queda mais dramática e natural
+  envelope = Math.pow(envelope, 1.5);
 
-  // Gerador purista de Pink Noise (Ruído Rosa) = som de brisa sedosa
+  // Brown noise reforçado (vento super grave)
   let white = (Math.random() * 2 - 1);
-  b0 = 0.99886 * b0 + white * 0.0555179;
-  b1 = 0.99332 * b1 + white * 0.0750759;
-  b2 = 0.96900 * b2 + white * 0.1538520;
-  b3 = 0.86650 * b3 + white * 0.3104856;
-  b4 = 0.55000 * b4 + white * 0.5329522;
-  b5 = -0.7616 * b5 - white * 0.0168980;
-  let pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-  b6 = white * 0.115926;
+  let brown = (lastBrown + (0.015 * white)) / 1.015;
+  lastBrown = brown;
+  let noise = brown * 5.0; 
 
-  // LFO oscila suavemente (Hz = 1.0) para dar uma ondulada ("vuuuuush")
-  let lfo = 1.0 + Math.sin(t * Math.PI * 2 * 1.0) * 0.4;
+  // LFO MAIS LENTO para dar onda de brisa
+  let lfo = 2.0 + Math.sin(t * Math.PI * 2 * 0.5) * 0.4;
 
-  // Mix: O volume geral em 0.15 pra não estourar caixas
-  let sample = pink * envelope * lfo * 0.15; 
+  // CAMADA "VIRAL" - Acorde de Sinos/Vogal Celestial
+  // Criar um envelope separado para a harmonia (Bell)
+  let bellEnv = Math.max(0, 1.0 - (t / 0.8)); // O "Sino" some rápido (0.8s)
+  bellEnv = Math.pow(bellEnv, 2.5); // Corte percussivo suave (tipo vibração do vidro)
+
+  // Frequências Místicas/Gospel: Dó Maior com 7M ou 9a (C, E, G, B) em 432Hz vibe
+  // Fundamental 528 Hz (conhecida como 'Frequência do Milagre' na musicoterapia)
+  let osc1 = Math.sin(t * Math.PI * 2 * 528.00); 
+  let osc2 = Math.sin(t * Math.PI * 2 * 659.25); // Mi
+  let osc3 = Math.sin(t * Math.PI * 2 * 792.00); // Sol
+
+  // Harmônicos cristalinos agudos (tilt)
+  let sparkle = (Math.sin(t * Math.PI * 2 * 1056.00) * 0.5) + (Math.sin(t * Math.PI * 2 * 1318.5) * 0.25);
+  
+  // Mistura as notas
+  let harmonicLayer = ((osc1 + osc2 + osc3) / 3.0) + (sparkle * 0.3);
+
+  // Mix Final: Sopra o grave com força + Toque do Acorde de Vidro mágico no meio do vento!
+  let sampleWind = noise * envelope * lfo * 0.85;
+  let sampleHarmonic = harmonicLayer * bellEnv * 0.25; // 25% de melodia no fundo
+
+  let sample = sampleWind + sampleHarmonic; 
   
   let intSample = Math.max(-1, Math.min(1, sample)) * 32767;
   buffer.writeInt16LE(intSample, offset);

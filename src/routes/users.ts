@@ -32,5 +32,7 @@ router.get('/popular', asyncHandler((req, res) => userSearchController.getPopula
 // Contagem total de usuários
 router.get('/count', asyncHandler((req, res) => userSearchController.getUsersCount(req, res)));
 
-export default router;
+// Alternar visibilidade global do usuário (Ocultar Perfil)
+router.put('/search-visibility', asyncHandler((req, res) => userSearchController.updateSearchVisibility(req, res)));
 
+export default router;

@@ -4,6 +4,7 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import api from '../utils/api';
 import './Register.css';
+import { useGoogleLogin } from '@react-oauth/google';
 
 type RegistrationStep = 'contact' | 'verification' | 'profile' | 'success';
 
@@ -22,6 +23,7 @@ export const Register: React.FC = () => {
     cep: '',
     preferredLanguage: 'pt-BR',
     password: '', // Adicionado para o backend
+    isSocialLogin: false,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -59,6 +61,34 @@ export const Register: React.FC = () => {
       setIsVerifying(false);
     }
   };
+
+  const loginWithGoogle = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        setIsVerifying(true);
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        const data = await res.json();
+        
+        setContactMethod('email');
+        setEmail(data.email);
+        setProfileData(prev => ({
+          ...prev,
+          name: data.name,
+          isSocialLogin: true
+        }));
+        setStep('profile');
+      } catch (error) {
+        setMessage({ type: 'error', text: 'Falha ao obter dados do Google' });
+      } finally {
+        setIsVerifying(false);
+      }
+    },
+    onError: () => {
+      setMessage({ type: 'error', text: 'Erro ao conectar com o Google' });
+    },
+  });
 
   const handleVerifyCode = async () => {
     try {
@@ -159,6 +189,19 @@ export const Register: React.FC = () => {
                 </button>
               </div>
 
+              <div className="social-login-separator">
+                <span>ou</span>
+              </div>
+
+              <button 
+                className="google-login-btn"
+                onClick={() => loginWithGoogle()}
+                disabled={isVerifying}
+              >
+                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google" />
+                Continuar com o Google
+              </button>
+
               {contactMethod === 'phone' ? (
                 <Input
                   label="Número de Telefone"
@@ -255,7 +298,15 @@ export const Register: React.FC = () => {
                     setProfileData({ ...profileData, name: e.target.value })
                   }
                   placeholder="João Silva"
+                  readOnly={profileData.isSocialLogin}
+                  className={profileData.isSocialLogin ? 'input-readonly' : ''}
                 />
+
+                {profileData.isSocialLogin && (
+                  <div className="social-imported-info">
+                    <p>✓ Dados importados do Google ({email})</p>
+                  </div>
+                )}
 
                 <Input
                   label="Apelido"

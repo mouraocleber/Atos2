@@ -6,6 +6,8 @@ import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import CachedImage from '../../components/CachedImage';
+import * as ImagePicker from 'expo-image-picker';
 
 interface Product {
   id: string;
@@ -17,6 +19,7 @@ interface Product {
   quantity: number;
   stock?: number;
   status: 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED';
+  imageUrl?: string;
 }
 
 export default function MarketplaceScreen() {
@@ -42,6 +45,54 @@ export default function MarketplaceScreen() {
 
   const [reportModal, setReportModal] = useState(false);
   const [reportDesc, setReportDesc] = useState('');
+
+  // Create Product State
+  const [createModal, setCreateModal] = useState(false);
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdPrice, setNewProdPrice] = useState('');
+  const [newProdDesc, setNewProdDesc] = useState('');
+  const [newProdCat, setNewProdCat] = useState('');
+  const [newProdImage, setNewProdImage] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleOpenCreate = () => {
+    if (user?.plan === 'FREE' || !user?.plan) {
+       Alert.alert('Vitrine Exclusiva', 'Apenas vendedores PRO e BUSINESS podem anunciar produtos.\nAssine na aba Configurações.');
+       return;
+    }
+    setCreateModal(true);
+  };
+
+  const handlePickCreateImage = async () => {
+     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+     if (!perm.granted) return Alert.alert('Permissão', 'Falta permissão de galeria.');
+     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+     if (!result.canceled && result.assets[0]) setNewProdImage(result.assets[0].uri);
+  }
+
+  const handleCreateProduct = async () => {
+     if (!newProdName || !newProdPrice) return Alert.alert('Atenção', 'Nome e Preço são obrigatórios');
+     setIsCreating(true);
+     try {
+        const formData = new FormData();
+        formData.append('name', newProdName);
+        formData.append('price', newProdPrice.replace(',','.'));
+        if (newProdDesc) formData.append('description', newProdDesc);
+        if (newProdCat) formData.append('category', newProdCat);
+        if (newProdImage) {
+           formData.append('image', { uri: newProdImage, name: 'prod.jpg', type: 'image/jpeg' } as any);
+        }
+        await api.post('/products', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        Alert.alert('Sucesso', 'Anúncio publicado na vitrine!');
+        setCreateModal(false);
+        setNewProdName(''); setNewProdPrice(''); setNewProdDesc(''); setNewProdCat(''); setNewProdImage(null);
+        loadMarketplace();
+     } catch(e) {
+        Alert.alert('Erro', 'Não foi possível publicar.');
+     } finally {
+        setIsCreating(false);
+     }
+  }
 
   const loadMarketplace = useCallback(async () => {
     try {
@@ -131,9 +182,11 @@ export default function MarketplaceScreen() {
 
   const renderProduct = ({ item }: { item: Product }) => (
     <TouchableOpacity style={styles.productCard} activeOpacity={0.7} onPress={() => openProduct(item)}>
-      <View style={styles.productImagePlaceholder}>
-        <Feather name="shopping-bag" size={28} color={Colors.light.textMuted} />
-      </View>
+      <CachedImage 
+        url={item.imageUrl} 
+        style={styles.productImagePlaceholder} 
+        fallbackIcon={<Feather name="shopping-bag" size={28} color={Colors.light.textMuted} />}
+      />
       <View style={styles.productInfo}>
         <Text style={styles.productName}>{item.name}</Text>
         {item.category && <Text style={styles.productCategory}>{item.category}</Text>}
@@ -189,6 +242,10 @@ export default function MarketplaceScreen() {
           }
         />
       )}
+
+      <TouchableOpacity style={styles.fab} onPress={handleOpenCreate}>
+        <Feather name="plus" size={24} color="#fff" />
+      </TouchableOpacity>
 
       {/* Main Product Modal */}
       <Modal visible={productModal} transparent animationType="slide">
@@ -325,6 +382,28 @@ export default function MarketplaceScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Create Product Modal */}
+      <Modal visible={createModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+              <Text style={styles.modalTitle}>Anunciar Produto</Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                 <TouchableOpacity style={{backgroundColor: Colors.light.surfaceLight, height: 120, borderRadius: 8, justifyContent:'center', alignItems:'center', marginBottom: 12, borderWidth: 1, borderColor: Colors.light.border}} onPress={handlePickCreateImage}>
+                    {newProdImage ? <Image source={{uri: newProdImage}} style={{width:'100%', height:'100%', borderRadius:8}} /> : <Feather name="camera" size={32} color={Colors.light.textMuted} />}
+                 </TouchableOpacity>
+                 <TextInput style={styles.inputModal} placeholder="Nome do Produto *" placeholderTextColor={Colors.light.textMuted} value={newProdName} onChangeText={setNewProdName} />
+                 <TextInput style={styles.inputModal} placeholder="Preço (R$) *" placeholderTextColor={Colors.light.textMuted} keyboardType="numeric" value={newProdPrice} onChangeText={setNewProdPrice} />
+                 <TextInput style={styles.inputModal} placeholder="Categoria" placeholderTextColor={Colors.light.textMuted} value={newProdCat} onChangeText={setNewProdCat} />
+                 <TextInput style={styles.inputModal} placeholder="Descrição..." placeholderTextColor={Colors.light.textMuted} value={newProdDesc} onChangeText={setNewProdDesc} multiline numberOfLines={3} />
+              </ScrollView>
+              <View style={styles.modalActions}>
+                 <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setCreateModal(false)}><Text style={styles.modalBtnText}>Cancelar</Text></TouchableOpacity>
+                 <TouchableOpacity style={styles.modalBtnSubmit} onPress={handleCreateProduct}>{isCreating ? <ActivityIndicator color="#fff"/> : <Text style={styles.modalBtnSubmitText}>Publicar</Text>}</TouchableOpacity>
+              </View>
+           </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </View>
   );
 }
@@ -357,4 +436,5 @@ const styles = StyleSheet.create({
   modalBtnText: { color: Colors.light.textSecondary, fontWeight: '600' },
   modalBtnSubmit: { flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center', backgroundColor: Colors.primary, flexDirection: 'row', justifyContent: 'center' },
   modalBtnSubmitText: { color: '#fff', fontWeight: '700' },
+  fab: { position: 'absolute', bottom: 20, right: 20, backgroundColor: Colors.primary, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 },
 });

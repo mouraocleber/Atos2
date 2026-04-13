@@ -4,7 +4,11 @@ import { AuthRequest } from '../types';
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('CONFIGURAÇÃO DE SEGURANÇA FATAL: JWT_SECRET não está definido no .env. O Servidor se recusará a iniciar para evitar vazamentos.');
+}
+
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '24h';
 const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION || '7d';
 

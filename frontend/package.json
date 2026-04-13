@@ -9,15 +9,21 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
-  "keywords": ["messaging", "atos2", "react"],
+  "keywords": [
+    "messaging",
+    "atos2",
+    "react"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
+    "axios": "^1.6.0",
+    "jwt-decode": "^4.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "axios": "^1.6.0",
-    "socket.io-client": "^4.7.0",
-    "react-router-dom": "^6.20.0"
+    "react-router-dom": "^6.20.0",
+    "socket.io-client": "^4.7.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
@@ -27,4 +33,3 @@
     "vite": "^5.0.0"
   }
 }
-
