@@ -29,7 +29,6 @@ export default function RegisterScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Contact step
-  const [contactMethod, setContactMethod] = useState<'phone' | 'email'>('email');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
@@ -59,16 +58,13 @@ export default function RegisterScreen() {
   }
 
   function handleNextStep() {
-    if (contactMethod === 'email') {
-      if (!email.trim() || !isValidEmail(email.trim())) {
-        Alert.alert(t('signup_title'), 'Por favor, insira um e-mail válido.');
-        return;
-      }
-    } else {
-      if (!phone.trim() || !isValidPhone(phone.trim())) {
-        Alert.alert(t('signup_title'), 'Por favor, insira um telefone válido com código de área.');
-        return;
-      }
+    if (!email.trim() || !isValidEmail(email.trim())) {
+      Alert.alert(t('signup_title'), 'Por favor, insira um e-mail válido.');
+      return;
+    }
+    if (!phone.trim() || !isValidPhone(phone.trim())) {
+      Alert.alert(t('signup_title'), 'Por favor, insira um telefone válido com código de área.');
+      return;
     }
     setStep('profile');
   }
@@ -126,8 +122,8 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await signUp({
-        email: contactMethod === 'email' ? email.trim() : `${nickname.trim() || 'user'}@atos2.com`,
-        phone: contactMethod === 'phone' ? phone.trim() : '11000000000',
+        email: email.trim(),
+        phone: phone.trim(),
         nickname: nickname.trim(),
         name: name.trim(),
         personType,
@@ -156,11 +152,6 @@ export default function RegisterScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity style={styles.headerLangBtn} onPress={() => setShowLangModal(true)}>
-              <Text style={styles.headerLangCode}>{language.toUpperCase()}</Text>
-              <Feather name="chevron-down" size={16} color={Colors.light.textSecondary} />
-            </TouchableOpacity>
-
             <Image 
               source={require('../../assets/logo.png')} 
               style={styles.logoImage} 
@@ -170,6 +161,13 @@ export default function RegisterScreen() {
             <Text style={styles.subtitle}>
               {step === 'contact' ? t('contact_method') : t('profile_title')}
             </Text>
+
+            {/* Botão de idioma centralizado abaixo do subtítulo */}
+            <TouchableOpacity style={styles.headerLangBtn} onPress={() => setShowLangModal(true)}>
+              <Feather name="globe" size={16} color={Colors.primary} />
+              <Text style={styles.headerLangCode}>{language.toUpperCase()}</Text>
+              <Feather name="chevron-down" size={15} color={Colors.primary} />
+            </TouchableOpacity>
           </View>
 
           {/* Modal de Busca de Idioma */}
@@ -240,26 +238,6 @@ export default function RegisterScreen() {
           {/* Step 1: Contact */}
           {step === 'contact' && (
             <View style={styles.form}>
-              <View style={styles.methodToggle}>
-                <TouchableOpacity
-                  style={[styles.methodBtn, contactMethod === 'email' && styles.methodBtnActive]}
-                  onPress={() => setContactMethod('email')}
-                >
-                  <Text style={[styles.methodBtnText, contactMethod === 'email' && styles.methodBtnTextActive]}>{t('email')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.methodBtn, contactMethod === 'phone' && styles.methodBtnActive]}
-                  onPress={() => setContactMethod('phone')}
-                >
-                  <Text style={[styles.methodBtnText, contactMethod === 'phone' && styles.methodBtnTextActive]}>{t('phone')}</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.socialSeparator}>
-                <View style={styles.separatorLine} />
-                <Text style={styles.separatorText}>ou</Text>
-                <View style={styles.separatorLine} />
-              </View>
 
               <TouchableOpacity 
                 style={styles.googleBtn} 
@@ -270,26 +248,30 @@ export default function RegisterScreen() {
                 <Text style={styles.googleBtnText}>Continuar com o Google</Text>
               </TouchableOpacity>
 
-              {contactMethod === 'email' ? (
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('email')}
-                  placeholderTextColor={Colors.light.textMuted}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              ) : (
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('phone')}
-                  placeholderTextColor={Colors.light.textMuted}
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                />
-              )}
+              <View style={styles.socialSeparator}>
+                <View style={styles.separatorLine} />
+                <Text style={styles.separatorText}>ou preencha abaixo</Text>
+                <View style={styles.separatorLine} />
+              </View>
+
+              <TextInput
+                style={styles.input}
+                placeholder={t('email')}
+                placeholderTextColor={Colors.light.textMuted}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder={t('phone') + ' (ex: 11999998888)'}
+                placeholderTextColor={Colors.light.textMuted}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+              />
 
               <TouchableOpacity style={styles.btnSubmit} onPress={handleNextStep}>
                 <Text style={styles.btnSubmitText}>{t('next')}</Text>
@@ -662,21 +644,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   headerLangBtn: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.surfaceLight,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.sm,
-    gap: 4,
+    alignSelf: 'center',
+    marginTop: Spacing.md,
+    backgroundColor: Colors.primary + '15',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xl || 24,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
   },
   headerLangCode: {
-    fontSize: FontSize.sm,
-    color: Colors.light.textSecondary,
-    fontWeight: '600',
+    fontSize: FontSize.md,
+    color: Colors.primary,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
