@@ -39,7 +39,10 @@ const allowedOrigins = [
   'http://localhost:8081', // Expo React Native
   'http://localhost:19000', // Expo Classic
   'https://api.atos2.app', // Api em Prod
-];
+  'http://159.223.107.51:3001', // IP direto Prod
+  process.env.CORS_ORIGIN,
+].filter(Boolean) as string[];
+
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -121,17 +124,48 @@ app.use((req: Request, res: Response) => {
 // Error handler
 app.use(errorHandler);
 
+// Mapa de userId -> socketId para entrega direcionada
+const userSocketMap = new Map<string, string>();
+
+// Exporta io e userSocketMap para uso nos controllers
+export { io, userSocketMap };
+
 // Socket.io eventos
 io.on('connection', (socket) => {
-  console.log(`Usuário conectado: ${socket.id}`);
+  const userId = socket.handshake.query.userId as string;
+  console.log(`Usuário conectado: ${socket.id} (userId: ${userId})`);
+
+  // Registra o usuário na sua sala pessoal
+  if (userId) {
+    socket.join(`user_${userId}`);
+    userSocketMap.set(userId, socket.id);
+    console.log(`Usuário ${userId} entrou na sala user_${userId}`);
+  }
 
   socket.on('disconnect', () => {
     console.log(`Usuário desconectado: ${socket.id}`);
+    if (userId) {
+      userSocketMap.delete(userId);
+    }
   });
 
-  socket.on('message', (data) => {
-    console.log('Mensagem recebida:', data);
-    io.emit('message', data);
+  // Entrar em sala de conversa específica (para entrega direcionada)
+  socket.on('joinRoom', (roomId: string) => {
+    socket.join(roomId);
+    console.log(`Socket ${socket.id} entrou na sala ${roomId}`);
+  });
+
+  socket.on('leaveRoom', (roomId: string) => {
+    socket.leave(roomId);
+  });
+
+  // Chamadas VoIP
+  socket.on('callUser', (data) => {
+    io.to(`user_${data.to}`).emit('callUser', data);
+  });
+
+  socket.on('hangUp', (data) => {
+    io.to(`user_${data.to}`).emit('hangUp', data);
   });
 });
 
@@ -156,6 +190,20 @@ httpServer.listen(Number(port), '0.0.0.0', async () => {
     console.log(`✅ Migração: ${migResult.rowCount} usuário(s) agora visíveis na busca.`);
   } catch (e) {
     console.error('⚠️ Falha na migração de is_searchable:', e);
+  }
+
+  // Migração: Adiciona colunas de tradução à tabela messages (Bug Fix #3)
+  try {
+    const { query: dbQuery } = await import('./config/database');
+    await dbQuery(`
+      ALTER TABLE messages 
+      ADD COLUMN IF NOT EXISTS translated_content TEXT,
+      ADD COLUMN IF NOT EXISTS translated_language VARCHAR(10),
+      ADD COLUMN IF NOT EXISTS original_language VARCHAR(10)
+    `);
+    console.log('✅ Migração: colunas de tradução garantidas na tabela messages.');
+  } catch (e) {
+    console.error('⚠️ Falha na migração de colunas de tradução:', e);
   }
 });
 

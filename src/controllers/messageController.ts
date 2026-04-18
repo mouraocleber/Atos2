@@ -7,6 +7,11 @@ import contactService from '../services/contactService';
 import { AppError } from '../middleware/errorHandler';
 import { Message } from '../types';
 
+// Import io dinamicamente para evitar circular dependency
+const getIO = () => {
+  try { return require('../index').io; } catch(e) { return null; }
+};
+
 export class MessageController {
   async sendMessage(req: AuthenticatedRequest, res: Response) {
     try {
@@ -146,6 +151,34 @@ export class MessageController {
         message: scheduledAt ? 'Mensagem agendada com sucesso' : 'Mensagem enviada com sucesso',
         data: translatedMessage,
       });
+
+      // Emite evento Socket.io para o destinatário E remetente em tempo real
+      try {
+        const io = getIO();
+        if (io && !scheduledAt) {
+          // Normaliza os campos para camelCase para o cliente
+          const socketMessage = {
+            id: translatedMessage.id,
+            senderId: translatedMessage.sender_id || translatedMessage.senderId,
+            recipientId: translatedMessage.recipient_id || translatedMessage.recipientId,
+            type: translatedMessage.type,
+            content: translatedMessage.content,
+            mediaUrl: translatedMessage.media_url || translatedMessage.mediaUrl || null,
+            status: translatedMessage.status,
+            createdAt: translatedMessage.created_at || translatedMessage.createdAt,
+            translatedContent: translatedMessage.translated_content || translatedMessage.translatedContent || null,
+            translatedLanguage: translatedMessage.translated_language || translatedMessage.translatedLanguage || null,
+          };
+          // Envia para a sala do destinatário
+          io.to(`user_${recipientId}`).emit('newMessage', socketMessage);
+          // Envia para a sala do remetente (outros dispositivos/sessões)
+          io.to(`user_${senderId}`).emit('newMessage', socketMessage);
+          console.log(`[Socket] newMessage emitido para user_${recipientId} e user_${senderId}`);
+        }
+      } catch (socketErr) {
+        console.error('[Socket] Erro ao emitir newMessage:', socketErr);
+      }
+
     } catch (error) {
       throw error;
     }
