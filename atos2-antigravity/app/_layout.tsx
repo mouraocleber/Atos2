@@ -46,19 +46,53 @@ function AppStateWatcher() {
   return null;
 }
 
+import React, { useState } from 'react';
+
+// Safe lazy import - if the native module isn't properly linked it won't crash the whole app
+let TerminalProvider: React.ComponentType<any> | null = null;
+try {
+  TerminalProvider = require('@stripe/stripe-terminal-react-native').TerminalProvider;
+} catch (e) {
+  console.warn('[Stripe Terminal] Native module not available:', e);
+}
+
+import api from '../services/api';
+
+// This never throws - if it fails, Stripe Terminal just won't work,
+// but the rest of the app continues normally.
+const fetchTokenProvider = async () => {
+  try {
+    const { data } = await api.post('/stripe/connection_token');
+    return data.secret as string;
+  } catch (e) {
+    console.error('Falha ao obter ConnectionToken para Stripe Terminal:', e);
+    return ''; // Return empty string instead of throwing
+  }
+};
+
 export default function RootLayout() {
+  const stripeKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_sample';
+
+  const content = (
+    <LocalizationProvider>
+      <AuthProvider>
+        <BiometricProvider>
+          <StatusBar style="light" />
+          <AppStateWatcher />
+          <Slot />
+        </BiometricProvider>
+      </AuthProvider>
+    </LocalizationProvider>
+  );
+
   return (
     <SafeAreaProvider>
-      <StripeProvider publishableKey="pk_test_sample">
-        <LocalizationProvider>
-          <AuthProvider>
-            <BiometricProvider>
-              <StatusBar style="light" />
-              <AppStateWatcher />
-              <Slot />
-            </BiometricProvider>
-          </AuthProvider>
-        </LocalizationProvider>
+      <StripeProvider publishableKey={stripeKey}>
+        {TerminalProvider ? (
+          <TerminalProvider logLevel="verbose" tokenProvider={fetchTokenProvider}>
+            {content}
+          </TerminalProvider>
+        ) : content}
       </StripeProvider>
     </SafeAreaProvider>
   );

@@ -217,19 +217,26 @@ export class UserService {
     state: string;
   }> {
     try {
-      const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`);
+      console.log(`Buscando CEP: ${cep}`);
+      const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`, { timeout: 5000 });
 
       if (response.data.erro) {
-        throw new Error('CEP não encontrado');
+        console.warn(`CEP ${cep} não encontrado no ViaCEP.`);
+        return {
+          address: '',
+          city: '',
+          state: '',
+        };
       }
 
       return {
-        address: response.data.logradouro,
-        city: response.data.localidade,
-        state: response.data.uf,
+        address: response.data.logradouro || '',
+        city: response.data.localidade || '',
+        state: response.data.uf || '',
       };
-    } catch (error) {
-      console.error('Erro ao buscar CEP:', error);
+    } catch (error: any) {
+      console.error('Erro ao buscar CEP (ViaCEP pode estar fora ou bloqueando o IP):', error.message);
+      // Retornamos campos vazios para permitir que o registro continue sem quebrar o fluxo principal
       return {
         address: '',
         city: '',
@@ -237,6 +244,7 @@ export class UserService {
       };
     }
   }
+
 
   async updatePassword(userId: string, newPassword: string): Promise<void> {
     const passwordHash = await hashPassword(newPassword);

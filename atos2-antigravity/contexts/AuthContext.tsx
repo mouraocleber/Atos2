@@ -1,10 +1,21 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../services/api';
+import api, { SERVER_URL } from '../services/api';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+// Normaliza URLs relativas de foto de perfil para URL completa
+function normalizeProfileImage(user: any): any {
+  if (!user) return user;
+  if (user.profileImage && !user.profileImage.startsWith('http')) {
+    return { ...user, profileImage: `${SERVER_URL}${user.profileImage}` };
+  }
+  return user;
+}
 
 interface User {
   id: string;
   email: string;
+  phone?: string;
   nickname: string;
   name: string;
   personType: 'PF' | 'PJ';
@@ -20,8 +31,11 @@ interface AuthContextData {
   token: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signUp: (data: SignUpData) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  updateUser: (partial: Partial<User>) => void;
 }
 
 interface SignUpData {
@@ -44,6 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Configura o Google Sign-In com o webClientId do google-services.json
+    GoogleSignin.configure({
+      webClientId: '399781155509-au3tns9caa411hbs8qrnh8n17m4grkvj.apps.googleusercontent.com',
+      offlineAccess: false,
+    });
     loadStoredData();
   }, []);
 
@@ -66,7 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await api.post('/auth/login', { email, password });
       console.log('Login bem sucedido:', response.data.success);
-      const { token: newToken, refreshToken, user: userData } = response.data.data;
+      const { token: newToken, refreshToken, user: rawUserData } = response.data.data;
+      const userData = normalizeProfileImage(rawUserData);
 
       await AsyncStorage.multiSet([
         ['token', newToken],
@@ -104,7 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       const response = await api.post('/auth/register', payload);
       console.log('Registro bem sucedido:', response.data.success);
-      const { token: newToken, user: userData } = response.data.data;
+      const { token: newToken, user: rawUserData } = response.data.data;
+      const userData = normalizeProfileImage(rawUserData);
 
       await AsyncStorage.multiSet([
         ['token', newToken],
@@ -126,14 +147,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function signInWithGoogle() {
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const signInResult = await GoogleSignin.signIn();
+      const idToken = (signInResult as any).data?.idToken || (signInResult as any).idToken;
+      if (!idToken) throw new Error('Google Sign-In não retornou idToken');
+
+      // Envia o token para o backend para validação e obtenção de JWT
+      const response = await api.post('/auth/google-signin', { idToken });
+      const { token: newToken, refreshToken, user: rawUserData } = response.data.data;
+      const userData = normalizeProfileImage(rawUserData);
+
+      await AsyncStorage.multiSet([
+        ['token', newToken],
+        ['refreshToken', refreshToken || ''],
+        ['user', JSON.stringify(userData)],
+      ]);
+
+      setToken(newToken);
+      setUser(userData);
+    } catch (error: any) {
+      console.error('Erro no Google Sign-In:', error);
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        throw new Error('Login cancelado');
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        throw new Error('Login já em andamento');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        throw new Error('Google Play Services não disponível');
+      } else {
+        const msg = error.response?.data?.message || error.message || 'Erro ao fazer login com Google';
+        throw new Error(msg);
+      }
+    }
+  }
+
   async function signOut() {
     await AsyncStorage.multiRemove(['token', 'refreshToken', 'user']);
     setToken(null);
     setUser(null);
   }
 
+  // Recarrega dados do usuário do servidor
+  async function refreshUser() {
+    try {
+      const response = await api.get('/auth/me');
+      // me() retorna { success, data: { user: {...} } } — extrair corretamente
+      const raw = response.data.data?.user || response.data.data || response.data.user || response.data;
+      const userData = normalizeProfileImage(raw);
+      setUser(userData);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+    } catch (e) {
+      console.warn('refreshUser falhou:', e);
+    }
+  }
+
+  // Atualiza campos do usuário localmente (sem chamada de rede)
+  function updateUser(partial: Partial<User>) {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...partial };
+      AsyncStorage.setItem('user', JSON.stringify(updated));
+      return updated;
+    });
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, token, loading, signIn, signInWithGoogle, signUp, signOut, refreshUser, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

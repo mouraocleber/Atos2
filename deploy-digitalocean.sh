@@ -60,6 +60,10 @@ ssh root@$DROPLET_IP "
   docker compose build --no-cache
   docker compose up -d
   
+  echo 'Aplicando Migrações no Banco de Dados (PostgreSQL)...'
+  sleep 5
+  docker exec atos2-db psql -U postgres -d atos2 -c "ALTER TABLE users ADD COLUMN IF NOT EXISTS person_type VARCHAR(2) DEFAULT 'PF', ADD COLUMN IF NOT EXISTS cpf VARCHAR(14), ADD COLUMN IF NOT EXISTS cep VARCHAR(10) DEFAULT '00000000', ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'FREE', ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP, ADD COLUMN IF NOT EXISTS block_non_contacts BOOLEAN DEFAULT FALSE;" || true
+  
   echo ''
   echo '📊 Status dos containers:'
   docker compose ps

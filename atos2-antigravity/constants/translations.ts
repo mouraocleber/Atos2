@@ -10,6 +10,16 @@ type TranslationMap = {
   already_have_account: string; dont_have_account: string; login: string;
   login_subtitle: string; connect_with_world: string; register_here: string;
   create_account: string; cpf: string; cep: string;
+  // Tabs (optional — fallback to pt-BR if not provided)
+  tab_contacts?: string; tab_store?: string; tab_wallet?: string; tab_search?: string; tab_settings?: string;
+  header_contacts?: string; header_store?: string; header_wallet?: string; header_search?: string; header_settings?: string;
+  // Settings sections (optional)
+  section_account?: string; section_security?: string; section_plan?: string;
+  section_connections?: string; section_app?: string; section_about?: string;
+  edit_profile?: string; change_password?: string; biometric?: string;
+  language_label?: string; logout?: string; version?: string;
+  // Search (optional)
+  search_nearby?: string; search_global?: string; search_placeholder?: string;
 };
 
 export const translations: Record<string, TranslationMap> = {
@@ -28,6 +38,13 @@ export const translations: Record<string, TranslationMap> = {
     login: 'Entrar', login_subtitle: 'Conecte-se com o mundo',
     connect_with_world: 'Conecte-se com o mundo', register_here: 'Cadastre-se aqui',
     create_account: 'Criar conta', cpf: 'Documento / CPF', cep: 'Código Postal / CEP',
+    tab_contacts: 'Contatos', tab_store: 'Vitrine', tab_wallet: 'Carteira', tab_search: 'Buscar', tab_settings: 'Config',
+    header_contacts: 'Contatos', header_store: 'Loja e Vitrine', header_wallet: 'Carteira', header_search: 'Buscar Usuários', header_settings: 'Configurações',
+    section_account: 'Conta', section_security: 'Segurança', section_plan: 'Meu Plano e Privacidade',
+    section_connections: 'Conexões Rápidas', section_app: 'Aplicativo', section_about: 'Sobre',
+    edit_profile: 'Editar Perfil', change_password: 'Alterar Senha', biometric: 'Usar Biometria',
+    language_label: 'Idioma das Traduções', logout: 'Sair da conta', version: 'Versão',
+    search_nearby: 'Próximos (Até 20km)', search_global: 'Todos (Global)', search_placeholder: 'Nome, apelido, email...',
   },
   'en-US': {
     attention: 'Attention', error: 'Error', success: 'Success',
@@ -44,6 +61,13 @@ export const translations: Record<string, TranslationMap> = {
     login: 'Login', login_subtitle: 'Connect with the world',
     connect_with_world: 'Connect with the world', register_here: 'Register here',
     create_account: 'Create account', cpf: 'ID / SSN', cep: 'Zip Code',
+    tab_contacts: 'Contacts', tab_store: 'Store', tab_wallet: 'Wallet', tab_search: 'Search', tab_settings: 'Settings',
+    header_contacts: 'Contacts', header_store: 'Shop & Store', header_wallet: 'Wallet', header_search: 'Search Users', header_settings: 'Settings',
+    section_account: 'Account', section_security: 'Security', section_plan: 'My Plan & Privacy',
+    section_connections: 'Quick Connections', section_app: 'App', section_about: 'About',
+    edit_profile: 'Edit Profile', change_password: 'Change Password', biometric: 'Use Biometrics',
+    language_label: 'Translation Language', logout: 'Sign Out', version: 'Version',
+    search_nearby: 'Nearby (Up to 20km)', search_global: 'Everyone (Global)', search_placeholder: 'Name, nickname, email...',
   },
   'es-ES': {
     attention: 'Atención', error: 'Error', success: 'Éxito',

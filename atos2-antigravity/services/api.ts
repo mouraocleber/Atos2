@@ -14,13 +14,19 @@ const api = axios.create({
   },
 });
 
-// Interceptor para adicionar token JWT
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('token');
+    const appLang = await AsyncStorage.getItem('appLanguage');
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    if (appLang) {
+      config.headers['Accept-Language'] = appLang;
+    }
+    
     return config;
   },
   (error) => Promise.reject(error)

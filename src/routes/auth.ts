@@ -17,6 +17,7 @@ const router = Router();
 
 router.post('/register', loginLimiter, asyncHandler((req, res) => authController.register(req, res)));
 router.post('/login', loginLimiter, asyncHandler((req, res) => authController.login(req, res)));
+router.post('/google-signin', loginLimiter, asyncHandler((req, res) => authController.googleSignIn(req, res)));
 router.post('/send-sms-code', loginLimiter, asyncHandler((req, res) => authController.sendSMSCode(req, res)));
 router.post('/send-email-code', loginLimiter, asyncHandler((req, res) => authController.sendEmailCode(req, res)));
 router.post('/verify-code', loginLimiter, asyncHandler((req, res) => authController.verifyCode(req, res)));

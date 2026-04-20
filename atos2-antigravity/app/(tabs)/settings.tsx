@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBiometric } from '../../contexts/BiometricContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
 import api from '../../services/api';
 import CachedImage from '../../components/CachedImage';
 import QRCode from 'react-native-qrcode-svg';
@@ -16,8 +17,9 @@ import { clearMediaCache, getMediaCacheSize } from '../../services/MediaCacheSer
 import { LANGUAGES } from '../../constants/translations';
 
 export default function SettingsScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateUser } = useAuth();
   const { isBiometricSupported, isBiometricEnabled, setBiometricEnabled } = useBiometric();
+  const { setAppLanguage, t } = useLocalization();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [bioToggling, setBioToggling] = useState(false);
 
@@ -138,11 +140,18 @@ export default function SettingsScreen() {
             type: asset.mimeType || 'image/jpeg',
           } as any);
 
-          await api.post('/auth/profile-image', formData, {
+          const res = await api.post('/auth/profile-image', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
           
-          Alert.alert('Sucesso', 'Foto atualizada! Pode demorar alguns segundos para refletir em todas as telas em cache.');
+          // Atualiza a foto no contexto local imediatamente (sem precisar de logout)
+          const newImageUrl = res?.data?.data?.profileImage || res?.data?.profileImage;
+          if (newImageUrl) {
+            const fullUrl = `http://159.223.107.51:3001${newImageUrl}?t=${Date.now()}`;
+            updateUser({ profileImage: fullUrl });
+          }
+          
+          Alert.alert('Sucesso', 'Foto de perfil atualizada!');
         } catch(e: any) {
           Alert.alert('Erro', e?.response?.data?.message || 'Falha no upload da foto');
         } finally {
@@ -249,6 +258,7 @@ export default function SettingsScreen() {
     setLangSaving(true);
     try {
       await api.put('/auth/me', { preferredLanguage: code });
+      await setAppLanguage(code as any);
       Alert.alert('Sucesso', 'Idioma atualizado! As traduções usarão o novo idioma.');
     } catch (e: any) {
       Alert.alert('Erro', e?.response?.data?.message || 'Não foi possível salvar o idioma');
@@ -313,20 +323,20 @@ export default function SettingsScreen() {
 
       {/* Conta */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Conta</Text>
+        <Text style={styles.sectionTitle}>{t('section_account') || 'Conta'}</Text>
         <View style={styles.menuGroup}>
-          <MenuItem icon="user" title="Editar Perfil" subtitle="Nome e apelido" onPress={() => { setEditName(user?.name || ''); setEditNickname(user?.nickname || ''); setEditVisible(true); }} />
-          <MenuItem icon="key" title="Alterar Senha" onPress={() => setPwVisible(true)} />
+          <MenuItem icon="user" title={t('edit_profile') || 'Editar Perfil'} subtitle="Nome e apelido" onPress={() => { setEditName(user?.name || ''); setEditNickname(user?.nickname || ''); setEditVisible(true); }} />
+          <MenuItem icon="key" title={t('change_password') || 'Alterar Senha'} onPress={() => setPwVisible(true)} />
         </View>
       </View>
 
       {/* Segurança */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Segurança</Text>
+        <Text style={styles.sectionTitle}>{t('section_security') || 'Segurança'}</Text>
         <View style={styles.menuGroup}>
           <MenuItem
             icon="shield"
-            title="Usar Biometria"
+            title={t('biometric') || 'Usar Biometria'}
             subtitle={
               !isBiometricSupported
                 ? 'Dispositivo não suporta biometria'
@@ -353,7 +363,7 @@ export default function SettingsScreen() {
 
       {/* Monetização e Busca */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Meu Plano e Privacidade</Text>
+        <Text style={styles.sectionTitle}>{t('section_plan') || 'Meu Plano e Privacidade'}</Text>
         <View style={styles.menuGroup}>
           <MenuItem 
             icon="star" 
@@ -375,7 +385,7 @@ export default function SettingsScreen() {
 
       {/* Contatos / QR Code */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Conexões Rápidas</Text>
+        <Text style={styles.sectionTitle}>{t('section_connections') || 'Conexões Rápidas'}</Text>
         <View style={styles.menuGroup}>
           <MenuItem icon="figma" title="Meu QR Code Pessoal" subtitle="Adicione amigos pela Câmera na Carteira" onPress={() => setQrModalVisible(true)} />
         </View>
@@ -383,9 +393,9 @@ export default function SettingsScreen() {
 
       {/* App */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Aplicativo</Text>
+        <Text style={styles.sectionTitle}>{t('section_app') || 'Aplicativo'}</Text>
         <View style={styles.menuGroup}>
-          <MenuItem icon="globe" title="Idioma das Traduções" subtitle={currentLangLabel} onPress={() => setLangVisible(true)} />
+          <MenuItem icon="globe" title={t('language_label') || 'Idioma das Traduções'} subtitle={currentLangLabel} onPress={() => setLangVisible(true)} />
           <MenuItem icon="download-cloud" title="Agendar Downloads" subtitle={dlMode === 'wifi' ? "Apenas Wi-Fi" : dlMode === 'always' ? "Qualquer Rede" : `Madrugada (${dlStart} - ${dlEnd})`} onPress={() => setDlVisible(true)} />
           <MenuItem icon="hard-drive" title="Uso de Dados e Memória" subtitle={`Armazenamento Local: ${formatBytes(cacheSize)}`} onPress={handleClearCache} />
         </View>
@@ -393,16 +403,16 @@ export default function SettingsScreen() {
 
       {/* Sobre */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Sobre</Text>
+        <Text style={styles.sectionTitle}>{t('section_about') || 'Sobre'}</Text>
         <View style={styles.menuGroup}>
-          <MenuItem icon="info" title="Versão" subtitle="1.0.0" />
+          <MenuItem icon="info" title={t('version') || 'Versão'} subtitle="1.0.0" />
         </View>
       </View>
 
       {/* Logout */}
       <View style={styles.section}>
         <View style={styles.menuGroup}>
-          <MenuItem icon="log-out" title="Sair da conta" danger onPress={handleLogout} />
+          <MenuItem icon="log-out" title={t('logout') || 'Sair da conta'} danger onPress={handleLogout} />
         </View>
       </View>
 

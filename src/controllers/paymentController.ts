@@ -11,17 +11,27 @@ export class PaymentController {
   async generatePixDeposit(req: AuthenticatedRequest, res: Response) {
     try {
       const userId = req.userId!;
-      const { amount } = req.body;
-      console.log(`[PaymentController] Initing PIX request for User: ${userId}, Amount: ${amount}`);
+      const { amount, currency } = req.body;
+      console.log(`[PaymentController] Initing PIX request for User: ${userId}, Amount: ${amount}, Currency: ${currency}`);
 
       if (!amount || amount <= 0) {
         return res.status(400).json({ error: 'Insira um valor maior que 0 para depósito.' });
       }
 
+      // Isolar Mercado Pago exclusivamente ao uso local (BRL)
+      if (currency && currency.toUpperCase() !== 'BRL') {
+        return res.status(400).json({ error: 'Mercado Pago é restrito apenas a depósitos em BRL (Pix).' });
+      }
+
+
       // Buscar email e identificação do user para o construtor do MP
-      const userRes = await query('SELECT email, name, cpf FROM users WHERE id = $1', [userId]);
+      const userRes = await query('SELECT email, name, cpf, plan FROM users WHERE id = $1', [userId]);
       if (userRes.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
-      const { email: payerEmail, name: payerName, cpf: payerCpf } = userRes.rows[0];
+      const { email: payerEmail, name: payerName, cpf: payerCpf, plan } = userRes.rows[0];
+
+      if (plan !== 'BUSINESS') {
+        return res.status(403).json({ error: 'A geração de cobranças/depósitos PIX é restrita ao plano Business.' });
+      }
 
       // Criar a transação PRELIMINAR (Aguardando Pagamento) na Carteira do Atos2
       const depositId = uuidv4();

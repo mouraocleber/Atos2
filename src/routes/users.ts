@@ -35,4 +35,7 @@ router.get('/count', asyncHandler((req, res) => userSearchController.getUsersCou
 // Alternar visibilidade global do usuário (Ocultar Perfil)
 router.put('/search-visibility', asyncHandler((req, res) => userSearchController.updateSearchVisibility(req, res)));
 
+// Atualizar localização GPS do usuário (para busca por proximidade)
+router.put('/location', asyncHandler((req, res) => userSearchController.updateLocation(req, res)));
+
 export default router;

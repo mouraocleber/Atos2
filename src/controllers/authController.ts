@@ -10,8 +10,11 @@ import { Message } from '../types';
 
 export class AuthController {
   async register(req: AuthenticatedRequest, res: Response) {
+    console.log('--- Início de Registro ---');
+    console.log('Payload recebido:', { ...req.body, password: '***', passwordConfirm: '***' });
     try {
       const { email, phone, nickname, name, personType, cpf, cep, password, passwordConfirm, preferredLanguage } = req.body;
+
 
       // Validações
       if (!email || !phone || !nickname || !name || !personType || !cpf || !cep || !password) {
@@ -90,6 +93,8 @@ export class AuthController {
   }
 
   async login(req: AuthenticatedRequest, res: Response) {
+    console.log('--- Tentativa de Login ---');
+    console.log('E-mail:', req.body.email);
     try {
       const { email, password } = req.body;
 
@@ -451,6 +456,76 @@ export class AuthController {
       }
 
       res.json({ success: true, message: 'Senha confirmada com sucesso' });
+    } catch (error) {
+      throw error;
+    }
+  }
+  async googleSignIn(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { idToken } = req.body;
+      if (!idToken) {
+        throw new AppError(400, 'idToken é obrigatório', 'MISSING_ID_TOKEN');
+      }
+
+      // Verificar o idToken com o Google
+      const axios = require('axios');
+      let googleUser: any;
+      try {
+        const resp = await axios.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+        googleUser = resp.data;
+      } catch (err) {
+        throw new AppError(401, 'Token Google inválido ou expirado', 'INVALID_GOOGLE_TOKEN');
+      }
+
+      if (!googleUser.email) {
+        throw new AppError(400, 'Google não retornou e-mail do usuário', 'GOOGLE_NO_EMAIL');
+      }
+
+      // Verificar se usuário já existe
+      let user = await userService.getUserByEmail(googleUser.email);
+
+      if (!user) {
+        // Criar o usuário com dados do Google
+        const name = googleUser.name || googleUser.email.split('@')[0];
+        const nickname = (googleUser.given_name || name).toLowerCase().replace(/\s+/g, '_') + '_' + Date.now().toString().slice(-4);
+        
+        user = await userService.createUser({
+          email: googleUser.email,
+          phone: `google_${Date.now()}`, // Placeholder — usuário pode atualizar depois
+          nickname,
+          name,
+          personType: 'PF',
+          cpf: `google_${googleUser.sub}`, // Placeholder usando Google sub
+          cep: '00000-000',
+          password: require('crypto').randomBytes(32).toString('hex'), // Senha aleatória
+          preferredLanguage: 'pt-BR',
+          profileImage: googleUser.picture || null,
+        } as any);
+      }
+
+      const token = generateToken(user.id, user.email);
+      const refreshToken = generateRefreshToken(user.id);
+
+      res.json({
+        success: true,
+        message: 'Login com Google realizado com sucesso',
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            nickname: user.nickname,
+            name: user.name,
+            personType: user.personType,
+            cpf: user.cpf,
+            preferredLanguage: user.preferredLanguage,
+            balance: user.balance,
+            plan: user.plan,
+            planExpiresAt: user.planExpiresAt,
+          },
+          token,
+          refreshToken,
+        },
+      });
     } catch (error) {
       throw error;
     }

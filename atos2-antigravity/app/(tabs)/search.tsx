@@ -33,8 +33,21 @@ export default function SearchScreen() {
         console.log('Permission to access location was denied');
         return;
       }
-      let loc = await Location.getCurrentPositionAsync({});
+      let loc = await Location.getLastKnownPositionAsync({});
+      if (loc) setLocation(loc);
+      
+      loc = await Location.getCurrentPositionAsync({});
       setLocation(loc);
+
+      // Salva localização no servidor para habilitar busca por proximidade
+      try {
+        await api.put('/users/location', {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+      } catch (e) {
+        console.log('Não foi possível salvar localização no servidor:', e);
+      }
     })();
   }, []);
 
@@ -43,7 +56,6 @@ export default function SearchScreen() {
     setLoading(true);
     setSearched(true);
     try {
-      // Backend aceita params separados: name, nickname, email
       const q = query.trim();
       const params: any = { query: q };
       if (location && searchRadius === '20') {
@@ -54,7 +66,22 @@ export default function SearchScreen() {
       
       const response = await api.get(`/users/search`, { params });
       const raw = response.data.data;
-      setResults(raw?.users || raw || []);
+      const found = raw?.users || raw || [];
+
+      // Se busca próxima não retornou resultados, sugere busca global
+      if (found.length === 0 && searchRadius === '20') {
+        setResults([]);
+        Alert.alert(
+          'Nenhum usuário próximo',
+          'Não encontramos usuários em até 20km. Deseja buscar globalmente?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Buscar Global', onPress: () => { setSearchRadius('all'); } },
+          ]
+        );
+      } else {
+        setResults(found);
+      }
     } catch (e: any) {
       Alert.alert('Erro', e?.response?.data?.message || 'Não foi possível buscar usuários.');
       setResults([]);

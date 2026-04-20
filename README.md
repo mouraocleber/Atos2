@@ -1,6 +1,8 @@
-# App de Mensagens com Sistema de Transações em Cash
+# Atos2 - Comunidade, Finanças e Marketplace 🚀
 
-Um aplicativo mobile-first para troca de mensagens, áudios, vídeos e imagens, com sistema integrado de autenticação, perfil de usuário completo e carteira digital (cash).
+Plataforma nativa para troca de mensagens (textos e mídias), transações financeiras em tempo real e vitrine comercial P2P. A arquitetura foi desenvolvida priorizando o ecossistema Android nativo (React Native/Expo) consumindo um robusto Backend em nuvem.
+
+> 📚 **[Acesse o Mapa Documental Completo (DOCUMENTATION_MAP.md)](DOCUMENTATION_MAP.md)** para encontrar todos os Manuais, Guias de Deploy, Regras Estruturais e Documentação Legal (Termos de Uso e LGPD).
 
 ## 🚀 Características
 
@@ -89,7 +91,7 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:8081
 psql -U postgres
 
 # Criar banco de dados
-CREATE DATABASE app_mensagens_cash;
+CREATE DATABASE atos2;
 
 # Sair
 \q
@@ -98,7 +100,7 @@ CREATE DATABASE app_mensagens_cash;
 ### 5. Executar migrations
 ```bash
 # Conectar ao banco de dados e executar o script SQL
-psql -U postgres -d app_mensagens_cash -f src/config/init-db.sql
+psql -U postgres -d atos2 -f src/config/init-db.sql
 ```
 
 ### 6. Iniciar o servidor
@@ -261,42 +263,12 @@ app_mensagens_cash/
 #### contacts
 - Lista de contatos de cada usuário
 
-## 🔄 Próximos Passos
+## 🔄 Roadmap & Escopo em Produção
 
-1. **Implementar rotas de usuários**
-   - GET /api/users/:id
-   - PUT /api/users/:id
-   - GET /api/users/search
+Para consultar o status atual da arquitetura e as próximas fronteiras técnicas do back e front-end, por favor documente-se no Guia Prático Central:
+* **[Escopo e Roadmap Arquitetural (PROJECT_SCOPE.md)](project-scope.md)**
 
-2. **Implementar rotas de mensagens**
-   - POST /api/messages
-   - GET /api/messages/:conversationId
-   - PUT /api/messages/:id/read
-
-3. **Implementar rotas de transações**
-   - POST /api/transactions
-   - GET /api/transactions
-   - GET /api/transactions/:id
-
-4. **Implementar rotas de produtos**
-   - POST /api/products
-   - GET /api/products
-   - PUT /api/products/:id
-   - DELETE /api/products/:id
-
-5. **Adicionar upload de mídia**
-   - Integração com S3 ou similar
-   - Processamento de imagens/vídeos
-
-6. **Implementar WebSocket para mensagens em tempo real**
-   - Conexão de usuários
-   - Notificações de nova mensagem
-   - Indicador de digitação
-
-7. **Adicionar testes**
-   - Testes unitários
-   - Testes de integração
-   - Testes de carga
+Todos os próximos passos estão agora sendo versionados dentro da esteira de Documentação Principal para acompanhamento unificado.
 
 ## 📞 Suporte
 

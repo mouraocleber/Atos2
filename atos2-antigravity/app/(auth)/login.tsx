@@ -10,11 +10,12 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const { t } = useLocalization();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   async function handleLogin() {
@@ -31,6 +32,20 @@ export default function LoginScreen() {
       Alert.alert(t('error'), error.message || t('login_failed'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGoogleLogin() {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      router.replace('/(tabs)/chat');
+    } catch (error: any) {
+      if (error.message !== 'Login cancelado') {
+        Alert.alert('Erro', error.message || 'Não foi possível entrar com Google.');
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   }
 
@@ -95,13 +110,37 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={[styles.loginButton, loading && styles.buttonDisabled]}
               onPress={handleLogin}
-              disabled={loading}
+              disabled={loading || googleLoading}
               activeOpacity={0.8}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.loginButtonText}>{t('login')}</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Divisor */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>ou</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Botão Google */}
+            <TouchableOpacity
+              style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+              onPress={handleGoogleLogin}
+              disabled={loading || googleLoading}
+              activeOpacity={0.8}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color="#333" />
+              ) : (
+                <>
+                  <Text style={styles.googleIcon}>G</Text>
+                  <Text style={styles.googleButtonText}>Entrar com Google</Text>
+                </>
               )}
             </TouchableOpacity>
 
@@ -229,5 +268,45 @@ const styles = StyleSheet.create({
     color: Colors.secondary,
     fontSize: FontSize.sm,
     fontWeight: '700',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.light.border,
+  },
+  dividerText: {
+    color: Colors.light.textMuted,
+    fontSize: FontSize.sm,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#dadce0',
+    gap: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  googleIcon: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#4285F4',
+  },
+  googleButtonText: {
+    color: '#3c4043',
+    fontSize: FontSize.md,
+    fontWeight: '600',
   },
 });

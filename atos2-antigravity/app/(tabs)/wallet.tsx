@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useBiometric } from '../../contexts/BiometricContext';
 import { getBalance, getTransactionHistory, createTransaction, WalletBalanceResponse } from '../../services/wallet';
 import api from '../../services/api';
+import TapToPayModal from '../../components/TapToPayModal';
 
 interface Transaction {
   id: string;
@@ -35,11 +36,46 @@ export default function WalletScreen() {
   const { user } = useAuth();
   const { isBiometricEnabled, authenticate } = useBiometric();
 
-  // Guarda de segurança — começa bloqueada a cada vez que a tela monta
+  // ─── TODOS os hooks ANTES de qualquer return condicional (regra dos React Hooks) ───
   const [walletUnlocked, setWalletUnlocked] = useState(false);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [showUnlockPassword, setShowUnlockPassword] = useState(false);
+
+  // Wallet data states
+  const [balanceData, setBalanceData] = useState<WalletBalanceResponse | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // PIX QR Code (Depositar = receber por PIX)
+  const [pixQrVisible, setPixQrVisible] = useState(false);
+  const [pixKeyType, setPixKeyType] = useState<'phone' | 'email' | 'cpf'>('email');
+
+  // Cobrar (Stripe POS maquininha)
+  const [chargeModalVisible, setChargeModalVisible] = useState(false);
+  const [chargeAmount, setChargeAmount] = useState('');
+  const [chargeLoading, setChargeLoading] = useState(false);
+
+  // QR Code Scanner (Ler QR = pagar PIX externo)
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [pixPayTarget, setPixPayTarget] = useState('');  // chave PIX escaneada
+  const [pixPayAmount, setPixPayAmount] = useState('');
+  const [pixPayModalVisible, setPixPayModalVisible] = useState(false);
+  const [pixPayLoading, setPixPayLoading] = useState(false);
+  const [tapToPayVisible, setTapToPayVisible] = useState(false);
+  const [tapToPayAmountCents, setTapToPayAmountCents] = useState(0);
+
+  // Transfer State
+  const [modalVisible, setModalVisible] = useState(false);
+  const [txTarget, setTxTarget] = useState('');
+  const [txAmount, setTxAmount] = useState('');
+  const [txPassword, setTxPassword] = useState('');
+  const [txLoading, setTxLoading] = useState(false);
+
+  // Receipt State
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   useEffect(() => {
     // Reset da trava sempre que a tela é (re)montada
@@ -47,6 +83,11 @@ export default function WalletScreen() {
     setShowUnlockPassword(false);
     setUnlockPassword('');
   }, []);
+
+  useEffect(() => {
+    if (walletUnlocked) loadData();
+  }, [walletUnlocked]);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   async function handleWalletBiometric() {
     setUnlockLoading(true);
@@ -149,39 +190,10 @@ export default function WalletScreen() {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  const [balanceData, setBalanceData] = useState<WalletBalanceResponse | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // QR Code State
-  const [permission, requestPermission] = useCameraPermissions();
-  const [qrModalVisible, setQrModalVisible] = useState(false);
-  const [scannerVisible, setScannerVisible] = useState(false);
-
-  // Modal State
-  const [modalVisible, setModalVisible] = useState(false);
-  const [txTarget, setTxTarget] = useState('');
-  const [txAmount, setTxAmount] = useState('');
-  const [txPassword, setTxPassword] = useState('');
-  const [txLoading, setTxLoading] = useState(false);
-
-  // Deposit State
-  const [depositModalVisible, setDepositModalVisible] = useState(false);
-  const [depositAmount, setDepositAmount] = useState('');
-  const [pixData, setPixData] = useState<any>(null);
-  const [depositLoading, setDepositLoading] = useState(false);
-
-  // Receipt State
-  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
-
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
-
   const loadData = async () => {
     try {
       const [bal, hist] = await Promise.all([getBalance(), getTransactionHistory()]);
       setBalanceData(bal);
-      // O endpoint do backend pode retornar { success: true, data: [...] }
       setTransactions(Array.isArray(hist) ? hist : (hist as any).data || []);
     } catch (e: any) {
       console.error(e);
@@ -192,50 +204,42 @@ export default function WalletScreen() {
     }
   };
 
-  const handleDepositStripe = async (mode: 'deposit' | 'charge' = 'deposit') => {
-    if (!depositAmount || parseFloat(depositAmount.replace(',', '.')) <= 0) {
+
+  // Cobrar via Stripe Tap to Pay
+  const handleChargeStripe = async () => {
+    if (!chargeAmount || parseFloat(chargeAmount.replace(',', '.')) <= 0) {
       return Alert.alert('Atenção', 'Informe um valor válido.');
     }
-    setDepositLoading(true);
-    try {
-      const amountCents = Math.round(parseFloat(depositAmount.replace(',', '.')) * 100);
-      const { data } = await api.post('/stripe/create_intent', { amount: amountCents });
-
-      if (!data.client_secret) throw new Error('Credenciais de cobrança inválidas');
-
-      const initResponse = await initPaymentSheet({
-        merchantDisplayName: 'Atos2 Pay',
-        paymentIntentClientSecret: data.client_secret,
-        returnURL: 'atos2://stripe-redirect',
-        style: 'alwaysDark'
-      });
-      
-      if (initResponse.error) return Alert.alert('Erro', initResponse.error.message);
-
-      setDepositModalVisible(false);
-
-      const presentResponse = await presentPaymentSheet();
-      
-      if (presentResponse.error) {
-         if (presentResponse.error.code !== 'Canceled') {
-            Alert.alert('Aviso', presentResponse.error.message);
-         }
-      } else {
-         const sucessoMsg = mode === 'charge' 
-            ? 'Cobrança efetuada! O valor já foi creditado na sua carteira G.'
-            : 'Depósito concluído via Stripe PIX / Aproximação.';
-         Alert.alert('Sucesso 🎉', sucessoMsg);
-         setDepositAmount('');
-         loadData();
-      }
-    } catch (e: any) {
-      Alert.alert('Falha Segura', e?.response?.data?.error || e.message || 'Erro no Gateway');
-    } finally {
-      setDepositLoading(false);
-    }
+    
+    const amountCents = Math.round(parseFloat(chargeAmount.replace(',', '.')) * 100);
+    setTapToPayAmountCents(amountCents);
+    setChargeModalVisible(false);
+    setTapToPayVisible(true);
   };
 
-  useEffect(() => { loadData(); }, []);
+  // Pagar PIX externo (fora do Atos2) após escanear QR
+  const handlePixPayExternal = async () => {
+    if (!pixPayTarget.trim()) return Alert.alert('Atenção', 'Chave PIX inválida.');
+    if (!pixPayAmount || parseFloat(pixPayAmount.replace(',', '.')) <= 0) {
+      return Alert.alert('Atenção', 'Informe um valor válido.');
+    }
+    setPixPayLoading(true);
+    try {
+      await api.post('/pix/pay', {
+        pixKey: pixPayTarget,
+        amount: parseFloat(pixPayAmount.replace(',', '.')),
+      });
+      Alert.alert('PIX Enviado! 🎉', `Pagamento de ${pixPayAmount} enviado para ${pixPayTarget}`);
+      setPixPayModalVisible(false);
+      setPixPayTarget('');
+      setPixPayAmount('');
+      loadData();
+    } catch (e: any) {
+      Alert.alert('Erro PIX', e?.response?.data?.message || 'Não foi possível processar o PIX agora.');
+    } finally {
+      setPixPayLoading(false);
+    }
+  };
 
   const openScanner = async () => {
     if (!permission?.granted) {
@@ -250,13 +254,17 @@ export default function WalletScreen() {
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     setScannerVisible(false);
     if (data.startsWith('atos2://pay?targetId=')) {
+      // QR interno Atos2 → transferir entre usuários
       const targetId = data.split('targetId=')[1].split('&')[0];
       if (targetId) {
         setTxTarget(targetId);
-        setModalVisible(true); // Abre o modal de transferência automaticamente
+        setModalVisible(true);
       }
     } else {
-      Alert.alert('QR Code Inválido', 'Este QR code não é da rede Atos2.');
+      // QR externo → pagar PIX (chave pix, copia e cola, etc)
+      setPixPayTarget(data);
+      setPixPayAmount('');
+      setPixPayModalVisible(true);
     }
   };
 
@@ -335,33 +343,69 @@ export default function WalletScreen() {
         )}
 
         <View style={styles.actionButtons}>
+          {/* Botão 1: Depositar = receber por PIX (mostra QR Code do usuário) */}
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => { setDepositAmount(''); setDepositModalVisible(true); }}
+            onPress={() => {
+              if (user?.plan !== 'BUSINESS') {
+                return Alert.alert(
+                  'Conta Business Necessária',
+                  'A geração de QR Code de cobrança PIX para clientes é restrita a contas empresariais.',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Fazer Upgrade', onPress: () => { /* Futuro upgrade hook */ } }
+                  ]
+                );
+              }
+              setPixQrVisible(true);
+            }}
           >
-            <Feather name="arrow-down" size={24} color={Colors.light.textSecondary} />
+            <Feather name="download" size={22} color={Colors.success} />
             <Text style={styles.actionLabel}>Depositar</Text>
+            <Text style={styles.actionSublabel}>via PIX</Text>
           </TouchableOpacity>
+
+          {/* Botão 2: Cobrar = Stripe POS maquininha */}
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => { setDepositAmount(''); setDepositModalVisible(true); }} // Abre modal que possui opção de cobrar
+            onPress={() => {
+              if (user?.plan !== 'BUSINESS') {
+                return Alert.alert(
+                  'Conta Business Necessária',
+                  'Transforme seu celular em uma Maquininha sem mensalidade! Assine o plano Business para cobrar clientes via cartão.',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Fazer Upgrade', onPress: () => { /* Nao temos router hook implementado nesta variavel local para upgrade ainda, mas deixamos preparado */ } }
+                  ]
+                );
+              }
+              setChargeAmount(''); 
+              setChargeModalVisible(true); 
+            }}
           >
-            <Feather name="dollar-sign" size={24} color={Colors.light.textSecondary} />
+            <Feather name="credit-card" size={22} color={Colors.primary} />
             <Text style={styles.actionLabel}>Cobrar</Text>
+            <Text style={styles.actionSublabel}>Cartão</Text>
           </TouchableOpacity>
+
+          {/* Botão 3: Transferir = entre usuários Atos2 */}
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => setModalVisible(true)}
           >
-            <Feather name="arrow-up-right" size={24} color={Colors.light.textSecondary} />
+            <Feather name="arrow-up-right" size={22} color={Colors.info} />
             <Text style={styles.actionLabel}>Transferir</Text>
+            <Text style={styles.actionSublabel}>Atos2</Text>
           </TouchableOpacity>
+
+          {/* Botão 4: Ler QR = pagar PIX externo */}
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={openScanner}
           >
-            <Feather name="camera" size={24} color={Colors.light.textSecondary} />
+            <Feather name="camera" size={22} color={Colors.warning} />
             <Text style={styles.actionLabel}>Ler QR</Text>
+            <Text style={styles.actionSublabel}>Pagar PIX</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -379,24 +423,106 @@ export default function WalletScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
       />
 
-      {/* Recieve (Generate QR) Modal */}
-      <Modal visible={qrModalVisible} transparent animationType="slide">
+      {/* Modal 1: Depositar via PIX — exibe QR Code e chave PIX do usuário */}
+      <Modal visible={pixQrVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, {alignItems: 'center'}]}>
-            <Text style={styles.modalTitle}>Meu QR Code</Text>
-            <Text style={styles.modalSubtitle}>Mostre este código para receber um pagamento na sua carteira Atos2.</Text>
-            <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 10, marginVertical: 20}}>
-              {user?.id ? (
-                <QRCode value={`atos2://pay?targetId=${user.id}`} size={200} />
-              ) : (
-                <Text>Carregando conta...</Text>
-              )}
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4}}>
+              <Feather name="download" size={20} color={Colors.success} />
+              <Text style={styles.modalTitle}>Receber via PIX</Text>
             </View>
-            <TouchableOpacity style={[styles.modalBtnCancel, { width: '80%' }]} onPress={() => setQrModalVisible(false)}>
+            <Text style={styles.modalSubtitle}>Mostre o QR Code abaixo ou compartilhe sua chave PIX para receber pagamentos.</Text>
+
+            {/* Seletor de tipo de chave PIX */}
+            <View style={{flexDirection: 'row', gap: 8, marginBottom: 16}}>
+              {(['email', 'phone', 'cpf'] as const).map(k => (
+                <TouchableOpacity
+                  key={k}
+                  style={[{paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
+                    borderColor: pixKeyType === k ? Colors.success : Colors.light.border,
+                    backgroundColor: pixKeyType === k ? Colors.success + '15' : 'transparent'}]}
+                  onPress={() => setPixKeyType(k)}
+                >
+                  <Text style={{color: pixKeyType === k ? Colors.success : Colors.light.textMuted, fontSize: 12, fontWeight: '600'}}>
+                    {k === 'email' ? 'E-mail' : k === 'phone' ? 'Telefone' : 'CPF/CNPJ'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* QR Code */}
+            <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 12, marginBottom: 16}}>
+              {user?.id ? (
+                <QRCode
+                  value={pixKeyType === 'email' ? (user?.email || user?.id) :
+                         pixKeyType === 'phone' ? (user?.phone || user?.id) : (user?.id)}
+                  size={190}
+                />
+              ) : <ActivityIndicator color={Colors.primary} />}
+            </View>
+
+            {/* Chave copiavel */}
+            <TouchableOpacity
+              style={{backgroundColor: Colors.success + '10', borderRadius: 10, padding: 12, width: '100%',
+                borderWidth: 1, borderColor: Colors.success + '40', alignItems: 'center', marginBottom: 16}}
+              onPress={() => {
+                const key = pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id;
+                if (key) { Clipboard.setStringAsync(key); Alert.alert('Copiado!', 'Chave PIX copiada.'); }
+              }}
+            >
+              <Text style={{color: Colors.success, fontWeight: '700', fontSize: 13}}>
+                {pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id}
+              </Text>
+              <Text style={{color: Colors.light.textMuted, fontSize: 11, marginTop: 4}}>📋 Toque para copiar a chave</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.modalBtnCancel, {width: '100%'}]} onPress={() => setPixQrVisible(false)}>
               <Text style={[styles.modalBtnText, {textAlign: 'center'}]}>Fechar</Text>
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      {/* Modal 2: Cobrar via Stripe POS (maquininha de cartão) */}
+      <Modal visible={chargeModalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4}}>
+              <Feather name="credit-card" size={20} color={Colors.primary} />
+              <Text style={styles.modalTitle}>Cobrar via Cartão</Text>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              Receba pagamentos de cartão de crédito. O valor será creditado em sua carteira G.
+            </Text>
+
+            <TextInput
+              style={[styles.inputModal, {fontSize: 28, fontWeight: '800', textAlign: 'center', letterSpacing: 1}]}
+              placeholder="R$ 0,00"
+              placeholderTextColor={Colors.light.textMuted}
+              keyboardType="numeric"
+              value={chargeAmount}
+              onChangeText={setChargeAmount}
+              autoFocus
+            />
+
+            <TouchableOpacity
+              style={[styles.modalBtnSubmit, {marginTop: 16, paddingVertical: 18, borderRadius: 14}]}
+              onPress={handleChargeStripe}
+              disabled={chargeLoading}
+            >
+              {chargeLoading ? <ActivityIndicator color="#fff" /> : (
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+                  <Feather name="zap" size={20} color="#fff" />
+                  <Text style={[styles.modalBtnSubmitText, {fontSize: 16}]}>Cobrar Agora</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.modalBtnCancel, {marginTop: 10}]} onPress={() => setChargeModalVisible(false)} disabled={chargeLoading}>
+              <Text style={styles.modalBtnText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Scanner Modal */}
@@ -418,36 +544,45 @@ export default function WalletScreen() {
         </View>
       </Modal>
 
-      {/* Stripe Deposit / Charge Modal */}
-      <Modal visible={depositModalVisible} transparent animationType="fade">
+      {/* Modal 4: PIX externo (escanear QR de pessoa fora do Atos2) */}
+      <Modal visible={pixPayModalVisible} transparent animationType="slide">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Stripe Gateway</Text>
-            <Text style={{marginBottom: 16, color: Colors.light.textSecondary, textAlign: 'center'}}>
-              Digite o valor para gerar a cobrança unificada (PIX / NFC). O valor cairá instantaneamente em sua carteira {balanceData?.local?.currency}.
-            </Text>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4}}>
+              <Feather name="send" size={20} color={Colors.warning} />
+              <Text style={styles.modalTitle}>Pagar via PIX</Text>
+            </View>
+            <Text style={styles.modalSubtitle}>Confirme os dados antes de enviar o pagamento.</Text>
+
+            {/* Chave detectada */}
+            <View style={{backgroundColor: Colors.warning + '10', borderRadius: 10, padding: 12,
+              borderWidth: 1, borderColor: Colors.warning + '40', marginBottom: 12}}>
+              <Text style={{color: Colors.light.textMuted, fontSize: 11}}>Chave PIX detectada</Text>
+              <Text style={{color: Colors.light.text, fontWeight: '700', marginTop: 2}}>{pixPayTarget}</Text>
+            </View>
 
             <TextInput
               style={styles.inputModal}
-              placeholder="0,00"
+              placeholder="Valor a enviar (ex: 50,00)"
               placeholderTextColor={Colors.light.textMuted}
               keyboardType="numeric"
-              value={depositAmount}
-              onChangeText={setDepositAmount}
+              value={pixPayAmount}
+              onChangeText={setPixPayAmount}
+              autoFocus
             />
 
-            <View style={{flexDirection: 'column', gap: 10, marginTop: 16}}>
-               <TouchableOpacity style={[styles.modalBtnSubmit, {backgroundColor: '#6366f1'}]} onPress={() => handleDepositStripe('charge')} disabled={depositLoading}>
-                 {depositLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnSubmitText}>Cobrar de um Cliente</Text>}
-               </TouchableOpacity>
-
-               <TouchableOpacity style={styles.modalBtnSubmit} onPress={() => handleDepositStripe('deposit')} disabled={depositLoading}>
-                 {depositLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnSubmitText}>Depositar p/ Mim Mesmo</Text>}
-               </TouchableOpacity>
-               
-               <TouchableOpacity style={[styles.modalBtnCancel, {marginTop: 6}]} onPress={() => { setDepositModalVisible(false); loadData(); }} disabled={depositLoading}>
-                 <Text style={styles.modalBtnText}>Cancelar</Text>
-               </TouchableOpacity>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setPixPayModalVisible(false)} disabled={pixPayLoading}>
+                <Text style={styles.modalBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtnSubmit, {backgroundColor: Colors.warning}]} onPress={handlePixPayExternal} disabled={pixPayLoading}>
+                {pixPayLoading ? <ActivityIndicator color="#fff" /> : (
+                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                    <Feather name="send" size={16} color="#fff" />
+                    <Text style={styles.modalBtnSubmitText}>Enviar PIX</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -548,6 +683,16 @@ export default function WalletScreen() {
         </View>
       </Modal>
 
+      <TapToPayModal 
+        visible={tapToPayVisible}
+        onClose={() => setTapToPayVisible(false)}
+        amount={tapToPayAmountCents}
+        onSuccess={() => {
+            setChargeAmount('');
+            loadData();
+        }}
+      />
+
     </View>
   );
 }
@@ -601,7 +746,12 @@ const styles = StyleSheet.create({
   actionLabel: {
     color: Colors.light.textSecondary,
     fontSize: FontSize.xs,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  actionSublabel: {
+    color: Colors.light.textMuted,
+    fontSize: 10,
+    fontWeight: '500',
   },
   sectionHeader: {
     paddingHorizontal: Spacing.lg,

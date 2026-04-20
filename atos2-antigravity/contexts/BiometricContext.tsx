@@ -71,7 +71,7 @@ export function BiometricProvider({ children }: { children: ReactNode }) {
         promptMessage: reason,
         fallbackLabel: 'Usar senha',
         cancelLabel: 'Cancelar',
-        disableDeviceFallback: false, // permite PIN do dispositivo como fallback
+        disableDeviceFallback: true, // evita minimizar o app no Android ao acionar PIN do sistema
       });
       return result.success;
     } catch (e) {

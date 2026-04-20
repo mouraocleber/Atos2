@@ -241,6 +241,29 @@ export class UserSearchController {
       throw error;
     }
   }
+
+  // Atualiza lat/lon do usuário para busca por proximidade
+  async updateLocation(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId;
+      if (!userId) throw new AppError(401, 'Usuário não autenticado', 'UNAUTHORIZED');
+
+      const { latitude, longitude } = req.body;
+      if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+        throw new AppError(400, 'latitude e longitude devem ser números', 'INVALID_PARAM');
+      }
+
+      const { query } = require('../config/database');
+      await query(
+        'UPDATE users SET latitude = $1, longitude = $2 WHERE id = $3',
+        [latitude, longitude, userId]
+      );
+
+      res.json({ success: true, message: 'Localização atualizada.' });
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 export default new UserSearchController();

@@ -5,9 +5,14 @@ import { AuthRequest } from '../types';
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('CONFIGURAÇÃO DE SEGURANÇA FATAL: JWT_SECRET não está definido no .env. O Servidor se recusará a iniciar para evitar vazamentos.');
+if (!JWT_SECRET || JWT_SECRET === 'undefined' || JWT_SECRET === '') {
+  console.error('FATAL: A variável de ambiente JWT_SECRET não foi encontrada!');
+  console.error('Verifique se o seu arquivo .env no servidor DigitalOcean contém JWT_SECRET=suachavereal');
+  // Em produção, não queremos derrubar o processo imediatamente se houver outros fluxos, 
+  // mas aqui é crítico. Vamos lançar um erro mais descritivo.
+  throw new Error('ERRO DE CONFIGURAÇÃO: JWT_SECRET ausente. O sistema de login não pode funcionar sem esta chave.');
 }
+
 
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '24h';
 const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION || '7d';

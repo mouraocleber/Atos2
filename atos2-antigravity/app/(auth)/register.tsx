@@ -11,22 +11,19 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { isValidEmail, isValidPhone, isValidCPF, isValidCNPJ } from '../../utils/validators';
 import { Feather, FontAwesome } from '@expo/vector-icons';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-
-GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '', // Configured via EAS / Env
-});
 
 type Step = 'contact' | 'profile';
 
 export default function RegisterScreen() {
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
   const { t, setAppLanguage, language: currentLang } = useLocalization();
   const [step, setStep] = useState<Step>('contact');
   const [loading, setLoading] = useState(false);
   const [langSearch, setLangSearch] = useState('');
   const [showLangModal, setShowLangModal] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsType, setTermsType] = useState<'termos' | 'privacidade'>('termos');
 
   // Contact step
   const [phone, setPhone] = useState('');
@@ -39,6 +36,7 @@ export default function RegisterScreen() {
   const [cpf, setCpf] = useState('');
   const [cep, setCep] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [language, setLanguage] = useState<LanguageCode>('pt-BR');
 
   const filteredLanguages = useMemo(() => {
@@ -72,21 +70,17 @@ export default function RegisterScreen() {
   async function handleGoogleSignIn() {
     try {
       setLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const result = await GoogleSignin.signIn();
-      const user = result.data ? result.data.user : (result as any).user;
-      
-      if (user) {
-        setContactMethod('email');
-        setEmail(user.email);
-        setName(user.name || '');
-        setStep('profile');
-      }
+      // Usa o fluxo completo de autenticação do AuthContext
+      // que já tem o webClientId correto configurado
+      await signInWithGoogle();
+      // Se bem sucedido, navega direto para o app
+      router.replace('/(tabs)/chat');
     } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // Cancelado pelo usuário
+      const code = (error as any)?.code;
+      if (code === 'SIGN_IN_CANCELLED' || error.message === 'Login cancelado') {
+        // Cancelado pelo usuário — sem mensagem
       } else {
-        Alert.alert('Google Sign-In', 'Não foi possivel concluir o login com o Google.');
+        Alert.alert('Google Sign-In', error.message || 'Não foi possível entrar com o Google.');
       }
     } finally {
       setLoading(false);
@@ -228,6 +222,42 @@ export default function RegisterScreen() {
             </View>
           </Modal>
 
+          {/* Modal de Termos de Uso e Privacidade */}
+          <Modal visible={showTermsModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowTermsModal(false)}>
+            <View style={[styles.modalContent, { height: '100%', paddingTop: Platform.OS === 'ios' ? 40 : 20 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {termsType === 'termos' ? 'Termos de Uso' : 'Política de Privacidade'}
+                </Text>
+                <TouchableOpacity onPress={() => setShowTermsModal(false)}>
+                  <Feather name="x" size={24} color={Colors.light.text} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
+                {termsType === 'termos' ? (
+                  <Text style={{ color: Colors.light.text, lineHeight: 22 }}>
+                    Para utilizar o Atos2 (carteira Global, marketplace e chat), você concorda que: {'\n\n'}
+                    1. Fornecerá dados reais (PF/PJ) para viabilizar as transações financeiras. {'\n'}
+                    2. As transferências internas são gratuitas, porém saques/repasses externos possuem taxas progressivas. {'\n'}
+                    3. Você será punido (banimento ou suspensão de repasses) se cometer spam, fraude ou anúncio de produtos proibidos. {'\n'}
+                    4. As conversões da moeda (Global - G) flutuam com as bolsas internacionais livremente.
+                  </Text>
+                ) : (
+                  <Text style={{ color: Colors.light.text, lineHeight: 22 }}>
+                    Suas informações são tratadas rigorosamente confidenciais, baseando-se na LGPD Brasileira: {'\n\n'}
+                    1. Rastreamos IPS e exigimos validações matemáticas de CPF/CNPJ contra fraudes. {'\n'}
+                    2. Senhas e biometria recebem Hash de alta complexidade e não chegam cruas à nossa nuvem. {'\n'}
+                    3. Fotos enviadas são criptografadas no servidor em cache temporário ou banco dedicado para seu uso único com seus contatos. {'\n'}
+                    4. Logs de depósitos/saques são retidos legalmente na nuvem, sendo invioláveis.
+                  </Text>
+                )}
+                <TouchableOpacity style={[styles.btnSubmit, { marginTop: 30 }]} onPress={() => setShowTermsModal(false)}>
+                  <Text style={styles.btnSubmitText}>Ciente e Voltar</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </Modal>
+
           {/* Progress */}
           <View style={styles.progress}>
             <View style={[styles.progressDot, step === 'contact' || step === 'profile' ? styles.progressActive : null]} />
@@ -332,28 +362,35 @@ export default function RegisterScreen() {
                 onChangeText={setCep}
                 keyboardType="numeric"
               />
-              <TextInput
-                style={styles.input}
-                placeholder={t('password')}
-                placeholderTextColor={Colors.light.textMuted}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-              
-              <TouchableOpacity 
-                style={styles.checkboxContainer} 
-                onPress={() => setAgreedToTerms(!agreedToTerms)}
-              >
-                <Feather 
-                  name={agreedToTerms ? "check-square" : "square"} 
-                  size={20} 
-                  color={agreedToTerms ? Colors.primary : Colors.light.textMuted} 
+              <View style={{ position: 'relative' }}>
+                <TextInput
+                  style={[styles.input, { paddingRight: 50 }]}
+                  placeholder={t('password')}
+                  placeholderTextColor={Colors.light.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
                 />
+                <TouchableOpacity
+                  style={{ position: 'absolute', right: Spacing.md, top: 0, bottom: 0, justifyContent: 'center' }}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={{ fontSize: 20 }}>{showPassword ? '🙈' : '👁️'}</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.checkboxContainer}>
+                <TouchableOpacity onPress={() => setAgreedToTerms(!agreedToTerms)}>
+                  <Feather 
+                    name={agreedToTerms ? "check-square" : "square"} 
+                    size={20} 
+                    color={agreedToTerms ? Colors.primary : Colors.light.textMuted} 
+                  />
+                </TouchableOpacity>
                 <Text style={styles.checkboxText}>
-                  Li e concordo com os <Text style={styles.linkText}>Termos de Uso</Text> e a <Text style={styles.linkText}>Política de Privacidade</Text>.
+                  Li e concordo com os <Text style={styles.linkText} onPress={() => { setTermsType('termos'); setShowTermsModal(true); }}>Termos de Uso</Text> e a <Text style={styles.linkText} onPress={() => { setTermsType('privacidade'); setShowTermsModal(true); }}>Política de Privacidade</Text>.
                 </Text>
-              </TouchableOpacity>
+              </View>
 
               <TouchableOpacity 
                 style={styles.btnSubmit} 

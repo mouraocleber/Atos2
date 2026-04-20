@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS users (
   balance DECIMAL(15, 2) DEFAULT 0.00,
   is_active BOOLEAN DEFAULT TRUE,
   is_searchable BOOLEAN DEFAULT TRUE,
+  plan VARCHAR(20) DEFAULT 'FREE',
+  plan_expires_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   last_login TIMESTAMP,
@@ -160,7 +162,10 @@ CREATE TABLE IF NOT EXISTS messages (
   read_at TIMESTAMP,
   is_edited BOOLEAN DEFAULT FALSE,
   is_scheduled BOOLEAN DEFAULT FALSE,
-  scheduled_at TIMESTAMP
+  scheduled_at TIMESTAMP,
+  translated_content TEXT,
+  translated_language VARCHAR(10),
+  original_language VARCHAR(10)
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);

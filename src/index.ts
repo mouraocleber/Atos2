@@ -164,6 +164,11 @@ io.on('connection', (socket) => {
     io.to(`user_${data.to}`).emit('callUser', data);
   });
 
+  socket.on('callAccepted', (data) => {
+    // Receptor aceitou a chamada — avisa o chamador para entrar em 'in-call'
+    io.to(`user_${data.to}`).emit('callAccepted', { from: userId });
+  });
+
   socket.on('hangUp', (data) => {
     io.to(`user_${data.to}`).emit('hangUp', data);
   });

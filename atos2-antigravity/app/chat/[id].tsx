@@ -59,11 +59,19 @@ export default function ChatRoomScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // Áudio
+  // Áudio — hook no topo do componente (regra dos hooks)
+  // A permissão só é pedida quando começar a gravar (requestRecordingPermissionsAsync)
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const soundRef = useRef<any | null>(null);
+
+  // Call modal state — UI nativa em vez de Jitsi
+  const [callModalVisible, setCallModalVisible] = useState(false);
+  const [callType, setCallType] = useState<'audio' | 'video'>('audio');
+  const [callStatus, setCallStatus] = useState<'calling' | 'in-call' | 'ended'>('calling');
+  const [callDirection, setCallDirection] = useState<'outgoing' | 'incoming'>('outgoing');
+  const [callerName, setCallerName] = useState<string>('');
 
   // Som nativo de RUASH
   const ruashPlayer = useAudioPlayer(require('../../assets/sounds/ruash.wav'));
@@ -103,12 +111,27 @@ export default function ChatRoomScreen() {
     }
   }, [isRecording]);
 
+  // Normaliza campos snake_case do banco para camelCase
+  const normalizeMessage = (msg: any): Message => ({
+    id: msg.id,
+    senderId: msg.senderId || msg.sender_id || '',
+    content: msg.content || '',
+    translatedContent: msg.translatedContent || msg.translated_content || undefined,
+    translatedLanguage: msg.translatedLanguage || msg.translated_language || undefined,
+    type: msg.type || 'TEXT',
+    status: msg.status || 'SENT',
+    mediaUrl: msg.mediaUrl || msg.media_url || undefined,
+    createdAt: msg.createdAt || msg.created_at || new Date().toISOString(),
+  });
+
   const loadLiveMessages = useCallback(async (forceScroll = false) => {
     try {
-      const data = await getConversation(id as string, 50, 0);
-      const newMessages = data.data || [];
+      const data = await getConversation(id as string, 200, 0);
+      const raw: any[] = data.data || [];
+      const newMessages: Message[] = raw.map(normalizeMessage);
       setMessages(prev => {
-        if (forceScroll || prev.length !== newMessages.length) {
+        const scrollNeeded = forceScroll || newMessages.length !== prev.filter(m => !m.id.startsWith('temp_')).length;
+        if (scrollNeeded) {
           setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 300);
         }
         return newMessages;
@@ -131,16 +154,67 @@ export default function ChatRoomScreen() {
     
     socketRef.current = socket;
 
-    socket.on('newMessage', (newMsg: Message) => {
-      // Adiciona mensagem instantânea em milissegundos
+    // Ao conectar, entra na sala pessoal do usuário (garantia de entrega)
+    socket.on('connect', () => {
+      if (user?.id) {
+        socket.emit('joinRoom', `user_${user.id}`);
+      }
+    });
+
+    socket.on('newMessage', (incoming: any) => {
+      const newMsg = normalizeMessage(incoming);
+      // Filtra mensagens desta conversa: remetente ou destinatário deve ser `id`
+      const isThisConversation =
+        newMsg.senderId === (id as string) ||
+        (incoming.recipientId || incoming.recipient_id) === (id as string) ||
+        newMsg.senderId === user?.id;
+      if (!isThisConversation) return;
+
       setMessages(prev => {
+        // Evita duplicação por ID real
+        if (prev.some(m => m.id === newMsg.id)) return prev;
+        // Substitui temp message do próprio remetente pelo real
+        if (newMsg.senderId === user?.id) {
+          const tempIdx = prev.findIndex(
+            m => m.id.startsWith('temp_') && m.content === newMsg.content
+          );
+          if (tempIdx !== -1) {
+            const updated = [...prev];
+            updated[tempIdx] = newMsg;
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            return updated;
+          }
+        }
         const out = [...prev, newMsg];
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         return out;
       });
     });
 
+    socket.on('messageStatusUpdate', (data: { messageId: string, status: 'DELIVERED' | 'READ' }) => {
+       setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, status: data.status } : m));
+    });
+
+    socket.on('callUser', (data: { from: string, fromName: string, type: 'audio'|'video' }) => {
+       setCallDirection('incoming');
+       setCallerName(data.fromName || 'Alguém');
+       setCallType(data.type);
+       setCallStatus('calling');
+       setCallModalVisible(true);
+    });
+
+    socket.on('callAccepted', () => {
+       // O receptor aceitou — ambos entram em 'in-call'
+       setCallStatus('in-call');
+    });
+
+    socket.on('hangUp', () => {
+       setCallStatus('ended');
+       setTimeout(() => setCallModalVisible(false), 2000);
+    });
+
     return () => {
+      socket.emit('leaveRoom', `user_${user?.id}`);
       socket.disconnect();
     };
   }, [loadLiveMessages, user?.id, id]);
@@ -148,7 +222,44 @@ export default function ChatRoomScreen() {
   // ─── LIGAÇÕES (WEBVIEW WEBRTC) E MODERAÇÃO ────────────────────────────────
   const handleStartCall = (mode: 'video' | 'audio') => {
     setHeaderMenuVisible(false);
-    setVideoCallMode(mode);
+    setCallDirection('outgoing');
+    setCallType(mode);
+    setCallStatus('calling');
+    setCallModalVisible(true);
+    // Enviar sinal de chamada para o outro usuário via socket
+    socketRef.current?.emit('callUser', {
+      to: id,
+      from: user?.id,
+      fromName: user?.name || user?.nickname,
+      type: mode,
+    });
+    // Timeout de chamada não atendida
+    setTimeout(() => {
+      setCallStatus(prev => {
+        if (prev === 'calling') {
+          setCallModalVisible(false);
+          Alert.alert('Chamada encerrada', `${name} não atendeu.`);
+        }
+        return prev;
+      });
+    }, 30000);
+  };
+
+  const handleAcceptCall = () => {
+    socketRef.current?.emit('callAccepted', { to: id, from: user?.id });
+    setCallStatus('in-call');
+  };
+
+  const handleRejectCall = () => {
+    socketRef.current?.emit('hangUp', { to: id, from: user?.id });
+    setCallModalVisible(false);
+    setCallStatus('ended');
+  };
+
+  const handleHangUp = () => {
+    socketRef.current?.emit('hangUp', { to: id, from: user?.id });
+    setCallModalVisible(false);
+    setCallStatus('ended');
   };
   
   const handleBlockUser = async () => {
@@ -185,6 +296,22 @@ export default function ChatRoomScreen() {
     setInputValue('');
     setIsSending(true);
 
+    // Adiciona mensagem localmente para feedback imediato (optimistic update)
+    const tempId = 'temp_' + Date.now();
+    const tempMsg: Message = {
+      id: tempId,
+      senderId: user?.id || '',
+      content: textToSend,
+      type: 'TEXT',
+      status: 'SENT',
+      createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => {
+      const out = [...prev, tempMsg];
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      return out;
+    });
+
     let scheduledIso: string | undefined;
     if (scheduleDateObj) {
        scheduledIso = scheduleDateObj.toISOString();
@@ -193,9 +320,15 @@ export default function ChatRoomScreen() {
     try {
       await sendMessage({ recipientId: id as string, type: 'TEXT', content: textToSend, scheduledAt: scheduledIso });
       setScheduleDateObj(null);
-      loadLiveMessages(true);
+      // Para mensagens agendadas (sem socket), fazer polling após delay
+      if (scheduledIso) {
+        setTimeout(() => loadLiveMessages(false), 800);
+      }
+      // Para mensagens normais: o socket 'newMessage' substitui o temp automaticamente
     } catch (err) {
       console.log('Error sending text', err);
+      // Remove a mensagem temp em caso de erro
+      setMessages(prev => prev.filter(m => m.id !== tempId));
       setInputValue(textToSend);
     } finally {
       setIsSending(false);
@@ -269,17 +402,18 @@ export default function ChatRoomScreen() {
   // ─── AUDIO RECORDING ─────────────────────────────────────────────────────────
   const startRecording = async () => {
     try {
+      // Pede permissão apenas ao pressionar o botão
       const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Aviso', 'Permissão de microfone necessária.');
+        Alert.alert('Aviso', 'Permissão de microfone necessária para enviar áudios.');
         return;
       }
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       setIsRecording(true);
     } catch (e) {
-      console.error(e);
-      Alert.alert('Erro', 'Não foi possível iniciar o microfone.');
+      console.error('Erro ao iniciar gravação:', e);
+      Alert.alert('Erro', 'Não foi possível iniciar o microfone. Verifique as permissões nas configurações do aparelho.');
     }
   };
 
@@ -295,7 +429,7 @@ export default function ChatRoomScreen() {
         loadLiveMessages(true);
       }
     } catch (e) {
-      console.error(e);
+      console.error('Erro ao parar gravação:', e);
     } finally {
       setIsSending(false);
     }
@@ -318,7 +452,7 @@ export default function ChatRoomScreen() {
       
       let finalUrl = cachedUrl;
       if (finalUrl.startsWith('http')) {
-        const fileUri = FileSystem.cacheDirectory + 'playback_' + msgId + '.m4a';
+        const fileUri = (FileSystem.documentDirectory || FileSystem.cacheDirectory) + 'playback_' + msgId + '.m4a';
         await FileSystem.downloadAsync(finalUrl, fileUri);
         finalUrl = fileUri;
       }
@@ -457,8 +591,39 @@ export default function ChatRoomScreen() {
 
           {isSelected && (
             <View style={[styles.actionPopover, isMe ? styles.actionPopoverMe : styles.actionPopoverOther]}>
+              {/* Traduzir manualmente — aparece quando não há tradução automática */}
+              {(item.type === 'TEXT' || item.type === 'AUDIO') && !transContent && (
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={async () => {
+                    try {
+                      const r = await api.post('/messages/translate', {
+                        messageId: item.id,
+                        targetLanguage: user?.preferredLanguage || 'pt-BR',
+                      });
+                      const tContent = r.data?.data?.translated_content;
+                      const tLang = r.data?.data?.translated_language;
+                      if (tContent) {
+                        setMessages(prev =>
+                          prev.map(m =>
+                            m.id === item.id
+                              ? { ...m, translatedContent: tContent, translatedLanguage: tLang }
+                              : m
+                          )
+                        );
+                      }
+                    } catch {
+                      Alert.alert('Tradução', 'Não foi possível traduzir a mensagem.');
+                    }
+                    setSelectedMessage(null);
+                  }}
+                >
+                  <Feather name="globe" size={16} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+              {/* Exibir/ocultar tradução existente */}
               {transContent && (
-                <TouchableOpacity style={styles.actionBtn}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => setSelectedMessage(null)}>
                   <Feather name="globe" size={16} color={Colors.light.text} />
                 </TouchableOpacity>
               )}
@@ -612,26 +777,58 @@ export default function ChatRoomScreen() {
         )}
       </KeyboardAvoidingView>
 
-      {/* WebView Call Screen (Jitsi) */}
-      <Modal visible={!!videoCallMode} animationType="slide" transparent>
-        <SafeAreaView style={{flex: 1, backgroundColor: '#000'}}>
-          <View style={{height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, backgroundColor: '#111'}}>
-             <Text style={{color: '#fff', fontWeight: 'bold'}}>Chamada Segura (Atos2)</Text>
-             <TouchableOpacity onPress={() => setVideoCallMode(null)}>
-                <Feather name="x" size={24} color={Colors.error} />
-             </TouchableOpacity>
+      {/* Modal Nativo de Chamada */}
+      <Modal visible={callModalVisible} animationType="fade" transparent statusBarTranslucent>
+        <View style={styles.callModal}>
+          {/* Avatar */}
+          <View style={styles.callAvatar}>
+            <Text style={styles.callAvatarText}>
+              {callDirection === 'incoming'
+                ? callerName?.charAt(0)?.toUpperCase() || '?'
+                : (name as string)?.charAt(0)?.toUpperCase() || '?'}
+            </Text>
           </View>
-          {!!videoCallMode && (
-             <WebView
-               source={{ uri: `https://meet.jit.si/Atos2Call_${id}?config.startWithVideoMuted=${videoCallMode==='audio'}` }}
-               allowsInlineMediaPlayback={true}
-               mediaPlaybackRequiresUserAction={false}
-               style={{flex: 1}}
-               javaScriptEnabled={true}
-               domStorageEnabled={true}
-             />
+          <Text style={styles.callName}>
+            {callDirection === 'incoming' ? callerName : name}
+          </Text>
+          <Text style={styles.callStatus}>
+            {callStatus === 'calling'
+              ? callDirection === 'incoming'
+                ? (callType === 'video' ? '📹 Chamada de vídeo recebida' : '📞 Chamada recebida')
+                : (callType === 'video' ? '📹 Chamada de vídeo...' : '📞 Ligando...')
+              : callStatus === 'in-call'
+              ? (callType === 'video' ? '📹 Em chamada de vídeo' : '📞 Em chamada')
+              : 'Chamada encerrada'}
+          </Text>
+
+          {/* Botões de controle */}
+          {callDirection === 'incoming' && callStatus === 'calling' ? (
+            // Chamada de entrada: Atender e Rejeitar
+            <View style={styles.callControls}>
+              <TouchableOpacity style={[styles.callBtnMute, { backgroundColor: '#22c55e' }]} onPress={handleAcceptCall}>
+                <Feather name="phone" size={28} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.callBtnHangup} onPress={handleRejectCall}>
+                <Feather name="phone-off" size={28} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            // Chamada de saída ou em andamento
+            <View style={styles.callControls}>
+              <TouchableOpacity style={styles.callBtnMute}>
+                <Feather name="mic-off" size={24} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.callBtnHangup} onPress={handleHangUp}>
+                <Feather name="phone-off" size={28} color="#fff" />
+              </TouchableOpacity>
+              {callType === 'video' && (
+                <TouchableOpacity style={styles.callBtnMute}>
+                  <Feather name="camera-off" size={24} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </View>
           )}
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Schedule Message Modal */}
@@ -831,4 +1028,34 @@ const styles = StyleSheet.create({
   mediaMenuOption: { alignItems: 'center', gap: Spacing.sm },
   mediaMenuIcon: { width: 60, height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   mediaMenuLabel: { color: Colors.light.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
+
+  // Native call modal
+  callModal: {
+    flex: 1, backgroundColor: '#0a0a1a',
+    justifyContent: 'center', alignItems: 'center', gap: 16,
+  },
+  callAvatar: {
+    width: 120, height: 120, borderRadius: 60,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 4, borderColor: 'rgba(255,255,255,0.2)',
+    marginBottom: 8,
+  },
+  callAvatarText: { color: '#fff', fontSize: 52, fontWeight: '800' },
+  callName: { color: '#fff', fontSize: 28, fontWeight: '700' },
+  callStatus: { color: 'rgba(255,255,255,0.7)', fontSize: 16, letterSpacing: 0.5 },
+  callControls: {
+    flexDirection: 'row', gap: 32, marginTop: 40,
+    alignItems: 'center',
+  },
+  callBtnMute: {
+    width: 60, height: 60, borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  callBtnHangup: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center', alignItems: 'center',
+  },
 });

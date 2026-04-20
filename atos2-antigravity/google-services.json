@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "399781155509",
+    "project_id": "fluent-buckeye-476804-u0",
+    "storage_bucket": "fluent-buckeye-476804-u0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:399781155509:android:984a36e52ed5111d1c24fc",
+        "android_client_info": {
+          "package_name": "com.atos2.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "399781155509-au3tns9caa411hbs8qrnh8n17m4grkvj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0slPTL5VT_TiDkxpJQk6w5eFCc6lSjes"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "399781155509-au3tns9caa411hbs8qrnh8n17m4grkvj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

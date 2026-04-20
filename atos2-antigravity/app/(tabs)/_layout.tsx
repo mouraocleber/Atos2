@@ -1,11 +1,14 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, Platform } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const { t } = useLocalization();
   
   return (
     <Tabs
@@ -33,53 +36,73 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: 'Conversas',
-          headerTitle: 'Conversas',
-          tabBarIcon: ({ color }) => <Feather name="message-square" size={24} color={color} />,
+          title: t('tab_contacts') || 'Contatos',
+          headerTitle: t('header_contacts') || 'Contatos',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
+              <Feather name="users" size={focused ? 22 : 24} color={color} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="products"
         options={{
-          title: 'Vitrine',
-          headerTitle: 'Loja e Vitrine',
-          tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={24} color={color} />,
+          title: t('tab_store') || 'Vitrine',
+          headerTitle: t('header_store') || 'Loja e Vitrine',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
+              <Feather name="shopping-bag" size={focused ? 22 : 24} color={color} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="wallet"
         options={{
-          title: 'Carteira',
-          headerTitle: 'Carteira',
-          tabBarIcon: ({ color }) => <Feather name="credit-card" size={24} color={color} />,
+          title: t('tab_wallet') || 'Carteira',
+          headerTitle: t('header_wallet') || 'Carteira',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
+              <Feather name="credit-card" size={focused ? 22 : 24} color={color} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
-          title: 'Buscar',
-          headerTitle: 'Buscar Usuários',
-          tabBarIcon: ({ color }) => <Feather name="search" size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="receive"
-        options={{
-          title: 'Cobrar',
-          headerTitle: 'Máquina de Cartão',
-          tabBarIcon: ({ color }) => <Feather name="aperture" size={24} color={color} />,
+          title: t('tab_search') || 'Buscar',
+          headerTitle: t('header_search') || 'Buscar Usuários',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
+              <Feather name="search" size={focused ? 22 : 24} color={color} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Config',
-          headerTitle: 'Configurações',
-          tabBarIcon: ({ color }) => <Feather name="settings" size={24} color={color} />,
+          title: t('tab_settings') || 'Config',
+          headerTitle: t('header_settings') || 'Configurações',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
+              <Feather name="settings" size={focused ? 22 : 24} color={color} />
+            </View>
+          ),
         }}
       />
     </Tabs>
   );
 }
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  iconContainer: {
+    padding: 6,
+    borderRadius: 20,
+  },
+  iconContainerFocused: {
+    backgroundColor: Colors.primary + '30',
+  }
+});

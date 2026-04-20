@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Atos2",
-    "slug": "atos2-antigravity",
+    "slug": "atos2",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,6 +25,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.atos2.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",
@@ -57,7 +58,17 @@
         {
           "android": {
             "usesCleartextTraffic": true,
-            "minSdkVersion": 26
+            "minSdkVersion": 26,
+            "packagingOptions": {
+              "pickFirst": [
+                "META-INF/NOTICE.md",
+                "META-INF/LICENSE.md",
+                "org/bouncycastle/pqc/crypto/picnic/lowmcL5.bin.properties"
+              ],
+              "exclude": [
+                "org/bouncycastle/*"
+              ]
+            }
           }
         }
       ],
@@ -69,17 +80,26 @@
           "enableGooglePay": true
         }
       ],
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "@stripe/stripe-terminal-react-native",
+        {
+          "android": {
+            "permission": "Always"
+          }
+        }
+      ]
     ],
     "updates": {
       "enabled": false
     },
     "extra": {
-      "apiUrl": "https://moody-mammals-crash.loca.lt/api",
+      "apiUrl": "http://159.223.107.51:3001/api",
       "router": {},
       "eas": {
-        "projectId": "1f93e4c0-6838-4ca0-8d29-3cef0bd49943"
+        "projectId": "a9bd4606-9485-45af-b237-f7dff175bfc6"
       }
-    }
+    },
+    "owner": "camposmourao"
   }
 }
