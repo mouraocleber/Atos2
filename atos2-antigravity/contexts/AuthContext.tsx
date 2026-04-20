@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Configura o Google Sign-In com o webClientId do google-services.json
     GoogleSignin.configure({
-      webClientId: '399781155509-au3tns9caa411hbs8qrnh8n17m4grkvj.apps.googleusercontent.com',
+      webClientId: '399781155509-82nebimrcr62redp0q0o782jajc6uimg.apps.googleusercontent.com',
       offlineAccess: false,
     });
     loadStoredData();
