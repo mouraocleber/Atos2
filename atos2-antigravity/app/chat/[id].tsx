@@ -9,9 +9,9 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSocket } from '../../contexts/SocketContext';
 import * as ImagePicker from 'expo-image-picker';
 import { useAudioPlayer, useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
-import { io, Socket } from 'socket.io-client';
 import { WebView } from 'react-native-webview';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as FileSystem from 'expo-file-system';
@@ -41,6 +41,7 @@ interface Message {
 export default function ChatRoomScreen() {
   const { id, name, status } = useLocalSearchParams();
   const { user } = useAuth();
+  const { socket } = useSocket();   // Socket global — conectado desde o login
 
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -141,37 +142,29 @@ export default function ChatRoomScreen() {
     }
   }, [id]);
 
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<any | null>(null);
+
+  // Sincroniza socketRef com o socket global do SocketContext
+  useEffect(() => {
+    socketRef.current = socket;
+  }, [socket]);
 
   useEffect(() => {
     loadLiveMessages(true);
-    
-    // Conecta ao Socket.io nativo
-    const socket = io(SERVER_MEDIA_BASE, {
-      transports: ['websocket'],
-      query: { userId: user?.id }
-    });
-    
-    socketRef.current = socket;
 
-    // Ao conectar, entra na sala pessoal do usuário (garantia de entrega)
-    socket.on('connect', () => {
-      if (user?.id) {
-        socket.emit('joinRoom', `user_${user.id}`);
-      }
-    });
+    if (!socket) return;
 
-    socket.on('newMessage', (incoming: any) => {
+    const handleNewMessage = (incoming: any) => {
       const newMsg = normalizeMessage(incoming);
-      // Filtra mensagens desta conversa: remetente ou destinatário deve ser `id`
+      // Filtro preciso: mensagem do outro usuário OU minha mensagem para este usuário
       const isThisConversation =
         newMsg.senderId === (id as string) ||
-        (incoming.recipientId || incoming.recipient_id) === (id as string) ||
-        newMsg.senderId === user?.id;
+        (newMsg.senderId === user?.id &&
+          ((incoming.recipientId || incoming.recipient_id) === (id as string)));
+
       if (!isThisConversation) return;
 
       setMessages(prev => {
-        // Evita duplicação por ID real
         if (prev.some(m => m.id === newMsg.id)) return prev;
         // Substitui temp message do próprio remetente pelo real
         if (newMsg.senderId === user?.id) {
@@ -189,35 +182,43 @@ export default function ChatRoomScreen() {
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         return out;
       });
-    });
+    };
 
-    socket.on('messageStatusUpdate', (data: { messageId: string, status: 'DELIVERED' | 'READ' }) => {
-       setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, status: data.status } : m));
-    });
+    const handleStatusUpdate = (data: { messageId: string, status: 'DELIVERED' | 'READ' }) => {
+      setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, status: data.status } : m));
+    };
 
-    socket.on('callUser', (data: { from: string, fromName: string, type: 'audio'|'video' }) => {
-       setCallDirection('incoming');
-       setCallerName(data.fromName || 'Alguém');
-       setCallType(data.type);
-       setCallStatus('calling');
-       setCallModalVisible(true);
-    });
+    const handleCallUser = (data: { from: string, fromName: string, type: 'audio'|'video' }) => {
+      setCallDirection('incoming');
+      setCallerName(data.fromName || 'Alguém');
+      setCallType(data.type);
+      setCallStatus('calling');
+      setCallModalVisible(true);
+    };
 
-    socket.on('callAccepted', () => {
-       // O receptor aceitou — ambos entram em 'in-call'
-       setCallStatus('in-call');
-    });
+    const handleCallAccepted = () => {
+      setCallStatus('in-call');
+    };
 
-    socket.on('hangUp', () => {
-       setCallStatus('ended');
-       setTimeout(() => setCallModalVisible(false), 2000);
-    });
+    const handleHangUp = () => {
+      setCallStatus('ended');
+      setTimeout(() => setCallModalVisible(false), 2000);
+    };
+
+    socket.on('newMessage', handleNewMessage);
+    socket.on('messageStatusUpdate', handleStatusUpdate);
+    socket.on('callUser', handleCallUser);
+    socket.on('callAccepted', handleCallAccepted);
+    socket.on('hangUp', handleHangUp);
 
     return () => {
-      socket.emit('leaveRoom', `user_${user?.id}`);
-      socket.disconnect();
+      socket.off('newMessage', handleNewMessage);
+      socket.off('messageStatusUpdate', handleStatusUpdate);
+      socket.off('callUser', handleCallUser);
+      socket.off('callAccepted', handleCallAccepted);
+      socket.off('hangUp', handleHangUp);
     };
-  }, [loadLiveMessages, user?.id, id]);
+  }, [loadLiveMessages, user?.id, id, socket]);
 
   // ─── LIGAÇÕES (WEBVIEW WEBRTC) E MODERAÇÃO ────────────────────────────────
   const handleStartCall = (mode: 'video' | 'audio') => {
@@ -318,13 +319,22 @@ export default function ChatRoomScreen() {
     }
 
     try {
-      await sendMessage({ recipientId: id as string, type: 'TEXT', content: textToSend, scheduledAt: scheduledIso });
+      const result = await sendMessage({ recipientId: id as string, type: 'TEXT', content: textToSend, scheduledAt: scheduledIso });
       setScheduleDateObj(null);
-      // Para mensagens agendadas (sem socket), fazer polling após delay
+
+      // Substitui a mensagem temp pela real da resposta REST (não depende do socket)
+      const realMsg = result?.data ? normalizeMessage(result.data) : null;
+      if (realMsg?.id && !realMsg.id.startsWith('temp_')) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === realMsg.id)) return prev; // já existe (veio pelo socket)
+          return prev.map(m => m.id === tempId ? realMsg : m);
+        });
+      }
+
+      // Para mensagens agendadas (sem socket), recarregar após delay
       if (scheduledIso) {
         setTimeout(() => loadLiveMessages(false), 800);
       }
-      // Para mensagens normais: o socket 'newMessage' substitui o temp automaticamente
     } catch (err) {
       console.log('Error sending text', err);
       // Remove a mensagem temp em caso de erro

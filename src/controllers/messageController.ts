@@ -106,9 +106,9 @@ export class MessageController {
       try {
         if (type === 'TEXT' || type === 'AUDIO') {
           const senderLanguage = (await userService.getUserById(senderId))?.preferredLanguage || 'pt-BR';
-          const recipientLanguage = recipient.preferredLanguage;
+          const recipientLanguage = recipient.preferredLanguage || 'pt-BR'; // Fallback pt-BR
 
-          if (senderLanguage !== recipientLanguage && finalContent) {
+          if (senderLanguage !== recipientLanguage && finalContent && process.env.DEEPL_API_KEY) {
             console.log(`[Translate Pipeline] Traduzindo "${finalContent}" de ${senderLanguage} para ${recipientLanguage}`);
             const translatedContent = await translationService.translateText(
               finalContent,
@@ -143,7 +143,7 @@ export class MessageController {
         }
       } catch (translationError) {
         console.error('Erro ao traduzir mensagem:', translationError);
-        // Continuar mesmo se a tradução falhar
+        // Continua mesmo se a tradução falhar
       }
 
       res.status(201).json({

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '../contexts/AuthContext';
 import { LocalizationProvider } from '../contexts/LocalizationContext';
 import { BiometricProvider, useBiometric } from '../contexts/BiometricContext';
+import { SocketProvider } from '../contexts/SocketContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
@@ -76,11 +77,13 @@ export default function RootLayout() {
   const content = (
     <LocalizationProvider>
       <AuthProvider>
-        <BiometricProvider>
-          <StatusBar style="light" />
-          <AppStateWatcher />
-          <Slot />
-        </BiometricProvider>
+        <SocketProvider>
+          <BiometricProvider>
+            <StatusBar style="light" />
+            <AppStateWatcher />
+            <Slot />
+          </BiometricProvider>
+        </SocketProvider>
       </AuthProvider>
     </LocalizationProvider>
   );
