@@ -71,7 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const [storedToken, storedUser] = await AsyncStorage.multiGet(['token', 'user']);
       if (storedToken[1] && storedUser[1]) {
         setToken(storedToken[1]);
-        setUser(JSON.parse(storedUser[1]));
+        const parsedUser = JSON.parse(storedUser[1]);
+        // Normaliza a URL da foto caso tenha sido salva com path relativo
+        const normalizedUser = normalizeProfileImage(parsedUser);
+        setUser(normalizedUser);
+        // Re-salva com a URL correta para as próximas iniciações
+        if (parsedUser.profileImage !== normalizedUser.profileImage) {
+          await AsyncStorage.setItem('user', JSON.stringify(normalizedUser));
+        }
       }
     } catch (e) {
       console.error('Erro ao carregar dados salvos:', e);

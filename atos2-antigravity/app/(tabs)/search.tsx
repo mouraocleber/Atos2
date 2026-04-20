@@ -24,7 +24,7 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [searchRadius, setSearchRadius] = useState<'20' | 'all'>('20');
+  const [searchRadius, setSearchRadius] = useState<'20' | 'all'>('all');
 
   useEffect(() => {
     (async () => {

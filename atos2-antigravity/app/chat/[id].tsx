@@ -39,7 +39,7 @@ interface Message {
 }
 
 export default function ChatRoomScreen() {
-  const { id, name, status } = useLocalSearchParams();
+  const { id, name, status, autoAcceptCall } = useLocalSearchParams();
   const { user } = useAuth();
   const { socket } = useSocket();   // Socket global — conectado desde o login
 
@@ -148,6 +148,19 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     socketRef.current = socket;
   }, [socket]);
+
+  // Auto-aceita chamada se recebeu o parâmetro (vindo do GlobalCallHandler)
+  useEffect(() => {
+    if (!autoAcceptCall || !socket || !id) return;
+    const callType = autoAcceptCall as string;
+    if (callType === 'audio' || callType === 'video') {
+      setCallDirection('incoming');
+      setCallType(callType);
+      setCallStatus('in-call');
+      setCallModalVisible(true);
+      socket.emit('callAccepted', { to: id, from: user?.id });
+    }
+  }, [autoAcceptCall, socket, id, user?.id]);
 
   useEffect(() => {
     loadLiveMessages(true);

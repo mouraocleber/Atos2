@@ -1,4 +1,4 @@
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments, usePathname } from 'expo-router';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '../contexts/AuthContext';
@@ -6,9 +6,10 @@ import { LocalizationProvider } from '../contexts/LocalizationContext';
 import { BiometricProvider, useBiometric } from '../contexts/BiometricContext';
 import { SocketProvider } from '../contexts/SocketContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus, Alert } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useSocket } from '../contexts/SocketContext';
 
 /**
  * Inner component that has access to auth and biometric contexts.
@@ -47,7 +48,68 @@ function AppStateWatcher() {
   return null;
 }
 
-import React, { useState } from 'react';
+/**
+ * Escuta chamadas entrantes globalmente.
+ * Se o usuário NÃO está na tela do chat com o chamador, mostra um Alert.
+ */
+function GlobalCallHandler() {
+  const { socket } = useSocket();
+  const { user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleCallUser = (data: { from: string; fromName: string; type: 'audio' | 'video' }) => {
+      // Se já está na tela do chat com o chamador, o [id].tsx trata o evento
+      if (pathnameRef.current === `/chat/${data.from}`) return;
+
+      const callTypeLabel = data.type === 'video' ? '📹 Chamada de Vídeo' : '📞 Chamada de Áudio';
+      Alert.alert(
+        callTypeLabel,
+        `${data.fromName || 'Alguém'} está te chamando`,
+        [
+          {
+            text: '❌ Rejeitar',
+            style: 'destructive',
+            onPress: () => {
+              socket.emit('hangUp', { to: data.from, from: user?.id });
+            },
+          },
+          {
+            text: '✅ Atender',
+            onPress: () => {
+              router.push({
+                pathname: '/chat/[id]',
+                params: {
+                  id: data.from,
+                  name: data.fromName || 'Usuário',
+                  status: 'online',
+                  autoAcceptCall: data.type,
+                },
+              });
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    };
+
+    socket.on('callUser', handleCallUser);
+    return () => {
+      socket.off('callUser', handleCallUser);
+    };
+  }, [socket, user?.id, router]);
+
+  return null;
+}
+
 
 // Safe lazy import - if the native module isn't properly linked it won't crash the whole app
 let TerminalProvider: React.ComponentType<any> | null = null;
@@ -81,6 +143,7 @@ export default function RootLayout() {
           <BiometricProvider>
             <StatusBar style="light" />
             <AppStateWatcher />
+            <GlobalCallHandler />
             <Slot />
           </BiometricProvider>
         </SocketProvider>
