@@ -91,7 +91,13 @@
       ]
     ],
     "updates": {
-      "enabled": false
+      "url": "https://u.expo.dev/a9bd4606-9485-45af-b237-f7dff175bfc6",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     },
     "extra": {
       "apiUrl": "http://159.223.107.51:3001/api",
