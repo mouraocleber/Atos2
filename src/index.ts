@@ -210,6 +210,26 @@ httpServer.listen(Number(port), '0.0.0.0', async () => {
   } catch (e) {
     console.error('⚠️ Falha na migração de colunas de tradução:', e);
   }
+
+  // Migração: Garante a tabela Translations para o DeepL não crachar silenciosamente
+  try {
+    const { query: dbQuery } = await import('./config/database');
+    await dbQuery(`
+      CREATE TABLE IF NOT EXISTS translations (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+        original_content TEXT NOT NULL,
+        original_language VARCHAR(10) NOT NULL,
+        translated_content TEXT NOT NULL,
+        translated_language VARCHAR(10) NOT NULL,
+        provider VARCHAR(20) DEFAULT 'deepl',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ Migração: tabela translations do DeepL garantida no BD.');
+  } catch (e) {
+    console.error('⚠️ Falha na migração da tabela translations:', e);
+  }
 });
 
 export default app;

@@ -348,9 +348,11 @@ export default function ChatRoomScreen() {
       if (scheduledIso) {
         setTimeout(() => loadLiveMessages(false), 800);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.log('Error sending text', err);
-      // Remove a mensagem temp em caso de erro
+      const errorMsg = err.response?.data?.message || 'Erro de conexão ou serviço indisponível.';
+      Alert.alert('Não foi possível enviar', errorMsg);
+      // Remove a mensagem temp para não enganar o usuário
       setMessages(prev => prev.filter(m => m.id !== tempId));
       setInputValue(textToSend);
     } finally {
@@ -382,7 +384,8 @@ export default function ChatRoomScreen() {
           await sendMessage({ recipientId: id as string, type: 'IMAGE', content: '' }, asset.uri);
           loadLiveMessages(true);
         } catch (err: any) {
-          Alert.alert('Erro', 'Não foi possível enviar a imagem.');
+          const errorMsg = err.response?.data?.message || 'Não foi possível enviar a imagem.';
+          Alert.alert('Erro no Envio', errorMsg);
         } finally {
           setIsSending(false);
         }
@@ -412,7 +415,8 @@ export default function ChatRoomScreen() {
           await sendMessage({ recipientId: id as string, type: 'VIDEO', content: '' }, asset.uri);
           loadLiveMessages(true);
         } catch (err: any) {
-          Alert.alert('Erro', 'Não foi possível enviar o vídeo. Verifique o tamanho (máx. 50MB).');
+          const errorMsg = err.response?.data?.message || 'Não foi possível enviar o vídeo. Verifique o tamanho (máx. 50MB).';
+          Alert.alert('Erro no Envio', errorMsg);
         } finally {
           setIsSending(false);
         }
@@ -451,8 +455,10 @@ export default function ChatRoomScreen() {
         await sendMessage({ recipientId: id as string, type: 'AUDIO', content: '' }, uri);
         loadLiveMessages(true);
       }
-    } catch (e) {
-      console.error('Erro ao parar gravação:', e);
+    } catch (e: any) {
+      console.error('Erro ao processar gravação:', e);
+      const errorMsg = e.response?.data?.message || 'Não foi possível enviar o áudio gravado.';
+      Alert.alert('Falha no Envio', errorMsg);
     } finally {
       setIsSending(false);
     }

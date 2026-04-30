@@ -77,8 +77,8 @@ export class TranslationService {
       );
 
       return response.data.translations[0].text;
-    } catch (error) {
-      console.error('Erro na tradução DeepL:', error);
+    } catch (error: any) {
+      console.error('Erro na tradução DeepL:', error.response?.data || error.message);
       throw new Error('Falha ao traduzir mensagem');
     }
   }

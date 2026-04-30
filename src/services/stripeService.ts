@@ -19,7 +19,7 @@ export class StripeService {
    * Creates an intent specifically for 'card_present' physical payments
    */
   async createPaymentIntent(amountInCents: number, currency: string = 'brl', destinationAccountId?: string): Promise<string> {
-    const params: Stripe.PaymentIntentCreateParams = {
+    const params: any = {
       amount: Math.round(amountInCents),
       currency: currency.toLowerCase(),
       payment_method_types: ['card_present'],
@@ -74,8 +74,8 @@ export class StripeService {
   /**
    * Check the user's balances directly on their Stripe Connect account
    */
-  async getConnectBalance(accountId: string): Promise<Stripe.Balance> {
-    return await stripe.balance.retrieve({
+  async getConnectBalance(accountId: string): Promise<any> {
+    return await stripe.balance.retrieve(undefined, {
       stripeAccount: accountId,
     });
   }
@@ -83,7 +83,7 @@ export class StripeService {
   /**
    * Trigger a payout from the user's Stripe Connect balance to their external Bank Account
    */
-  async createPayout(accountId: string, amount: number, currency: string): Promise<Stripe.Payout> {
+  async createPayout(accountId: string, amount: number, currency: string): Promise<any> {
     return await stripe.payouts.create(
       {
         amount: Math.round(amount),
