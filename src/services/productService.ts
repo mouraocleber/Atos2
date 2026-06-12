@@ -36,7 +36,7 @@ export class ProductService {
         `INSERT INTO products (user_id, name, description, price, category, image_url, stock, status, is_reservable)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id, user_id, name, description, price, category, image_url, stock, status, is_reservable, created_at, updated_at`,
-        [userId, name, description || null, price, category || null, imageUrl || null, stock || 0, 'ACTIVE', isReservable === undefined ? true : isReservable]
+        [userId, name, description || null, price, category || null, imageUrl || null, stock === undefined || stock === null ? 99 : stock, 'ACTIVE', isReservable === undefined ? true : isReservable]
       );
 
       const product = result.rows[0];

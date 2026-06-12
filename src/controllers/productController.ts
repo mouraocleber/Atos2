@@ -18,12 +18,25 @@ export class ProductController {
         throw new AppError(403, 'Requer Plano PRO ou BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
       }
 
-      if (!name || !price) {
+      if (!name || price === undefined || price === null || price === '') {
         throw new AppError(400, 'Nome e preço são obrigatórios', 'MISSING_PRODUCT_DATA');
       }
 
-      if (price < 0) {
+      const parsedPrice = parseFloat(price.toString().replace(',', '.'));
+      if (isNaN(parsedPrice)) {
+        throw new AppError(400, 'Preço inválido', 'INVALID_PRICE');
+      }
+
+      if (parsedPrice < 0) {
         throw new AppError(400, 'Preço não pode ser negativo', 'INVALID_PRICE');
+      }
+
+      let parsedStock = 99;
+      if (stock !== undefined && stock !== null && stock !== '') {
+        const tempStock = parseInt(stock.toString(), 10);
+        if (!isNaN(tempStock)) {
+          parsedStock = tempStock;
+        }
       }
 
       let finalImageUrl = imageUrl;
@@ -34,11 +47,11 @@ export class ProductController {
       const product = await productService.createProduct(
         userId,
         name,
-        price,
+        parsedPrice,
         description,
         category,
         finalImageUrl,
-        stock
+        parsedStock
       );
 
       res.json({
@@ -127,9 +140,22 @@ export class ProductController {
         throw new AppError(400, 'ID do produto é obrigatório', 'MISSING_PRODUCT_ID');
       }
 
-      // Validar preço se fornecido
-      if (updates.price !== undefined && updates.price < 0) {
-        throw new AppError(400, 'Preço não pode ser negativo', 'INVALID_PRICE');
+      // Validar preço e estoque se fornecidos
+      if (updates.price !== undefined && updates.price !== null && updates.price !== '') {
+        const parsedPrice = parseFloat(updates.price.toString().replace(',', '.'));
+        if (isNaN(parsedPrice) || parsedPrice < 0) {
+          throw new AppError(400, 'Preço inválido ou negativo', 'INVALID_PRICE');
+        }
+        updates.price = parsedPrice;
+      }
+
+      if (updates.stock !== undefined && updates.stock !== null && updates.stock !== '') {
+        const parsedStock = parseInt(updates.stock.toString(), 10);
+        if (isNaN(parsedStock)) {
+          delete updates.stock;
+        } else {
+          updates.stock = parsedStock;
+        }
       }
 
       const product = await productService.updateProduct(productId, userId, updates);

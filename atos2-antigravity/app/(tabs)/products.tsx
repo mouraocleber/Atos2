@@ -195,9 +195,9 @@ export default function MarketplaceScreen() {
         )}
         <View style={styles.productFooter}>
           <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}>
-            <Text style={styles.productPrice}>R$ {item.price.toFixed(2)}</Text>
+            <Text style={styles.productPrice}>R$ {Number(item.price).toFixed(2)}</Text>
             <View style={{backgroundColor: Colors.secondary + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4}}>
-              <Text style={{color: Colors.secondaryDark, fontWeight: '800', fontSize: 12}}>G {(item.price / 0.5037).toFixed(2)}</Text>
+              <Text style={{color: Colors.secondaryDark, fontWeight: '800', fontSize: 12}}>G {(Number(item.price) / 0.5037).toFixed(2)}</Text>
             </View>
           </View>
           <Text style={styles.productStock}>
@@ -269,11 +269,11 @@ export default function MarketplaceScreen() {
 
              <View style={{flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 20}}>
                 <View style={{alignItems: 'center'}}>
-                   <Text style={{fontSize: 24, fontWeight: 'bold', color: Colors.success}}>R$ {selectedProduct?.price?.toFixed(2)}</Text>
+                   <Text style={{fontSize: 24, fontWeight: 'bold', color: Colors.success}}>R$ {Number(selectedProduct?.price ?? 0).toFixed(2)}</Text>
                    <Text style={{fontSize: 12, color: Colors.light.textMuted}}>Preço Local</Text>
                 </View>
                 <View style={{alignItems: 'center'}}>
-                   <Text style={{fontSize: 24, fontWeight: 'bold', color: Colors.secondaryDark}}>G {(selectedProduct?.price ? selectedProduct.price / 0.5037 : 0).toFixed(2)}</Text>
+                   <Text style={{fontSize: 24, fontWeight: 'bold', color: Colors.secondaryDark}}>G {(selectedProduct?.price ? Number(selectedProduct.price) / 0.5037 : 0).toFixed(2)}</Text>
                    <Text style={{fontSize: 12, color: Colors.light.textMuted}}>Base Global</Text>
                 </View>
              </View>

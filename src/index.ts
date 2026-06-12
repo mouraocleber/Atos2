@@ -267,6 +267,21 @@ httpServer.listen(Number(port), '0.0.0.0', async () => {
   } catch (e) {
     console.error('⚠️ Falha na migração de tipo de mensagem LOCATION:', e);
   }
+
+  // Migração: Garante as colunas extras de monetização/vitrine na tabela products
+  try {
+    const { query: dbQuery } = await import('./config/database');
+    await dbQuery(`
+      ALTER TABLE products 
+      ADD COLUMN IF NOT EXISTS category VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS image_url VARCHAR(500),
+      ADD COLUMN IF NOT EXISTS stock INTEGER DEFAULT 99,
+      ADD COLUMN IF NOT EXISTS is_reservable BOOLEAN DEFAULT true;
+    `);
+    console.log('✅ Migração: colunas extras da vitrine garantidas na tabela products.');
+  } catch (e) {
+    console.error('⚠️ Falha na migração de colunas extras da vitrine:', e);
+  }
 });
 
 export default app;
