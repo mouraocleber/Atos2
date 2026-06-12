@@ -2,14 +2,15 @@ import { Router } from 'express';
 import productController from '../controllers/productController';
 import { authenticateToken } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
+import { upload } from '../middleware/upload';
 
 const router = Router();
 
 // Middleware de autenticação obrigatória
 router.use(authenticateToken);
 
-// Criar produto
-router.post('/', asyncHandler((req, res) => productController.createProduct(req, res)));
+// Criar produto (suporta upload de imagem da vitrine)
+router.post('/', upload.single('image'), asyncHandler((req, res) => productController.createProduct(req, res)));
 
 // Obter produtos do marketplace (Todos os ativos)
 router.get('/marketplace', asyncHandler((req, res) => productController.getMarketplaceProducts(req, res)));

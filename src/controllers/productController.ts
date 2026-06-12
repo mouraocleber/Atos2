@@ -14,8 +14,8 @@ export class ProductController {
       // Import userService in this file if not already imported
       const { default: userServiceObj } = await import('../services/userService');
       const user = await userServiceObj.getUserById(userId);
-      if (user?.plan !== 'BUSINESS') {
-        throw new AppError(403, 'Requer Plano BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
+      if (user?.plan !== 'PRO' && user?.plan !== 'BUSINESS') {
+        throw new AppError(403, 'Requer Plano PRO ou BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
       }
 
       if (!name || !price) {
@@ -26,13 +26,18 @@ export class ProductController {
         throw new AppError(400, 'Preço não pode ser negativo', 'INVALID_PRICE');
       }
 
+      let finalImageUrl = imageUrl;
+      if (req.file) {
+        finalImageUrl = `/uploads/images/${req.file.filename}`;
+      }
+
       const product = await productService.createProduct(
         userId,
         name,
         price,
         description,
         category,
-        imageUrl,
+        finalImageUrl,
         stock
       );
 
@@ -114,8 +119,8 @@ export class ProductController {
 
       const { default: userServiceObj } = await import('../services/userService');
       const user = await userServiceObj.getUserById(userId);
-      if (user?.plan !== 'BUSINESS') {
-        throw new AppError(403, 'Requer Plano BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
+      if (user?.plan !== 'PRO' && user?.plan !== 'BUSINESS') {
+        throw new AppError(403, 'Requer Plano PRO ou BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
       }
 
       if (!productId) {
@@ -150,8 +155,8 @@ export class ProductController {
 
       const { default: userServiceObj } = await import('../services/userService');
       const user = await userServiceObj.getUserById(userId);
-      if (user?.plan !== 'BUSINESS') {
-        throw new AppError(403, 'Requer Plano BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
+      if (user?.plan !== 'PRO' && user?.plan !== 'BUSINESS') {
+        throw new AppError(403, 'Requer Plano PRO ou BUSINESS para administrar vitrine de produtos.', 'UPGRADE_REQUIRED');
       }
 
       if (!productId) {
