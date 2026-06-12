@@ -17,7 +17,7 @@ import { clearMediaCache, getMediaCacheSize } from '../../services/MediaCacheSer
 import { LANGUAGES } from '../../constants/translations';
 
 export default function SettingsScreen() {
-  const { user, signOut, updateUser } = useAuth();
+  const { user, signOut, updateUser, refreshUser } = useAuth();
   const { isBiometricSupported, isBiometricEnabled, setBiometricEnabled } = useBiometric();
   const { setAppLanguage, t } = useLocalization();
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -147,7 +147,7 @@ export default function SettingsScreen() {
           // Atualiza a foto no contexto local imediatamente (sem precisar de logout)
           const newImageUrl = res?.data?.data?.profileImage || res?.data?.profileImage;
           if (newImageUrl) {
-            const fullUrl = `http://159.223.107.51:3001${newImageUrl}?t=${Date.now()}`;
+            const fullUrl = `${SERVER_MEDIA_BASE}${newImageUrl}?t=${Date.now()}`;
             updateUser({ profileImage: fullUrl });
           }
           
@@ -209,6 +209,7 @@ export default function SettingsScreen() {
     try {
       const res = await api.post('/auth/upgrade-plan', { plan: planType, billingCycle });
       Alert.alert('Sucesso 🎉', res.data.message);
+      await refreshUser();
     } catch(e: any) {
       Alert.alert('Erro', e?.response?.data?.message || 'Falha ao realizar upgrade');
     }

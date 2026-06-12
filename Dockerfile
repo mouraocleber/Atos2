@@ -14,7 +14,7 @@ RUN npm install
 COPY src ./src
 
 # Compilar o projeto
-RUN npm run build
+RUN NODE_OPTIONS="--max-old-space-size=1024" npm run build
 
 # Estágio de produção
 FROM node:22-alpine

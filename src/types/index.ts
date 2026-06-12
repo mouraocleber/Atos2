@@ -6,7 +6,7 @@ export type TransactionType = 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER' | 'PAYMENT' | 
 export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 // Tipos de Mensagem
-export type MessageType = 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'FILE';
+export type MessageType = 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'FILE' | 'LOCATION';
 export type MessageStatus = 'SENT' | 'DELIVERED' | 'READ';
 
 // Tipos de Denuncia

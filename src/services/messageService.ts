@@ -174,7 +174,7 @@ export class MessageService {
          WHERE sender_id = $1 OR recipient_id = $1
          GROUP BY other_user_id
        )
-       SELECT uc.other_user_id, uc.last_message_at, uc.unread_count, u.name as other_user_name, u.nickname as other_user_nickname
+       SELECT uc.other_user_id, uc.last_message_at, uc.unread_count, u.name as other_user_name, u.nickname as other_user_nickname, u.profile_image as other_user_profile_image
        FROM user_conversations uc
        LEFT JOIN users u ON u.id = uc.other_user_id
        ORDER BY uc.last_message_at DESC

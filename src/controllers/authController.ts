@@ -7,6 +7,8 @@ import { AppError } from '../middleware/errorHandler';
 import validationService from '../services/validationService';
 import { query } from '../config/database';
 import { Message } from '../types';
+import currencyService from '../services/currencyService';
+
 
 export class AuthController {
   async register(req: AuthenticatedRequest, res: Response) {
@@ -78,6 +80,7 @@ export class AuthController {
             name: user.name,
             personType: user.personType,
             cpf: user.cpf,
+            profileImage: user.profileImage,
             preferredLanguage: user.preferredLanguage,
             balance: user.balance,
             plan: user.plan,
@@ -126,6 +129,7 @@ export class AuthController {
             name: user.name,
             personType: user.personType,
             cpf: user.cpf,
+            profileImage: user.profileImage,
             preferredLanguage: user.preferredLanguage,
             balance: user.balance,
             plan: user.plan,
@@ -372,12 +376,17 @@ export class AuthController {
 
       const cost = (PRICES as any)[plan][billingCycle];
 
-      // 1. Checar Carteira Global (G) (Para obter a carteira)
-      const walletRes = await query(`SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = 'G'`, [userId]);
-      const wallet = walletRes.rows[0];
+      // 1. Checar Carteira local (BRL por padrão se não houver)
+      const walletRes = await query(`SELECT id, balance, currency FROM wallets WHERE user_id = $1`, [userId]);
+      let wallet = walletRes.rows[0];
       
       if (!wallet) {
-        throw new AppError(400, 'Carteira Global não encontrada.', 'WALLET_NOT_FOUND');
+        // Criar carteira local por padrão
+        const insertRes = await query(
+          `INSERT INTO wallets (user_id, currency, balance) VALUES ($1, 'BRL', 0.00) RETURNING id, balance, currency`,
+          [userId]
+        );
+        wallet = insertRes.rows[0];
       }
 
       const currentUser = await userService.getUserById(userId);
@@ -385,9 +394,12 @@ export class AuthController {
 
       const isFirstTimeFree = currentUser.plan === 'FREE';
 
+      // Converter o custo em G para a moeda local da carteira
+      const localCost = isFirstTimeFree ? 0.00 : await currencyService.convertFromGlobal(cost, wallet.currency);
+
       // Se for renovação e não tiver o bônus, verificar saldo
-      if (!isFirstTimeFree && parseFloat(wallet.balance) < cost) {
-        throw new AppError(400, `Saldo insuficiente. Custo de renovação/upgrade: ${cost} G`, 'INSUFFICIENT_FUNDS');
+      if (!isFirstTimeFree && parseFloat(wallet.balance) < localCost) {
+        throw new AppError(400, `Saldo insuficiente. Custo de renovação/upgrade: ${cost} G (${localCost.toFixed(2)} ${wallet.currency})`, 'INSUFFICIENT_FUNDS');
       }
 
       try {
@@ -400,12 +412,12 @@ export class AuthController {
           expiresAt.setDate(expiresAt.getDate() + 90);
         } else {
           // Cobrar (Renovação ou Upgrade de conta recorrente)
-          await query('UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE id = $2', [cost, wallet.id]);
+          await query('UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE id = $2', [localCost, wallet.id]);
 
           await query(`
             INSERT INTO transactions (from_user_id, type, amount, currency, status, description, reference)
-            VALUES ($1, 'PAYMENT', $2, 'G', 'COMPLETED', $3, 'PLAN_UPGRADE')
-          `, [userId, cost, `Assinatura Plano ${plan} (${billingCycle})`]);
+            VALUES ($1, 'PAYMENT', $2, $3, 'COMPLETED', $4, 'PLAN_UPGRADE')
+          `, [userId, localCost, wallet.currency, `Assinatura Plano ${plan} (${billingCycle})`]);
 
           expiresAt = currentUser.planExpiresAt && currentUser.planExpiresAt > new Date() 
             ? new Date(currentUser.planExpiresAt) 
@@ -424,7 +436,7 @@ export class AuthController {
           message: isFirstTimeFree 
             ? `Parabéns! Conta atualizada para ${plan}. Você ganhou 90 dias de acesso 100% gratuito!`
             : `Assinatura de ${plan} ativada/estendida com sucesso!`,
-          data: { plan, planExpiresAt: expiresAt, deductedAmount: isFirstTimeFree ? 0 : cost }
+          data: { plan, planExpiresAt: expiresAt, deductedAmount: isFirstTimeFree ? 0 : localCost }
         });
 
       } catch (err) {
@@ -517,6 +529,7 @@ export class AuthController {
             name: user.name,
             personType: user.personType,
             cpf: user.cpf,
+            profileImage: user.profileImage,
             preferredLanguage: user.preferredLanguage,
             balance: user.balance,
             plan: user.plan,

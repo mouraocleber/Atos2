@@ -28,8 +28,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       transports: ['websocket'],
       query: { userId: user.id },
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
+      reconnectionDelayMax: 5000,
     });
 
     newSocket.on('connect', () => {

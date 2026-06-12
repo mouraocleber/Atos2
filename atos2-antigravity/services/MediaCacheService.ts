@@ -12,11 +12,23 @@ const getCacheDir = (): string => {
 
 const CACHE_DIR = getCacheDir();
 
-// Inicializa o diretório de cache
+// Inicializa o diretório de cache com detecção de corrupção
 const initCacheDir = async () => {
   const dir = new Directory(Paths.document, 'media_cache');
-  if (!dir.exists) {
-    dir.create();
+  try {
+    if (dir.exists) {
+      try {
+        dir.list(); // Tenta listar a pasta para testar se é um diretório válido
+      } catch {
+        // Se falhar ao listar, significa que o caminho é um arquivo comum. Deleta e recria como diretório!
+        dir.delete();
+        dir.create();
+      }
+    } else {
+      dir.create();
+    }
+  } catch (err) {
+    console.error('Error initializing cache dir:', err);
   }
 };
 
@@ -50,14 +62,15 @@ export const getCachedMedia = async (originalUrl: string): Promise<string> => {
 
   try {
     await initCacheDir();
-    const cacheFile = new File(Paths.document, 'media_cache', filename);
+    const cacheDir = new Directory(Paths.document, 'media_cache');
+    const cacheFile = new File(cacheDir, filename);
 
     if (cacheFile.exists) {
       return cacheFile.uri;
     }
 
     // Não existe, vamos baixar e salvar na memória física
-    const downloaded = await File.downloadFileAsync(fullUrl, new Directory(Paths.document, 'media_cache'));
+    const downloaded = await File.downloadFileAsync(fullUrl, cacheFile);
     return downloaded.uri;
   } catch (err) {
     console.error('Error caching media: ', err);

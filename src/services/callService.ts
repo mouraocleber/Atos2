@@ -53,6 +53,37 @@ export class CallService {
 
     return twiml.toString();
   }
+
+  /**
+   * Fetches dynamic ICE servers (STUN/TURN) from Twilio or falls back to public STUN servers.
+   */
+  async getIceServers(): Promise<any[]> {
+    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+
+    if (!twilioAccountSid || !twilioAuthToken) {
+      console.log('Twilio credentials missing, falling back to public STUN servers.');
+      return [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
+      ];
+    }
+
+    try {
+      const client = twilio(twilioAccountSid, twilioAuthToken);
+      const token = await client.tokens.create();
+      return token.iceServers;
+    } catch (err) {
+      console.error('Error fetching Twilio Network Traversal Token:', err);
+      return [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ];
+    }
+  }
 }
 
 export default new CallService();

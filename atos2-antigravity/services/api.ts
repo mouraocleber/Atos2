@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 // Backend hospedado no DigitalOcean (IP fixo — sem dependência do computador local)
-export const SERVER_URL = 'http://159.223.107.51:3001';
+export const SERVER_URL = 'http://142.93.59.54:3001';
 const BASE_URL = `${SERVER_URL}/api`;
 
 const api = axios.create({

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList,
   KeyboardAvoidingView, Platform, Image, Modal, Alert, ActivityIndicator,
-  Animated, Pressable,
+  Animated, Pressable, Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -14,7 +14,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAudioPlayer, useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
 import { WebView } from 'react-native-webview';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
+import { Camera } from 'expo-camera';
+import * as Location from 'expo-location';
+import { getWebRtcHtml } from '../../services/webrtcHtml';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 import { getConversation, sendMessage } from '../../services/chat';
 import api, { SERVER_URL } from '../../services/api';
@@ -25,13 +29,56 @@ const SERVER_MEDIA_BASE = SERVER_URL;
 import { getCachedMedia } from '../../services/MediaCacheService';
 import CachedImage from '../../components/CachedImage';
 
+interface ChatVideoPlayerProps {
+  url: string;
+}
+
+function ChatVideoPlayer({ url }: ChatVideoPlayerProps) {
+  const [cachedUrl, setCachedUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getCachedMedia(url).then((cUrl) => {
+      if (active) {
+        setCachedUrl(cUrl || url);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [url]);
+
+  if (!cachedUrl) {
+    return (
+      <View style={[styles.mediaVideo, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }]}>
+        <ActivityIndicator color={Colors.primary} size="small" />
+      </View>
+    );
+  }
+
+  return <ActualVideoPlayer videoUrl={cachedUrl} />;
+}
+
+function ActualVideoPlayer({ videoUrl }: { videoUrl: string }) {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.muted = false;
+  });
+
+  return (
+    <VideoView
+      style={styles.mediaVideo}
+      player={player}
+    />
+  );
+}
+
 interface Message {
   id: string;
   senderId: string;
   content: string;
   translatedContent?: string;
   translatedLanguage?: string;
-  type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO';
+  type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'LOCATION';
   status: 'SENT' | 'DELIVERED' | 'READ';
   mediaUrl?: string;
   media_url?: string;
@@ -39,7 +86,7 @@ interface Message {
 }
 
 export default function ChatRoomScreen() {
-  const { id, name, status, autoAcceptCall } = useLocalSearchParams();
+  const { id, name, status, autoAcceptCall, profileImage } = useLocalSearchParams();
   const { user } = useAuth();
   const { socket } = useSocket();   // Socket global — conectado desde o login
 
@@ -80,6 +127,48 @@ export default function ChatRoomScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const webViewRef = useRef<WebView>(null);
+  const [iceServers, setIceServers] = useState<any[]>([]);
+
+  const requestCallPermissions = async (type: 'audio' | 'video') => {
+    try {
+      const audioPerm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!audioPerm.granted) {
+        Alert.alert('Microfone necessário', 'Você precisa permitir o acesso ao microfone para fazer ligações.');
+        return false;
+      }
+      if (type === 'video') {
+        const cameraPerm = await Camera.requestCameraPermissionsAsync();
+        if (!cameraPerm.granted) {
+          Alert.alert('Câmera necessária', 'Você precisa permitir o acesso à câmera para fazer chamadas de vídeo.');
+          return false;
+        }
+      }
+      return true;
+    } catch (error) {
+      console.error('Erro ao pedir permissões de chamada:', error);
+      return false;
+    }
+  };
+
+  const fetchIceServers = async () => {
+    try {
+      const { data } = await api.get('/calls/ice-servers');
+      if (data && data.success && data.data && data.data.iceServers) {
+        setIceServers(data.data.iceServers);
+        return data.data.iceServers;
+      }
+    } catch (e) {
+      console.warn('Erro ao obter ICE servers, usando fallback:', e);
+    }
+    const fallback = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ];
+    setIceServers(fallback);
+    return fallback;
+  };
 
   // Lógica de disparo do SOM
   useEffect(() => {
@@ -152,14 +241,24 @@ export default function ChatRoomScreen() {
   // Auto-aceita chamada se recebeu o parâmetro (vindo do GlobalCallHandler)
   useEffect(() => {
     if (!autoAcceptCall || !socket || !id) return;
-    const callType = autoAcceptCall as string;
-    if (callType === 'audio' || callType === 'video') {
+    const typeVal = autoAcceptCall as 'audio' | 'video';
+
+    const autoAccept = async () => {
+      const granted = await requestCallPermissions(typeVal);
+      if (!granted) {
+        // Envia hangUp se as permissões forem negadas para rejeitar a chamada
+        socket.emit('hangUp', { to: id, from: user?.id });
+        return;
+      }
+      await fetchIceServers();
       setCallDirection('incoming');
-      setCallType(callType);
+      setCallType(typeVal);
       setCallStatus('in-call');
       setCallModalVisible(true);
       socket.emit('callAccepted', { to: id, from: user?.id });
-    }
+    };
+
+    autoAccept();
   }, [autoAcceptCall, socket, id, user?.id]);
 
   useEffect(() => {
@@ -209,13 +308,28 @@ export default function ChatRoomScreen() {
       setCallModalVisible(true);
     };
 
-    const handleCallAccepted = () => {
+    const handleCallAccepted = async () => {
+      await fetchIceServers();
       setCallStatus('in-call');
     };
 
     const handleHangUp = () => {
       setCallStatus('ended');
+      if (webViewRef.current) {
+        webViewRef.current.postMessage(JSON.stringify({
+          type: 'hangup'
+        }));
+      }
       setTimeout(() => setCallModalVisible(false), 2000);
+    };
+
+    const handleWebRtcSignal = (data: { from: string, signal: any }) => {
+      if (webViewRef.current) {
+        webViewRef.current.postMessage(JSON.stringify({
+          type: 'signal',
+          signal: data.signal
+        }));
+      }
     };
 
     socket.on('newMessage', handleNewMessage);
@@ -223,6 +337,7 @@ export default function ChatRoomScreen() {
     socket.on('callUser', handleCallUser);
     socket.on('callAccepted', handleCallAccepted);
     socket.on('hangUp', handleHangUp);
+    socket.on('webrtcSignal', handleWebRtcSignal);
 
     return () => {
       socket.off('newMessage', handleNewMessage);
@@ -230,12 +345,17 @@ export default function ChatRoomScreen() {
       socket.off('callUser', handleCallUser);
       socket.off('callAccepted', handleCallAccepted);
       socket.off('hangUp', handleHangUp);
+      socket.off('webrtcSignal', handleWebRtcSignal);
     };
   }, [loadLiveMessages, user?.id, id, socket]);
 
-  // ─── LIGAÇÕES (WEBVIEW WEBRTC) E MODERAÇÃO ────────────────────────────────
-  const handleStartCall = (mode: 'video' | 'audio') => {
+  const handleStartCall = async (mode: 'video' | 'audio') => {
     setHeaderMenuVisible(false);
+    const granted = await requestCallPermissions(mode);
+    if (!granted) return;
+
+    await fetchIceServers();
+
     setCallDirection('outgoing');
     setCallType(mode);
     setCallStatus('calling');
@@ -259,7 +379,13 @@ export default function ChatRoomScreen() {
     }, 30000);
   };
 
-  const handleAcceptCall = () => {
+  const handleAcceptCall = async () => {
+    const granted = await requestCallPermissions(callType);
+    if (!granted) {
+      socketRef.current?.emit('hangUp', { to: id, from: user?.id });
+      return;
+    }
+    await fetchIceServers();
     socketRef.current?.emit('callAccepted', { to: id, from: user?.id });
     setCallStatus('in-call');
   };
@@ -426,6 +552,69 @@ export default function ChatRoomScreen() {
     }
   };
 
+  const handleSendLocation = async () => {
+    setShowMediaMenu(false);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permissão necessária',
+          'Precisamos de permissão de localização para que você possa compartilhar onde está com seu contato.'
+        );
+        return;
+      }
+
+      setIsSending(true);
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      let addressStr = `${loc.coords.latitude.toFixed(6)}, ${loc.coords.longitude.toFixed(6)}`;
+      try {
+        const geocode = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+
+        if (geocode && geocode.length > 0) {
+          const item = geocode[0];
+          const parts = [
+            item.street,
+            item.name,
+            item.subregion,
+            item.city,
+            item.region,
+          ].filter(Boolean);
+          if (parts.length > 0) {
+            addressStr = parts.join(', ');
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao obter geocode, enviando coordenadas:', err);
+      }
+
+      const locationPayload = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        address: addressStr,
+      };
+
+      await sendMessage({
+        recipientId: id as string,
+        type: 'LOCATION',
+        content: JSON.stringify(locationPayload),
+      });
+
+      loadLiveMessages(true);
+    } catch (e: any) {
+      console.error('Erro ao compartilhar localização:', e);
+      Alert.alert('Erro', 'Não foi possível obter a sua localização atual.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   // ─── AUDIO RECORDING ─────────────────────────────────────────────────────────
   const startRecording = async () => {
     try {
@@ -481,9 +670,9 @@ export default function ChatRoomScreen() {
       
       let finalUrl = cachedUrl;
       if (finalUrl.startsWith('http')) {
-        const fileUri = (FileSystem.documentDirectory || FileSystem.cacheDirectory) + 'playback_' + msgId + '.m4a';
-        await FileSystem.downloadAsync(finalUrl, fileUri);
-        finalUrl = fileUri;
+        const destinationFile = new File(Paths.cache, `playback_${msgId}.m4a`);
+        const downloaded = await File.downloadFileAsync(finalUrl, destinationFile);
+        finalUrl = downloaded.uri;
       }
       
       const newPlayer = createAudioPlayer({ uri: finalUrl });
@@ -523,7 +712,11 @@ export default function ChatRoomScreen() {
       <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}>
         {!isMe && (
           <View style={styles.messageAvatar}>
-            <Text style={styles.messageAvatarText}>{(name as string)?.charAt(0) || 'U'}</Text>
+            {profileImage ? (
+              <CachedImage url={profileImage as string} style={{ width: 32, height: 32, borderRadius: 16 }} />
+            ) : (
+              <Text style={styles.messageAvatarText}>{(name as string)?.charAt(0) || 'U'}</Text>
+            )}
           </View>
         )}
 
@@ -550,9 +743,7 @@ export default function ChatRoomScreen() {
 
             {/* VIDEO */}
             {item.type === 'VIDEO' && mediaUrl && (
-              <View style={styles.mediaVideo}>
-                 <Text style={{color: 'white', textAlign: 'center', marginTop: 50}}>Vídeo (Temporariamente Indisponível)</Text>
-              </View>
+              <ChatVideoPlayer url={mediaUrl} />
             )}
 
             {/* AUDIO */}
@@ -584,6 +775,47 @@ export default function ChatRoomScreen() {
                 {item.content}
               </Text>
             )}
+
+            {/* LOCATION */}
+            {item.type === 'LOCATION' && (() => {
+              let locData = null;
+              try {
+                locData = JSON.parse(item.content);
+              } catch (_) {}
+
+              return (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (locData && locData.latitude && locData.longitude) {
+                      const url = `https://www.google.com/maps/search/?api=1&query=${locData.latitude},${locData.longitude}`;
+                      Linking.openURL(url).catch((err) => console.error('Erro ao abrir mapa', err));
+                    }
+                  }}
+                  style={styles.locationContainer}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.locationHeader}>
+                    <View style={[styles.locationIconCircle, isMe ? styles.locationIconCircleMe : styles.locationIconCircleOther]}>
+                      <Feather name="map-pin" size={20} color="#fff" />
+                    </View>
+                    <View style={styles.locationTextContainer}>
+                      <Text style={[styles.locationTitle, isMe ? styles.locationTextMe : styles.locationTextOther]}>
+                        Localização
+                      </Text>
+                      <Text style={[styles.locationAddress, isMe ? styles.locationSubtextMe : styles.locationSubtextOther]} numberOfLines={2}>
+                        {locData ? locData.address : 'Ver no mapa'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.locationActionLine, isMe ? styles.locationActionLineMe : styles.locationActionLineOther]}>
+                    <Text style={[styles.locationActionText, isMe ? styles.locationActionTextMe : styles.locationActionTextOther]}>
+                      Visualizar no Mapa
+                    </Text>
+                    <Feather name="chevron-right" size={16} color={isMe ? 'rgba(255,255,255,0.8)' : Colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              );
+            })()}
 
             {/* Caption para imagem/vídeo */}
             {(item.type === 'IMAGE' || item.type === 'VIDEO') && item.content && (
@@ -673,6 +905,18 @@ export default function ChatRoomScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color={Colors.light.text} />
         </TouchableOpacity>
+
+        {/* Contact Profile Image in Header */}
+        <View style={styles.headerAvatarContainer}>
+          {profileImage ? (
+            <CachedImage url={profileImage as string} style={styles.headerAvatar} />
+          ) : (
+            <View style={styles.headerAvatarFallback}>
+              <Text style={styles.headerAvatarText}>{(name as string)?.charAt(0) || '?'}</Text>
+            </View>
+          )}
+        </View>
+
         <View style={styles.headerInfo}>
           <Text style={styles.headerName} numberOfLines={1}>{name || 'Chat'}</Text>
           <Text style={[styles.headerStatus, status === 'online' && styles.headerStatusOnline]}>
@@ -738,6 +982,12 @@ export default function ChatRoomScreen() {
                   <Feather name="film" size={26} color="#fff" />
                 </View>
                 <Text style={styles.mediaMenuLabel}>Vídeo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.mediaMenuOption} onPress={handleSendLocation}>
+                <View style={[styles.mediaMenuIcon, { backgroundColor: '#3b82f6' }]}>
+                  <Feather name="map-pin" size={26} color="#fff" />
+                </View>
+                <Text style={styles.mediaMenuLabel}>Localização</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -809,53 +1059,102 @@ export default function ChatRoomScreen() {
       {/* Modal Nativo de Chamada */}
       <Modal visible={callModalVisible} animationType="fade" transparent statusBarTranslucent>
         <View style={styles.callModal}>
-          {/* Avatar */}
-          <View style={styles.callAvatar}>
-            <Text style={styles.callAvatarText}>
-              {callDirection === 'incoming'
-                ? callerName?.charAt(0)?.toUpperCase() || '?'
-                : (name as string)?.charAt(0)?.toUpperCase() || '?'}
-            </Text>
-          </View>
-          <Text style={styles.callName}>
-            {callDirection === 'incoming' ? callerName : name}
-          </Text>
-          <Text style={styles.callStatus}>
-            {callStatus === 'calling'
-              ? callDirection === 'incoming'
-                ? (callType === 'video' ? '📹 Chamada de vídeo recebida' : '📞 Chamada recebida')
-                : (callType === 'video' ? '📹 Chamada de vídeo...' : '📞 Ligando...')
-              : callStatus === 'in-call'
-              ? (callType === 'video' ? '📹 Em chamada de vídeo' : '📞 Em chamada')
-              : 'Chamada encerrada'}
-          </Text>
-
-          {/* Botões de controle */}
-          {callDirection === 'incoming' && callStatus === 'calling' ? (
-            // Chamada de entrada: Atender e Rejeitar
-            <View style={styles.callControls}>
-              <TouchableOpacity style={[styles.callBtnMute, { backgroundColor: '#22c55e' }]} onPress={handleAcceptCall}>
-                <Feather name="phone" size={28} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.callBtnHangup} onPress={handleRejectCall}>
-                <Feather name="phone-off" size={28} color="#fff" />
-              </TouchableOpacity>
+          {callStatus === 'in-call' ? (
+            <View style={{ width: '100%', height: '100%', flex: 1 }}>
+              <WebView
+                ref={webViewRef}
+                style={{ flex: 1 }}
+                source={{ html: getWebRtcHtml() }}
+                originWhitelist={['*']}
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+                domStorageEnabled
+                javaScriptEnabled
+                injectedJavaScriptBeforeContentLoaded={`
+                  window.webRtcConfig = {
+                    iceServers: ${JSON.stringify(iceServers)},
+                    isCaller: ${callDirection === 'outgoing'},
+                    callType: '${callType}',
+                    targetName: '${(callDirection === 'incoming' ? callerName : name) || 'Usuário'}',
+                    userId: '${user?.id || 'temp_user'}',
+                    targetId: '${id || ''}'
+                  };
+                  true;
+                `}
+                onMessage={(event) => {
+                  try {
+                    const data = JSON.parse(event.nativeEvent.data);
+                    if (data.type === 'signal') {
+                      // Send signaling message to peer via sockets
+                      socketRef.current?.emit('webrtcSignal', {
+                        to: id,
+                        signal: data.signal
+                      });
+                    } else if (data.type === 'hangup') {
+                      // User clicked hang up in WebView
+                      handleHangUp();
+                    } else if (data.type === 'log') {
+                      console.log('[WebView Log]', data.message);
+                    }
+                  } catch (e) {
+                    console.error('Error parsing message from WebView:', e);
+                  }
+                }}
+              />
             </View>
           ) : (
-            // Chamada de saída ou em andamento
-            <View style={styles.callControls}>
-              <TouchableOpacity style={styles.callBtnMute}>
-                <Feather name="mic-off" size={24} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.callBtnHangup} onPress={handleHangUp}>
-                <Feather name="phone-off" size={28} color="#fff" />
-              </TouchableOpacity>
-              {callType === 'video' && (
-                <TouchableOpacity style={styles.callBtnMute}>
-                  <Feather name="camera-off" size={24} color="#fff" />
-                </TouchableOpacity>
+            <>
+              {/* Avatar */}
+              <View style={styles.callAvatar}>
+                {profileImage ? (
+                  <CachedImage url={profileImage as string} style={{ width: 112, height: 112, borderRadius: 56 }} />
+                ) : (
+                  <Text style={styles.callAvatarText}>
+                    {callDirection === 'incoming'
+                      ? callerName?.charAt(0)?.toUpperCase() || '?'
+                      : (name as string)?.charAt(0)?.toUpperCase() || '?'}
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.callName}>
+                {callDirection === 'incoming' ? callerName : name}
+              </Text>
+              <Text style={styles.callStatus}>
+                {callStatus === 'calling'
+                  ? callDirection === 'incoming'
+                    ? (callType === 'video' ? '📹 Chamada de vídeo recebida' : '📞 Chamada recebida')
+                    : (callType === 'video' ? '📹 Chamada de vídeo...' : '📞 Ligando...')
+                  : 'Chamada encerrada'}
+              </Text>
+
+              {/* Botões de controle */}
+              {callDirection === 'incoming' && callStatus === 'calling' ? (
+                // Chamada de entrada: Atender e Rejeitar
+                <View style={styles.callControls}>
+                  <TouchableOpacity style={[styles.callBtnMute, { backgroundColor: '#22c55e' }]} onPress={handleAcceptCall}>
+                    <Feather name="phone" size={28} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.callBtnHangup} onPress={handleRejectCall}>
+                    <Feather name="phone-off" size={28} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // Chamada de saída ou em andamento
+                <View style={styles.callControls}>
+                  <TouchableOpacity style={styles.callBtnMute}>
+                    <Feather name="mic-off" size={24} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.callBtnHangup} onPress={handleHangUp}>
+                    <Feather name="phone-off" size={28} color="#fff" />
+                  </TouchableOpacity>
+                  {callType === 'video' && (
+                    <TouchableOpacity style={styles.callBtnMute}>
+                      <Feather name="camera-off" size={24} color="#fff" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
-            </View>
+            </>
           )}
         </View>
       </Modal>
@@ -928,6 +1227,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.light.border,
   },
   backButton: { padding: Spacing.sm, marginRight: Spacing.xs },
+  headerAvatarContainer: {
+    marginRight: 10,
+  },
+  headerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  headerAvatarFallback: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerAvatarText: {
+    color: '#fff',
+    fontSize: FontSize.md,
+    fontWeight: 'bold',
+  },
   headerInfo: { flex: 1 },
   headerName: { color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700' },
   headerStatus: { color: Colors.light.textMuted, fontSize: FontSize.xs, marginTop: 2 },
@@ -957,6 +1277,76 @@ const styles = StyleSheet.create({
   messageBubbleOther: {
     backgroundColor: '#ffffff', borderBottomLeftRadius: 4,
     borderWidth: 1, borderColor: '#e2e8f0',
+  },
+
+  // Location card styling
+  locationContainer: {
+    width: 220,
+    gap: Spacing.md,
+  },
+  locationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  locationIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationIconCircleMe: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  locationIconCircleOther: {
+    backgroundColor: Colors.primary,
+  },
+  locationTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  locationTitle: {
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
+  locationAddress: {
+    fontSize: FontSize.xs,
+  },
+  locationTextMe: {
+    color: '#fff',
+  },
+  locationTextOther: {
+    color: '#1e293b',
+  },
+  locationSubtextMe: {
+    color: 'rgba(255,255,255,0.7)',
+  },
+  locationSubtextOther: {
+    color: Colors.light.textSecondary,
+  },
+  locationActionLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+  },
+  locationActionLineMe: {
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  locationActionLineOther: {
+    borderTopColor: Colors.light.border,
+  },
+  locationActionText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
+  locationActionTextMe: {
+    color: '#fff',
+  },
+  locationActionTextOther: {
+    color: Colors.primary,
   },
 
   // Media

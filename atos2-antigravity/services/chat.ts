@@ -2,7 +2,7 @@ import api from './api';
 
 export interface MessagePayload {
   recipientId: string;
-  type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'FILE';
+  type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'FILE' | 'LOCATION';
   content: string;
   mediaUrl?: string;
   scheduledAt?: string;

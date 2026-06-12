@@ -6,7 +6,8 @@ import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
-import api from '../../services/api';
+import api, { SERVER_URL } from '../../services/api';
+import CachedImage from '../../components/CachedImage';
 
 interface Conversation {
   id: string;
@@ -17,6 +18,7 @@ interface Conversation {
   lastMessageTime: string;
   unreadCount: number;
   status: 'online' | 'offline';
+  profileImage?: string;
 }
 
 export default function ChatScreen() {
@@ -33,6 +35,10 @@ export default function ChatScreen() {
 
       // O backend agora retorna { other_user_id, last_message_at, unread_count, other_user_name, other_user_nickname }
       const enriched = raw.map((item) => {
+        const pImg = item.other_user_profile_image;
+        const profileImage = pImg 
+          ? (pImg.startsWith('http') ? pImg : `${SERVER_URL}${pImg}`) 
+          : undefined;
         return {
           id: item.other_user_id,
           userId: item.other_user_id,
@@ -42,6 +48,7 @@ export default function ChatScreen() {
           lastMessageTime: item.last_message_at ? new Date(item.last_message_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
           unreadCount: parseInt(item.unread_count) || 0,
           status: 'offline' as const,
+          profileImage,
         };
       });
       setConversations(enriched as Conversation[]);
@@ -72,12 +79,16 @@ export default function ChatScreen() {
       activeOpacity={0.7}
       onPress={() => router.push({
         pathname: '/chat/[id]',
-        params: { id: item.id, name: item.name, status: item.status }
+        params: { id: item.id, name: item.name, status: item.status, profileImage: item.profileImage }
       })}
     >
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+          {item.profileImage ? (
+            <CachedImage url={item.profileImage} style={{ width: 52, height: 52, borderRadius: 26 }} />
+          ) : (
+            <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+          )}
         </View>
         {item.status === 'online' && <View style={styles.onlineIndicator} />}
       </View>

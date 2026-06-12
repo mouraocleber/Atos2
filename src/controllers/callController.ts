@@ -46,6 +46,23 @@ export class CallController {
       return res.status(500).send('<Response><Say language="pt-BR">Ocorreu um erro interno de servidor de voz.</Say></Response>');
     }
   }
+
+  /**
+   * Endpoint for users to obtain ICE servers configuration.
+   * GET /api/calls/ice-servers
+   */
+  async getIceServers(req: AuthenticatedRequest, res: Response) {
+    try {
+      const iceServers = await callService.getIceServers();
+      return res.json({
+        success: true,
+        message: 'ICE Servers fetched successfully',
+        data: { iceServers },
+      });
+    } catch (error: any) {
+      throw new AppError(500, error.message, 'ICE_SERVERS_ERROR');
+    }
+  }
 }
 
 export default new CallController();

@@ -6,7 +6,8 @@ import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
-import api from '../../services/api';
+import api, { SERVER_URL } from '../../services/api';
+import CachedImage from '../../components/CachedImage';
 
 interface UserResult {
   id: string;
@@ -16,6 +17,7 @@ interface UserResult {
   city?: string;
   state?: string;
   status?: string;
+  profileImage?: string;
 }
 
 export default function SearchScreen() {
@@ -80,7 +82,13 @@ export default function SearchScreen() {
           ]
         );
       } else {
-        setResults(found);
+        const normalized = found.map((u: any) => {
+          if (u.profileImage && !u.profileImage.startsWith('http')) {
+            return { ...u, profileImage: `${SERVER_URL}${u.profileImage}` };
+          }
+          return u;
+        });
+        setResults(normalized);
       }
     } catch (e: any) {
       Alert.alert('Erro', e?.response?.data?.message || 'Não foi possível buscar usuários.');
@@ -98,10 +106,14 @@ export default function SearchScreen() {
     <TouchableOpacity
       style={[styles.userCard, isPromoted && { borderColor: Colors.secondary, backgroundColor: Colors.secondary + '05', borderWidth: 2 }]}
       activeOpacity={0.7}
-      onPress={() => router.push({ pathname: '/chat/[id]', params: { id: item.id, name: item.name, status: 'offline' } })}
+      onPress={() => router.push({ pathname: '/chat/[id]', params: { id: item.id, name: item.name, status: 'offline', profileImage: item.profileImage } })}
     >
       <View style={[styles.userAvatar, isPromoted && { backgroundColor: Colors.secondary }]}>
-        <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+        {item.profileImage ? (
+          <CachedImage url={item.profileImage} style={{ width: 48, height: 48, borderRadius: 24 }} />
+        ) : (
+          <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+        )}
       </View>
       <View style={styles.userInfo}>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>

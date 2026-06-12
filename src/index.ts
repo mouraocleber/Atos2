@@ -31,7 +31,9 @@ const app: Express = express();
 const port = process.env.PORT || 3000;
 
 // Middleware de segurança
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
 const allowedOrigins = [
   'http://localhost:5173', // Vite Frontend Dev
@@ -39,7 +41,7 @@ const allowedOrigins = [
   'http://localhost:8081', // Expo React Native
   'http://localhost:19000', // Expo Classic
   'https://api.atos2.app', // Api em Prod
-  'http://159.223.107.51:3001', // IP direto Prod
+  'http://142.93.59.54:3001', // IP direto Prod
   process.env.CORS_ORIGIN,
 ].filter(Boolean) as string[];
 
@@ -70,8 +72,17 @@ app.use(globalLimiter);
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
-// Servir arquivos estáticos (Uploads)
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Servir arquivos estáticos (Uploads) com MIME types corretos
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.mp4') {
+      res.setHeader('Content-Type', 'video/mp4');
+    } else if (ext === '.m4a') {
+      res.setHeader('Content-Type', 'audio/x-m4a');
+    }
+  }
+}));
 
 // Criar servidor HTTP com Socket.io
 const httpServer = createServer(app);
@@ -159,17 +170,29 @@ io.on('connection', (socket) => {
     socket.leave(roomId);
   });
 
-  // Chamadas VoIP
+  // Chamadas VoIP com logs detalhados
   socket.on('callUser', (data) => {
+    console.log(`[Socket Call] callUser: de ${userId} (nome: ${data.fromName}) para ${data.to} (tipo: ${data.type})`);
     io.to(`user_${data.to}`).emit('callUser', data);
   });
 
   socket.on('callAccepted', (data) => {
+    console.log(`[Socket Call] callAccepted: de ${userId} para ${data.to}`);
     // Receptor aceitou a chamada — avisa o chamador para entrar em 'in-call'
     io.to(`user_${data.to}`).emit('callAccepted', { from: userId });
   });
 
+  socket.on('webrtcSignal', (data) => {
+    console.log(`[Socket Call] webrtcSignal: de ${userId} para ${data.to}`);
+    // Relays SDP offers, answers and ICE candidates to the target peer room
+    io.to(`user_${data.to}`).emit('webrtcSignal', {
+      from: userId,
+      signal: data.signal,
+    });
+  });
+
   socket.on('hangUp', (data) => {
+    console.log(`[Socket Call] hangUp: de ${userId} para ${data.to}`);
     io.to(`user_${data.to}`).emit('hangUp', data);
   });
 });
@@ -229,6 +252,20 @@ httpServer.listen(Number(port), '0.0.0.0', async () => {
     console.log('✅ Migração: tabela translations do DeepL garantida no BD.');
   } catch (e) {
     console.error('⚠️ Falha na migração da tabela translations:', e);
+  }
+
+  // Migração: Garante que a tabela messages suporte o tipo de mensagem LOCATION
+  try {
+    const { query: dbQuery } = await import('./config/database');
+    await dbQuery(`
+      ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_type_check;
+    `);
+    await dbQuery(`
+      ALTER TABLE messages ADD CONSTRAINT messages_type_check CHECK (type IN ('TEXT', 'IMAGE', 'AUDIO', 'VIDEO', 'FILE', 'LOCATION'));
+    `);
+    console.log('✅ Migração: constraint de tipo de mensagem LOCATION garantida na tabela messages.');
+  } catch (e) {
+    console.error('⚠️ Falha na migração de tipo de mensagem LOCATION:', e);
   }
 });
 

@@ -41,7 +41,7 @@ export class MessageController {
         throw new AppError(400, 'Campos obrigatórios faltando', 'MISSING_FIELDS');
       }
 
-      if (!['TEXT', 'IMAGE', 'AUDIO', 'VIDEO', 'FILE'].includes(type)) {
+      if (!['TEXT', 'IMAGE', 'AUDIO', 'VIDEO', 'FILE', 'LOCATION'].includes(type)) {
         throw new AppError(400, 'Tipo de mensagem inválido', 'INVALID_MESSAGE_TYPE');
       }
 
