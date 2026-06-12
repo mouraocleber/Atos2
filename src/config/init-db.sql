@@ -318,8 +318,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
 
 -- Criar índices adicionais para performance
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(
-  CASE WHEN sender_id < recipient_id THEN sender_id ELSE recipient_id END,
-  CASE WHEN sender_id < recipient_id THEN recipient_id ELSE sender_id END
+  (CASE WHEN sender_id < recipient_id THEN sender_id ELSE recipient_id END),
+  (CASE WHEN sender_id < recipient_id THEN recipient_id ELSE sender_id END)
 );
 
 -- Trigger para atualizar updated_at
