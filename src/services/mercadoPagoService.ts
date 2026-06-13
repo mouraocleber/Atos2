@@ -51,17 +51,11 @@ export class MercadoPagoService {
       
       const documentNumber = payerCpf.replace(/\D/g, ''); // Apenas números (regex corrigida)
       
-      // Em modo de TESTE (token TEST-), o MP proíbe usar o email do dono da conta como pagador.
-      // Usamos um email de usuário de teste padrão do sandbox.
+      // Em modo de teste, priorizamos o e-mail e CPF do pagador se fornecidos, caso contrário
+      // recorremos aos valores de teste configurados ou padrões.
       const isTestMode = this.getToken().startsWith('TEST-');
-      const finalEmail = isTestMode
-        ? process.env.MP_TEST_PAYER_EMAIL || 'test_user_atos2@testuser.com'
-        : payerEmail;
-      
-      // Em modo teste, o CPF deve ser o do usuário de teste do sandbox
-      const finalCpf = isTestMode
-        ? process.env.MP_TEST_PAYER_CPF || '12345678909'
-        : (documentNumber || '12345678909');
+      const finalEmail = payerEmail || (isTestMode ? (process.env.MP_TEST_PAYER_EMAIL || 'test_user_atos2@testuser.com') : '');
+      const finalCpf = documentNumber || (isTestMode ? (process.env.MP_TEST_PAYER_CPF || '12345678909') : '');
 
       if (isTestMode) {
         console.log('[MercadoPago] 🧪 MODO SANDBOX — usando credenciais de teste para o pagador.');

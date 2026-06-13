@@ -47,10 +47,14 @@ export default function WalletScreen() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
   // PIX QR Code (Depositar = receber por PIX)
   const [pixQrVisible, setPixQrVisible] = useState(false);
   const [pixKeyType, setPixKeyType] = useState<'phone' | 'email' | 'cpf'>('email');
+  const [depositTab, setDepositTab] = useState<'deposit' | 'receive'>('deposit');
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [generatedPixCode, setGeneratedPixCode] = useState('');
+  const [depositStep, setDepositStep] = useState<'input' | 'qr'>('input');
 
   // Cobrar (Stripe POS maquininha)
   const [chargeModalVisible, setChargeModalVisible] = useState(false);
@@ -241,6 +245,31 @@ export default function WalletScreen() {
     }
   };
 
+  const handleGenerateDepositPix = async () => {
+    const parsedAmount = parseFloat(depositAmount.replace(',', '.'));
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return Alert.alert('Atenção', 'Informe um valor válido maior que R$ 0,00.');
+    }
+    setDepositLoading(true);
+    try {
+      const response = await api.post('/payments/deposit/pix', {
+        amount: parsedAmount,
+        currency: 'BRL'
+      });
+      if (response.data && response.data.success && response.data.data.pix) {
+        setGeneratedPixCode(response.data.data.pix.qr_code);
+        setDepositStep('qr');
+      } else {
+        throw new Error('Resposta inválida do servidor.');
+      }
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert('Erro', e?.response?.data?.error || 'Não foi possível gerar a cobrança de depósito via PIX.');
+    } finally {
+      setDepositLoading(false);
+    }
+  };
+
   const openScanner = async () => {
     if (!permission?.granted) {
       const { granted } = await requestPermission();
@@ -347,16 +376,20 @@ export default function WalletScreen() {
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => {
-              if (user?.plan !== 'BUSINESS') {
+              if (user?.plan !== 'PRO' && user?.plan !== 'BUSINESS') {
                 return Alert.alert(
-                  'Conta Business Necessária',
-                  'A geração de QR Code de cobrança PIX para clientes é restrita a contas empresariais.',
+                  'Conta PRO ou Business Necessária',
+                  'A geração de QR Code de cobrança PIX para clientes é restrita a contas PRO ou Business.',
                   [
                     { text: 'Cancelar', style: 'cancel' },
                     { text: 'Fazer Upgrade', onPress: () => { /* Futuro upgrade hook */ } }
                   ]
                 );
               }
+              setDepositAmount('');
+              setGeneratedPixCode('');
+              setDepositStep('input');
+              setDepositTab('deposit');
               setPixQrVisible(true);
             }}
           >
@@ -427,54 +460,135 @@ export default function WalletScreen() {
       <Modal visible={pixQrVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, {alignItems: 'center'}]}>
-            <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4}}>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12}}>
               <Feather name="download" size={20} color={Colors.success} />
-              <Text style={styles.modalTitle}>Receber via PIX</Text>
+              <Text style={styles.modalTitle}>Depositar / Receber via PIX</Text>
             </View>
-            <Text style={styles.modalSubtitle}>Mostre o QR Code abaixo ou compartilhe sua chave PIX para receber pagamentos.</Text>
 
-            {/* Seletor de tipo de chave PIX */}
-            <View style={{flexDirection: 'row', gap: 8, marginBottom: 16}}>
-              {(['email', 'phone', 'cpf'] as const).map(k => (
+            {/* Abas: Depositar e Receber P2P */}
+            <View style={{flexDirection: 'row', gap: 12, marginBottom: 16, borderBottomWidth: 1, borderColor: '#eee', paddingBottom: 8, width: '100%'}}>
+              <TouchableOpacity
+                style={{flex: 1, paddingVertical: 8, borderBottomWidth: depositTab === 'deposit' ? 2 : 0, borderColor: Colors.success}}
+                onPress={() => setDepositTab('deposit')}
+              >
+                <Text style={{textAlign: 'center', fontWeight: 'bold', color: depositTab === 'deposit' ? Colors.success : '#888'}}>
+                  Depositar via Pix
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{flex: 1, paddingVertical: 8, borderBottomWidth: depositTab === 'receive' ? 2 : 0, borderColor: Colors.success}}
+                onPress={() => setDepositTab('receive')}
+              >
+                <Text style={{textAlign: 'center', fontWeight: 'bold', color: depositTab === 'receive' ? Colors.success : '#888'}}>
+                  Receber P2P
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {depositTab === 'deposit' ? (
+              <>
+                {depositStep === 'input' ? (
+                  <View style={{width: '100%', alignItems: 'center'}}>
+                    <Text style={styles.modalSubtitle}>Informe o valor que deseja depositar para gerar o PIX.</Text>
+                    <TextInput
+                      style={[styles.inputModal, {fontSize: 24, fontWeight: '700', textAlign: 'center', marginVertical: 12}]}
+                      placeholder="R$ 0,00"
+                      placeholderTextColor={Colors.light.textMuted}
+                      keyboardType="numeric"
+                      value={depositAmount}
+                      onChangeText={setDepositAmount}
+                      autoFocus
+                    />
+                    <TouchableOpacity
+                      style={[styles.modalBtnSubmit, {backgroundColor: Colors.success, width: '100%', paddingVertical: 14, borderRadius: 10, marginTop: 8, alignItems: 'center', justifyContent: 'center'}]}
+                      onPress={handleGenerateDepositPix}
+                      disabled={depositLoading}
+                    >
+                      {depositLoading ? <ActivityIndicator color="#fff" /> : (
+                        <Text style={styles.modalBtnSubmitText}>Gerar Pix de Depósito</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{width: '100%', alignItems: 'center'}}>
+                    <Text style={styles.modalSubtitle}>Efetue o pagamento do PIX abaixo para adicionar saldo à sua carteira.</Text>
+                    <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 12, marginBottom: 16}}>
+                      {generatedPixCode ? (
+                        <QRCode
+                          value={generatedPixCode}
+                          size={190}
+                        />
+                      ) : <ActivityIndicator color={Colors.primary} />}
+                    </View>
+                    <TouchableOpacity
+                      style={{backgroundColor: Colors.success + '10', borderRadius: 10, padding: 12, width: '100%',
+                        borderWidth: 1, borderColor: Colors.success + '40', alignItems: 'center', marginBottom: 16}}
+                      onPress={() => {
+                        if (generatedPixCode) { Clipboard.setStringAsync(generatedPixCode); Alert.alert('Copiado!', 'Código PIX copiado.'); }
+                      }}
+                    >
+                      <Text numberOfLines={1} ellipsizeMode="middle" style={{color: Colors.success, fontWeight: '700', fontSize: 13, width: '90%', textAlign: 'center'}}>
+                        {generatedPixCode}
+                      </Text>
+                      <Text style={{color: Colors.light.textMuted, fontSize: 11, marginTop: 4}}>📋 Toque para copiar o código copia e cola</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalBtnCancel, {width: '100%', marginBottom: 8}]}
+                      onPress={() => setDepositStep('input')}
+                    >
+                      <Text style={[styles.modalBtnText, {textAlign: 'center'}]}>Voltar</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalSubtitle}>Mostre o QR Code abaixo ou compartilhe sua chave PIX para receber pagamentos.</Text>
+
+                {/* Seletor de tipo de chave PIX */}
+                <View style={{flexDirection: 'row', gap: 8, marginBottom: 16}}>
+                  {(['email', 'phone', 'cpf'] as const).map(k => (
+                    <TouchableOpacity
+                      key={k}
+                      style={[{paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
+                        borderColor: pixKeyType === k ? Colors.success : Colors.light.border,
+                        backgroundColor: pixKeyType === k ? Colors.success + '15' : 'transparent'}]}
+                      onPress={() => setPixKeyType(k)}
+                    >
+                      <Text style={{color: pixKeyType === k ? Colors.success : Colors.light.textMuted, fontSize: 12, fontWeight: '600'}}>
+                        {k === 'email' ? 'E-mail' : k === 'phone' ? 'Telefone' : 'CPF/CNPJ'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* QR Code */}
+                <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 12, marginBottom: 16}}>
+                  {user?.id ? (
+                    <QRCode
+                      value={pixKeyType === 'email' ? (user?.email || user?.id) :
+                             pixKeyType === 'phone' ? (user?.phone || user?.id) : (user?.id)}
+                      size={190}
+                    />
+                  ) : <ActivityIndicator color={Colors.primary} />}
+                </View>
+
+                {/* Chave copiavel */}
                 <TouchableOpacity
-                  key={k}
-                  style={[{paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
-                    borderColor: pixKeyType === k ? Colors.success : Colors.light.border,
-                    backgroundColor: pixKeyType === k ? Colors.success + '15' : 'transparent'}]}
-                  onPress={() => setPixKeyType(k)}
+                  style={{backgroundColor: Colors.success + '10', borderRadius: 10, padding: 12, width: '100%',
+                    borderWidth: 1, borderColor: Colors.success + '40', alignItems: 'center', marginBottom: 16}}
+                  onPress={() => {
+                    const key = pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id;
+                    if (key) { Clipboard.setStringAsync(key); Alert.alert('Copiado!', 'Chave PIX copiada.'); }
+                  }}
                 >
-                  <Text style={{color: pixKeyType === k ? Colors.success : Colors.light.textMuted, fontSize: 12, fontWeight: '600'}}>
-                    {k === 'email' ? 'E-mail' : k === 'phone' ? 'Telefone' : 'CPF/CNPJ'}
+                  <Text style={{color: Colors.success, fontWeight: '700', fontSize: 13}}>
+                    {pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id}
                   </Text>
+                  <Text style={{color: Colors.light.textMuted, fontSize: 11, marginTop: 4}}>📋 Toque para copiar a chave</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* QR Code */}
-            <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 12, marginBottom: 16}}>
-              {user?.id ? (
-                <QRCode
-                  value={pixKeyType === 'email' ? (user?.email || user?.id) :
-                         pixKeyType === 'phone' ? (user?.phone || user?.id) : (user?.id)}
-                  size={190}
-                />
-              ) : <ActivityIndicator color={Colors.primary} />}
-            </View>
-
-            {/* Chave copiavel */}
-            <TouchableOpacity
-              style={{backgroundColor: Colors.success + '10', borderRadius: 10, padding: 12, width: '100%',
-                borderWidth: 1, borderColor: Colors.success + '40', alignItems: 'center', marginBottom: 16}}
-              onPress={() => {
-                const key = pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id;
-                if (key) { Clipboard.setStringAsync(key); Alert.alert('Copiado!', 'Chave PIX copiada.'); }
-              }}
-            >
-              <Text style={{color: Colors.success, fontWeight: '700', fontSize: 13}}>
-                {pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id}
-              </Text>
-              <Text style={{color: Colors.light.textMuted, fontSize: 11, marginTop: 4}}>📋 Toque para copiar a chave</Text>
-            </TouchableOpacity>
+              </>
+            )}
 
             <TouchableOpacity style={[styles.modalBtnCancel, {width: '100%'}]} onPress={() => setPixQrVisible(false)}>
               <Text style={[styles.modalBtnText, {textAlign: 'center'}]}>Fechar</Text>

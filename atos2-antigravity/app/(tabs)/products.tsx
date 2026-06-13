@@ -176,8 +176,8 @@ export default function MarketplaceScreen() {
   };
 
   const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.description?.toLowerCase().includes(search.toLowerCase())
+    p.name?.toLowerCase()?.includes(search.toLowerCase()) ||
+    p.description?.toLowerCase()?.includes(search.toLowerCase())
   );
 
   const renderProduct = ({ item }: { item: Product }) => (

@@ -282,6 +282,17 @@ httpServer.listen(Number(port), '0.0.0.0', async () => {
   } catch (e) {
     console.error('⚠️ Falha na migração de colunas extras da vitrine:', e);
   }
+
+  // Migração: Permite que de-para transações de DEPOSIT possam ter from_user_id como NULL
+  try {
+    const { query: dbQuery } = await import('./config/database');
+    await dbQuery(`
+      ALTER TABLE transactions ALTER COLUMN from_user_id DROP NOT NULL;
+    `);
+    console.log('✅ Migração: drop de NOT NULL na coluna from_user_id de transactions garantido.');
+  } catch (e) {
+    console.error('⚠️ Falha na migração de nullability de from_user_id:', e);
+  }
 });
 
 export default app;

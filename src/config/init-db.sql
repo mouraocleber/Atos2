@@ -131,7 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_exchange_rates_currencies ON exchange_rates(from_
 -- Tabela de Transações
 CREATE TABLE IF NOT EXISTS transactions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  from_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  from_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   to_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   type VARCHAR(20) NOT NULL CHECK (type IN ('DEPOSIT', 'WITHDRAW', 'TRANSFER', 'PAYMENT', 'REFUND')),
   amount DECIMAL(15, 2) NOT NULL,

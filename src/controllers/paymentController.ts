@@ -29,8 +29,8 @@ export class PaymentController {
       if (userRes.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
       const { email: payerEmail, name: payerName, cpf: payerCpf, plan } = userRes.rows[0];
 
-      if (plan !== 'BUSINESS') {
-        return res.status(403).json({ error: 'A geração de cobranças/depósitos PIX é restrita ao plano Business.' });
+      if (plan !== 'PRO' && plan !== 'BUSINESS') {
+        return res.status(403).json({ error: 'A geração de cobranças/depósitos PIX é restrita aos planos PRO ou Business.' });
       }
 
       // Criar a transação PRELIMINAR (Aguardando Pagamento) na Carteira do Atos2
