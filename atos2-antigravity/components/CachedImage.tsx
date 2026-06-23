@@ -18,12 +18,20 @@ export default function CachedImage({ url, style, resizeMode = 'cover', fallback
     let mounted = true;
     if (url) {
       setLoading(true);
-      getCachedMedia(url).then(cUrl => {
-        if (mounted) {
-          setCachedUrl(cUrl);
-          setLoading(false);
-        }
-      });
+      getCachedMedia(url)
+        .then(cUrl => {
+          if (mounted) {
+            setCachedUrl(cUrl || url);
+            setLoading(false);
+          }
+        })
+        .catch(err => {
+          console.warn('[CachedImage] Failed to resolve cache, using direct URL:', err);
+          if (mounted) {
+            setCachedUrl(url);
+            setLoading(false);
+          }
+        });
     } else {
       setLoading(false);
     }

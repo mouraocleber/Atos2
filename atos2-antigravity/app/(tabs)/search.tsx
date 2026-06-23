@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Alert, ActivityIndicator
 } from 'react-native';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import api, { SERVER_URL } from '../../services/api';
 import CachedImage from '../../components/CachedImage';
+import { useOnboarding } from '../../contexts/OnboardingContext';
+import CoachMark from '../../components/CoachMark';
 
 interface UserResult {
   id: string;
@@ -21,6 +23,23 @@ interface UserResult {
 }
 
 export default function SearchScreen() {
+  const { isCoachDone, markCoachDone } = useOnboarding();
+  const [coachVisible, setCoachVisible] = useState(false);
+
+  // Refs para os alvos do tutorial
+  const searchFieldRef  = useRef<View>(null);
+  const radiusToggleRef = useRef<View>(null);
+  const userListRef     = useRef<View>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!isCoachDone('search')) {
+        const t = setTimeout(() => setCoachVisible(true), 500);
+        return () => clearTimeout(t);
+      }
+    }, [isCoachDone])
+  );
+
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -138,7 +157,7 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchRow}>
+      <View ref={searchFieldRef} style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
           placeholder="Nome, apelido, email..."
@@ -154,7 +173,7 @@ export default function SearchScreen() {
       </View>
 
       {/* Filtro de Distância */}
-      <View style={styles.radiusToggleContainer}>
+      <View ref={radiusToggleRef} style={styles.radiusToggleContainer}>
         <TouchableOpacity 
           style={[styles.radiusToggleBtn, searchRadius === '20' && styles.radiusToggleBtnActive]} 
           onPress={() => setSearchRadius('20')}
@@ -173,26 +192,60 @@ export default function SearchScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={results}
-        keyExtractor={(item) => item.id}
-        renderItem={renderUser}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          searched ? (
-            <View style={styles.emptyContainer}>
-              <Feather name="search" size={48} color={Colors.light.textMuted} />
-              <Text style={styles.emptyTitle}>Nenhum resultado</Text>
-              <Text style={styles.emptySubtitle}>Tente buscar por outro nome ou apelido</Text>
-            </View>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Feather name="users" size={48} color={Colors.light.textMuted} />
-              <Text style={styles.emptyTitle}>Buscar Usuários</Text>
-              <Text style={styles.emptySubtitle}>Encontre pessoas por nome, apelido ou email</Text>
-            </View>
-          )
-        }
+      <View ref={userListRef} style={{ flex: 1 }}>
+        <FlatList
+          data={results}
+          keyExtractor={(item) => item.id}
+          renderItem={renderUser}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            searched ? (
+              <View style={styles.emptyContainer}>
+                <Feather name="search" size={48} color={Colors.light.textMuted} />
+                <Text style={styles.emptyTitle}>Nenhum resultado</Text>
+                <Text style={styles.emptySubtitle}>Tente buscar por outro nome ou apelido</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Feather name="users" size={48} color={Colors.light.textMuted} />
+                <Text style={styles.emptyTitle}>Buscar Usuários</Text>
+                <Text style={styles.emptySubtitle}>Encontre pessoas por nome, apelido ou email</Text>
+              </View>
+            )
+          }
+        />
+      </View>
+
+      {/* Coach Marks */}
+      <CoachMark
+        visible={coachVisible}
+        onComplete={async () => { setCoachVisible(false); await markCoachDone('search'); }}
+        steps={[
+          {
+            targetRef: searchFieldRef,
+            title: 'Buscar Usuários',
+            description: 'Encontre qualquer usuário Atos2 digitando seu nome, apelido ou e-mail.',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: radiusToggleRef,
+            title: 'Filtro de Distância',
+            description: "Filtre os resultados por 'Próximos (20km)' para encontrar pessoas perto de você ou busque globalmente.",
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: userListRef,
+            title: 'Resultados da Busca',
+            description: 'Toque em qualquer usuário encontrado para abrir a tela de mensagens e iniciar um chat diretamente.',
+            tooltipPosition: 'top',
+          },
+          {
+            targetRef: userListRef,
+            title: 'Identificação PF/PJ',
+            description: 'Identifique facilmente se o perfil é de Pessoa Física (PF) ou Pessoa Jurídica/Empresa (PJ) pelo selo correspondente.',
+            tooltipPosition: 'top',
+          },
+        ]}
       />
     </View>
   );

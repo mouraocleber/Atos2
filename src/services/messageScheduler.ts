@@ -1,12 +1,14 @@
 import messageService from './messageService';
 import { Message } from '../types';
 import { Server as SocketIOServer } from 'socket.io';
+import { pixReconciliationService } from './pixReconciliationService';
 
 const SCHEDULE_INTERVAL = 60000; // 1 minuto
 
 export class MessageScheduler {
   private io: SocketIOServer | null = null;
   private intervalId: NodeJS.Timeout | null = null;
+  private pixIntervalId: NodeJS.Timeout | null = null;
 
   public start(io?: SocketIOServer) {
     if (this.intervalId) {
@@ -18,6 +20,13 @@ export class MessageScheduler {
 
     console.log('Iniciando MessageScheduler...');
     this.intervalId = setInterval(this.processScheduledMessages.bind(this), SCHEDULE_INTERVAL);
+    
+    // Iniciar reconciliador de PIX a cada 60 segundos
+    this.pixIntervalId = setInterval(() => {
+      pixReconciliationService.reconcilePendingPix().catch(err => {
+        console.error('Erro na rotina de reconciliação de PIX:', err);
+      });
+    }, SCHEDULE_INTERVAL);
   }
 
   public stop() {
@@ -25,6 +34,10 @@ export class MessageScheduler {
       clearInterval(this.intervalId);
       this.intervalId = null;
       console.log('MessageScheduler parado.');
+    }
+    if (this.pixIntervalId) {
+      clearInterval(this.pixIntervalId);
+      this.pixIntervalId = null;
     }
   }
 

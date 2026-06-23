@@ -1,5 +1,6 @@
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 
 export class MercadoPagoService {
   private getToken(): string {
@@ -133,6 +134,57 @@ export class MercadoPagoService {
       throw error;
     }
   }
+
+  /**
+   * Envia uma transferência PIX externa (Payout)
+   */
+  async sendExternalPix(amount: number, targetKey: string, referenceId: string) {
+    const token = this.getToken();
+
+    const body = {
+      external_reference: referenceId,
+      description: `Pagamento PIX externo para: ${targetKey}`,
+      transactions: [
+        {
+          external_id: referenceId,
+          amount: amount,
+          currency_id: 'BRL',
+          recipient_id: targetKey
+        }
+      ]
+    };
+
+    console.log('[MercadoPago Payout] Enviando Payout via API:', JSON.stringify(body, null, 2));
+
+    try {
+      const response = await axios.post('https://api.mercadopago.com/v1/payouts', body, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': referenceId,
+          'X-Enforce-Signature': 'false'
+        }
+      });
+
+      console.log('[MercadoPago Payout] Resposta da API:', response.status, response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[MercadoPago Payout] Erro retornado pela API:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+
+      let errorMessage = 'Erro ao processar transferência externa com o Mercado Pago.';
+      if (error.response?.data?.message) {
+        errorMessage += ` Detalhes: ${error.response.data.message}`;
+      } else if (error.message) {
+        errorMessage += ` Detalhes: ${error.message}`;
+      }
+      throw new Error(errorMessage);
+    }
+  }
 }
 
 export const mercadoPagoService = new MercadoPagoService();
+

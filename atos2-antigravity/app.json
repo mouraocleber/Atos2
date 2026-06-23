@@ -2,10 +2,10 @@
   "expo": {
     "name": "Atos2",
     "slug": "atos2",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "scheme": "atos2",
     "newArchEnabled": false,
     "splash": {
@@ -15,7 +15,19 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.atos2.app"
+      "bundleIdentifier": "com.atos2.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSCameraUsageDescription": "O app precisa da câmera para escanear documentos e QR codes.",
+        "NSMicrophoneUsageDescription": "O app precisa do microfone para gravação de áudio e chamadas.",
+        "NSLocationWhenInUseUsageDescription": "O app precisa da localização para conectar ao terminal de pagamento.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O app precisa da localização em segundo plano para o terminal de pagamento.",
+        "NSBluetoothAlwaysUsageDescription": "O app usa Bluetooth para conectar ao leitor de cartão.",
+        "NSBluetoothPeripheralUsageDescription": "O app usa Bluetooth para conectar ao leitor de cartão.",
+        "NFCReaderUsageDescription": "O app usa NFC para leitura de cartões e documentos.",
+        "NSFaceIDUsageDescription": "Use o Face ID para autenticação rápida e segura.",
+        "NSPhotoLibraryUsageDescription": "O app acessa a galeria para seleção de imagens e documentos."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -86,6 +98,10 @@
         {
           "android": {
             "permission": "Always"
+          },
+          "ios": {
+            "locationWhenInUseUsageDescription": "O app precisa da localização para conectar ao terminal de pagamento.",
+            "bluetoothAlwaysUsageDescription": "O app usa Bluetooth para conectar ao leitor de cartão."
           }
         }
       ]

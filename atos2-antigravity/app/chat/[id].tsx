@@ -11,6 +11,7 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useAudioPlayer, useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
 import { WebView } from 'react-native-webview';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -20,7 +21,7 @@ import * as Location from 'expo-location';
 import { getWebRtcHtml } from '../../services/webrtcHtml';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
-import { getConversation, sendMessage } from '../../services/chat';
+import { getConversation, sendMessage, deleteMessage } from '../../services/chat';
 import api, { SERVER_URL } from '../../services/api';
 
 // Base da URL do servidor (sem /api) para exibir arquivos de mídia e sockets
@@ -61,13 +62,32 @@ function ChatVideoPlayer({ url }: ChatVideoPlayerProps) {
 
 function ActualVideoPlayer({ videoUrl }: { videoUrl: string }) {
   const player = useVideoPlayer(videoUrl, (p) => {
-    p.muted = false;
+    p.muted = true;
+    p.loop = true;
+    p.play();
   });
 
   return (
     <VideoView
       style={styles.mediaVideo}
       player={player}
+      nativeControls={false}
+    />
+  );
+}
+
+function ActualFullscreenVideoPlayer({ videoUrl }: { videoUrl: string }) {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.muted = false;
+    p.play();
+  });
+
+  return (
+    <VideoView
+      style={{ width: '100%', height: '80%' }}
+      player={player}
+      nativeControls={true}
+      contentFit="contain"
     />
   );
 }
@@ -78,7 +98,7 @@ interface Message {
   content: string;
   translatedContent?: string;
   translatedLanguage?: string;
-  type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'LOCATION';
+  type: 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'FILE' | 'LOCATION';
   status: 'SENT' | 'DELIVERED' | 'READ';
   mediaUrl?: string;
   media_url?: string;
@@ -95,6 +115,7 @@ export default function ChatRoomScreen() {
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
   // Call / VoIP Modal & Moderation
@@ -332,8 +353,13 @@ export default function ChatRoomScreen() {
       }
     };
 
+    const handleMessageDeleted = (data: { messageId: string }) => {
+      setMessages(prev => prev.filter(m => m.id !== data.messageId));
+    };
+
     socket.on('newMessage', handleNewMessage);
     socket.on('messageStatusUpdate', handleStatusUpdate);
+    socket.on('messageDeleted', handleMessageDeleted);
     socket.on('callUser', handleCallUser);
     socket.on('callAccepted', handleCallAccepted);
     socket.on('hangUp', handleHangUp);
@@ -342,6 +368,7 @@ export default function ChatRoomScreen() {
     return () => {
       socket.off('newMessage', handleNewMessage);
       socket.off('messageStatusUpdate', handleStatusUpdate);
+      socket.off('messageDeleted', handleMessageDeleted);
       socket.off('callUser', handleCallUser);
       socket.off('callAccepted', handleCallAccepted);
       socket.off('hangUp', handleHangUp);
@@ -427,6 +454,36 @@ export default function ChatRoomScreen() {
          } catch(e) { Alert.alert('Erro', 'Tente novamente depois.'); }
        }}
     ])
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    setSelectedMessage(null);
+    Alert.alert(
+      'Apagar Mensagem',
+      'Deseja realmente apagar esta mensagem para todos?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await deleteMessage(messageId);
+              if (res.success) {
+                // Remover localmente imediato
+                setMessages(prev => prev.filter(m => m.id !== messageId));
+              } else {
+                Alert.alert('Erro', res.message || 'Não foi possível apagar a mensagem.');
+              }
+            } catch (err: any) {
+              console.error('Erro ao apagar mensagem:', err);
+              const errMsg = err.response?.data?.message || 'Não foi possível apagar a mensagem.';
+              Alert.alert('Erro', errMsg);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // ─── SEND TEXT ───────────────────────────────────────────────────────────────
@@ -552,6 +609,50 @@ export default function ChatRoomScreen() {
     }
   };
 
+  // ─── PICK FILE ────────────────────────────────────────────────────────────────
+  const handlePickFile = async () => {
+    setShowMediaMenu(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      const fileName = asset.name || 'arquivo';
+      const fileSize = asset.size || 0;
+
+      // Formata o tamanho para exibir no content da mensagem
+      const sizeLabel = fileSize < 1024
+        ? `${fileSize} B`
+        : fileSize < 1048576
+        ? `${(fileSize / 1024).toFixed(1)} KB`
+        : `${(fileSize / 1048576).toFixed(1)} MB`;
+
+      setIsSending(true);
+      try {
+        await sendMessage(
+          {
+            recipientId: id as string,
+            type: 'FILE',
+            content: JSON.stringify({ fileName, fileSize, sizeLabel }),
+          },
+          asset.uri
+        );
+        loadLiveMessages(true);
+      } catch (err: any) {
+        const errorMsg = err.response?.data?.message || 'Não foi possível enviar o arquivo.';
+        Alert.alert('Erro no Envio', errorMsg);
+      } finally {
+        setIsSending(false);
+      }
+    } catch (err) {
+      Alert.alert('Erro', 'Não foi possível abrir o seletor de arquivos.');
+    }
+  };
+
   const handleSendLocation = async () => {
     setShowMediaMenu(false);
     try {
@@ -670,9 +771,15 @@ export default function ChatRoomScreen() {
       
       let finalUrl = cachedUrl;
       if (finalUrl.startsWith('http')) {
-        const destinationFile = new File(Paths.cache, `playback_${msgId}.m4a`);
-        const downloaded = await File.downloadFileAsync(finalUrl, destinationFile);
-        finalUrl = downloaded.uri;
+        if (typeof Paths !== 'undefined' && typeof File !== 'undefined') {
+          try {
+            const destinationFile = new File(Paths.cache, `playback_${msgId}.m4a`);
+            const downloaded = await File.downloadFileAsync(finalUrl, destinationFile);
+            finalUrl = downloaded.uri;
+          } catch (err) {
+            console.warn('[Chat] Failed to download audio for playback:', err);
+          }
+        }
       }
       
       const newPlayer = createAudioPlayer({ uri: finalUrl });
@@ -743,7 +850,32 @@ export default function ChatRoomScreen() {
 
             {/* VIDEO */}
             {item.type === 'VIDEO' && mediaUrl && (
-              <ChatVideoPlayer url={mediaUrl} />
+              <TouchableOpacity
+                onPress={async () => {
+                  const cached = await getCachedMedia(mediaUrl);
+                  setFullscreenVideo(cached);
+                }}
+                activeOpacity={0.9}
+                style={{ position: 'relative', width: 220, height: 160, borderRadius: 12, overflow: 'hidden' }}
+              >
+                <ChatVideoPlayer url={mediaUrl} />
+                <View style={[StyleSheet.absoluteFillObject, {
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.15)',
+                }]}>
+                  <View style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}>
+                    <Feather name="play" size={22} color="#fff" style={{ marginLeft: 3 }} />
+                  </View>
+                </View>
+              </TouchableOpacity>
             )}
 
             {/* AUDIO */}
@@ -768,6 +900,77 @@ export default function ChatRoomScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+
+            {/* FILE */}
+            {item.type === 'FILE' && (() => {
+              let fileData: any = null;
+              try { fileData = JSON.parse(item.content); } catch (_) {}
+              const fName = fileData?.fileName || item.content || 'Arquivo';
+              const fSize = fileData?.sizeLabel || '';
+              const ext = fName.split('.').pop()?.toLowerCase() || '';
+
+              const iconMap: Record<string, string> = {
+                pdf: 'book-open', doc: 'file-text', docx: 'file-text',
+                xls: 'grid', xlsx: 'grid', ppt: 'monitor', pptx: 'monitor',
+                txt: 'align-left', csv: 'grid', zip: 'archive', rar: 'archive',
+              };
+              const colorMap: Record<string, string> = {
+                pdf: '#ef4444', doc: '#3b82f6', docx: '#3b82f6',
+                xls: '#22c55e', xlsx: '#22c55e', ppt: '#f97316', pptx: '#f97316',
+                txt: '#6b7280', csv: '#22c55e', zip: '#8b5cf6', rar: '#8b5cf6',
+              };
+              const iconName = iconMap[ext] || 'file';
+              const iconColor = colorMap[ext] || '#6366f1';
+
+              return (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (mediaUrl) {
+                      Linking.openURL(mediaUrl).catch(() =>
+                        Alert.alert('Erro', 'Não foi possível abrir o arquivo.')
+                      );
+                    }
+                  }}
+                  activeOpacity={0.8}
+                  style={{
+                    width: 230,
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      backgroundColor: iconColor + '20',
+                      justifyContent: 'center', alignItems: 'center',
+                    }}>
+                      <Feather name={iconName as any} size={22} color={iconColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[{ fontSize: 13, fontWeight: '600' }, isMe ? styles.messageTextMe : styles.messageTextOther]}
+                        numberOfLines={2}
+                      >
+                        {fName}
+                      </Text>
+                      {fSize ? (
+                        <Text style={[{ fontSize: 11, marginTop: 2 }, isMe ? { color: 'rgba(255,255,255,0.6)' } : { color: Colors.light.textMuted }]}>
+                          {fSize}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <View style={[{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                    paddingTop: 6, borderTopWidth: 1,
+                  }, isMe ? { borderTopColor: 'rgba(255,255,255,0.2)' } : { borderTopColor: Colors.light.border }]}>
+                    <Text style={[{ fontSize: 13, fontWeight: '600' }, isMe ? { color: '#fff' } : { color: Colors.primary }]}>
+                      Abrir Arquivo
+                    </Text>
+                    <Feather name="download" size={16} color={isMe ? 'rgba(255,255,255,0.8)' : Colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              );
+            })()}
 
             {/* TEXT */}
             {(item.type === 'TEXT' || (!item.type && item.content)) && (
@@ -890,6 +1093,11 @@ export default function ChatRoomScreen() {
               )}
               <TouchableOpacity style={styles.actionBtn}><Feather name="smile" size={16} color={Colors.light.text} /></TouchableOpacity>
               {isMe && <TouchableOpacity style={styles.actionBtn}><Feather name="edit-2" size={16} color={Colors.light.text} /></TouchableOpacity>}
+              {isMe && (
+                <TouchableOpacity style={styles.actionBtn} onPress={() => handleDeleteMessage(item.id)}>
+                  <Feather name="trash-2" size={16} color={Colors.error} />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity style={styles.actionBtn}><Feather name="flag" size={16} color={Colors.light.text} /></TouchableOpacity>
             </View>
           )}
@@ -933,16 +1141,44 @@ export default function ChatRoomScreen() {
 
         {headerMenuVisible && (
           <Modal transparent visible animationType="fade" onRequestClose={() => setHeaderMenuVisible(false)}>
-             <Pressable style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.1)'}} onPress={() => setHeaderMenuVisible(false)}>
-                 <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: Colors.light.surface, borderRadius: 8, elevation: 4, width: 180, overflow: 'hidden'}}>
-                     <TouchableOpacity style={{padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.light.border}} onPress={handleBlockUser}>
-                         <Text style={{color: Colors.error, fontWeight: 'bold'}}>Bloquear Usuário</Text>
-                     </TouchableOpacity>
-                     <TouchableOpacity style={{padding: 16}} onPress={handleReportUser}>
-                         <Text style={{color: Colors.error, fontWeight: 'bold'}}>Denunciar Usuário</Text>
-                     </TouchableOpacity>
-                 </View>
-             </Pressable>
+            <Pressable style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.1)'}} onPress={() => setHeaderMenuVisible(false)}>
+              <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: Colors.light.surface, borderRadius: 10, elevation: 6, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.18, shadowRadius: 8, width: 210, overflow: 'hidden'}}>
+
+                {/* Vitrine do Usuário */}
+                <TouchableOpacity
+                  style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
+                  onPress={() => {
+                    setHeaderMenuVisible(false);
+                    router.push({
+                      pathname: '/(tabs)/products',
+                      params: { sellerId: id as string, sellerName: name as string },
+                    });
+                  }}
+                >
+                  <Feather name="shopping-bag" size={16} color={Colors.primary} />
+                  <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 14}}>Vitrine do Usuário</Text>
+                </TouchableOpacity>
+
+                {/* Bloquear */}
+                <TouchableOpacity
+                  style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
+                  onPress={handleBlockUser}
+                >
+                  <Feather name="slash" size={16} color={Colors.error} />
+                  <Text style={{color: Colors.error, fontWeight: 'bold', fontSize: 14}}>Bloquear Usuário</Text>
+                </TouchableOpacity>
+
+                {/* Denunciar */}
+                <TouchableOpacity
+                  style={{padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10}}
+                  onPress={handleReportUser}
+                >
+                  <Feather name="alert-triangle" size={16} color={Colors.error} />
+                  <Text style={{color: Colors.error, fontWeight: 'bold', fontSize: 14}}>Denunciar Usuário</Text>
+                </TouchableOpacity>
+
+              </View>
+            </Pressable>
           </Modal>
         )}
       </View>
@@ -959,6 +1195,18 @@ export default function ChatRoomScreen() {
         </Pressable>
       </Modal>
 
+      {/* Fullscreen Video Modal */}
+      <Modal visible={!!fullscreenVideo} transparent animationType="fade" onRequestClose={() => setFullscreenVideo(null)}>
+        <View style={styles.fullscreenModal}>
+          {fullscreenVideo && (
+            <ActualFullscreenVideoPlayer videoUrl={fullscreenVideo} />
+          )}
+          <TouchableOpacity style={styles.fullscreenClose} onPress={() => setFullscreenVideo(null)}>
+            <Feather name="x" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       {/* Media Menu Bottom Sheet */}
       <Modal visible={showMediaMenu} transparent animationType="slide">
         <Pressable style={styles.mediaMenuOverlay} onPress={() => setShowMediaMenu(false)}>
@@ -967,27 +1215,33 @@ export default function ChatRoomScreen() {
             <View style={styles.mediaMenuGrid}>
               <TouchableOpacity style={styles.mediaMenuOption} onPress={() => handlePickImage(false)}>
                 <View style={[styles.mediaMenuIcon, { backgroundColor: '#6366f1' }]}>
-                  <Feather name="image" size={26} color="#fff" />
+                  <Feather name="image" size={20} color="#fff" />
                 </View>
                 <Text style={styles.mediaMenuLabel}>Galeria</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.mediaMenuOption} onPress={() => handlePickImage(true)}>
                 <View style={[styles.mediaMenuIcon, { backgroundColor: '#10b981' }]}>
-                  <Feather name="camera" size={26} color="#fff" />
+                  <Feather name="camera" size={20} color="#fff" />
                 </View>
                 <Text style={styles.mediaMenuLabel}>Câmera</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.mediaMenuOption} onPress={handlePickVideo}>
                 <View style={[styles.mediaMenuIcon, { backgroundColor: '#f59e0b' }]}>
-                  <Feather name="film" size={26} color="#fff" />
+                  <Feather name="film" size={20} color="#fff" />
                 </View>
                 <Text style={styles.mediaMenuLabel}>Vídeo</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.mediaMenuOption} onPress={handleSendLocation}>
                 <View style={[styles.mediaMenuIcon, { backgroundColor: '#3b82f6' }]}>
-                  <Feather name="map-pin" size={26} color="#fff" />
+                  <Feather name="map-pin" size={20} color="#fff" />
                 </View>
                 <Text style={styles.mediaMenuLabel}>Localização</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.mediaMenuOption} onPress={handlePickFile}>
+                <View style={[styles.mediaMenuIcon, { backgroundColor: '#8b5cf6' }]}>
+                  <Feather name="file-text" size={20} color="#fff" />
+                </View>
+                <Text style={styles.mediaMenuLabel}>Arquivo</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1443,10 +1697,10 @@ const styles = StyleSheet.create({
     color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700',
     marginBottom: Spacing.xl, textAlign: 'center',
   },
-  mediaMenuGrid: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xl },
-  mediaMenuOption: { alignItems: 'center', gap: Spacing.sm },
-  mediaMenuIcon: { width: 60, height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  mediaMenuLabel: { color: Colors.light.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
+  mediaMenuGrid: { flexDirection: 'row', justifyContent: 'space-around', gap: Spacing.sm, flexWrap: 'wrap' },
+  mediaMenuOption: { alignItems: 'center', gap: 6, minWidth: 60 },
+  mediaMenuIcon: { width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  mediaMenuLabel: { color: Colors.light.textSecondary, fontSize: 11, fontWeight: '600', textAlign: 'center' },
 
   // Native call modal
   callModal: {

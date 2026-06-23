@@ -1,21 +1,30 @@
 import { Paths, Directory, File } from 'expo-file-system';
 import { SERVER_URL } from './api';
 
+// Verifica se os componentes modernos do expo-file-system estão disponíveis no ambiente atual
+const isModernFsSupported = () => {
+  return typeof Paths !== 'undefined' && typeof Directory !== 'undefined' && typeof File !== 'undefined';
+};
+
 // expo-file-system SDK 55: usa Paths.document em vez de documentDirectory
 const getCacheDir = (): string => {
   try {
-    return new Directory(Paths.document, 'media_cache').uri;
-  } catch {
-    return 'file:///media_cache/';
+    if (isModernFsSupported() && Paths.document) {
+      return new Directory(Paths.document, 'media_cache').uri;
+    }
+  } catch (err) {
+    console.warn('[MediaCacheService] Failed to get cache directory path:', err);
   }
+  return 'file:///media_cache/';
 };
 
 const CACHE_DIR = getCacheDir();
 
 // Inicializa o diretório de cache com detecção de corrupção
 const initCacheDir = async () => {
-  const dir = new Directory(Paths.document, 'media_cache');
+  if (!isModernFsSupported() || !Paths.document) return;
   try {
+    const dir = new Directory(Paths.document, 'media_cache');
     if (dir.exists) {
       try {
         dir.list(); // Tenta listar a pasta para testar se é um diretório válido
@@ -58,6 +67,12 @@ export const getCachedMedia = async (originalUrl: string): Promise<string> => {
   }
 
   const fullUrl = getFullUrl(originalUrl);
+
+  // Se a nova API de arquivos não for suportada (ex: web ou ambiente sem New Architecture), retorna a URL original
+  if (!isModernFsSupported() || !Paths.document) {
+    return fullUrl;
+  }
+
   const filename = getFilenameFromUrl(fullUrl);
 
   try {
@@ -79,6 +94,7 @@ export const getCachedMedia = async (originalUrl: string): Promise<string> => {
 };
 
 export const clearMediaCache = async () => {
+  if (!isModernFsSupported() || !Paths.document) return false;
   try {
     const dir = new Directory(Paths.document, 'media_cache');
     if (dir.exists) {
@@ -93,6 +109,7 @@ export const clearMediaCache = async () => {
 };
 
 export const getMediaCacheSize = async (): Promise<number> => {
+  if (!isModernFsSupported() || !Paths.document) return 0;
   try {
     const dir = new Directory(Paths.document, 'media_cache');
     if (!dir.exists) return 0;
@@ -110,3 +127,4 @@ export const getMediaCacheSize = async (): Promise<number> => {
     return 0;
   }
 };
+

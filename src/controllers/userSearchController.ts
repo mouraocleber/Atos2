@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import userSearchService from '../services/userSearchService';
+import userService from '../services/userService';
 import { AppError } from '../middleware/errorHandler';
 
 export class UserSearchController {
@@ -260,6 +261,34 @@ export class UserSearchController {
       );
 
       res.json({ success: true, message: 'Localização atualizada.' });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getUserById(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { userId } = req.params;
+
+      if (!userId) {
+        throw new AppError(400, 'ID do usuário é obrigatório', 'MISSING_FIELDS');
+      }
+
+      const user = await userService.getUserById(userId);
+
+      if (!user) {
+        throw new AppError(404, 'Usuário não encontrado', 'USER_NOT_FOUND');
+      }
+
+      res.json({
+        success: true,
+        data: {
+          id: user.id,
+          name: user.name,
+          nickname: user.nickname,
+          profileImage: user.profileImage || null,
+        },
+      });
     } catch (error) {
       throw error;
     }

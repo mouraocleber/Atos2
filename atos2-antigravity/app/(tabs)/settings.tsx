@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Modal,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Switch, Image
@@ -10,6 +10,8 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBiometric } from '../../contexts/BiometricContext';
 import { useLocalization } from '../../contexts/LocalizationContext';
+import { useOnboarding } from '../../contexts/OnboardingContext';
+import CoachMark from '../../components/CoachMark';
 import api from '../../services/api';
 import CachedImage from '../../components/CachedImage';
 import QRCode from 'react-native-qrcode-svg';
@@ -20,6 +22,23 @@ export default function SettingsScreen() {
   const { user, signOut, updateUser, refreshUser } = useAuth();
   const { isBiometricSupported, isBiometricEnabled, setBiometricEnabled } = useBiometric();
   const { setAppLanguage, t } = useLocalization();
+  const { isCoachDone, markCoachDone, resetAll } = useOnboarding();
+  const [coachVisible, setCoachVisible] = useState(false);
+
+  // Refs para os alvos do tutorial
+  const profileCardRef       = useRef<View>(null);
+  const planSectionRef       = useRef<View>(null);
+  const languageSectionRef   = useRef<View>(null);
+  const resetTutorialBtnRef  = useRef<View>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!isCoachDone('settings')) {
+        const t = setTimeout(() => setCoachVisible(true), 500);
+        return () => clearTimeout(t);
+      }
+    }, [isCoachDone])
+  );
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [bioToggling, setBioToggling] = useState(false);
 
@@ -105,6 +124,10 @@ export default function SettingsScreen() {
   const [kwPosition, setKwPosition] = useState('1');
   const [kwSaving, setKwSaving] = useState(false);
 
+  // Plan Modal
+  const [planModal, setPlanModal] = useState(false);
+  const [planUpgrading, setPlanUpgrading] = useState(false);
+
   async function toggleSearchable(value: boolean) {
     setIsSearchable(value);
     try {
@@ -183,35 +206,34 @@ export default function SettingsScreen() {
 
   async function handleUpgradePlan(planType: 'PRO' | 'BUSINESS') {
     const prices = {
-      PRO: { m: 4.00, a: 38.40 },
+      PRO:      { m: 4.00,  a: 38.40 },
       BUSINESS: { m: 40.00, a: 384.00 }
     };
     const { m, a } = prices[planType];
+    const isCurrentPlan = user?.plan === planType;
 
     Alert.alert(
-      `Assinar Plano ${planType}`,
-      `Seu plano atual é ${user?.plan || 'FREE'}.\n\nMensal: ${m} G\nAnual: ${a} G (20% Off)\n\n* Por vir do FREE, você ganhará 90 Dias de acesso totalmente gratuito agora, sem cobranças na sua carteira!`,
+      isCurrentPlan ? `Renovar Plano ${planType}` : `Assinar Plano ${planType}`,
+      `Plano atual: ${user?.plan || 'FREE'}\n\nMensal: ${m} G/mês\nAnual: ${a} G/ano (20% Off)\n\n${user?.plan === 'FREE' ? '⭐ 90 dias grátis para novos assinantes!' : ''}`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: `Mensal (${m} G após 90d)`,
-          onPress: () => confirmUpgrade(planType, 'MONTHLY')
-        },
-        { 
-          text: `Anual (${a} G após 90d)`,
-          onPress: () => confirmUpgrade(planType, 'ANNUAL')
-        }
+        { text: `Mensal (${m} G)`, onPress: () => confirmUpgrade(planType, 'MONTHLY') },
+        { text: `Anual (${a} G) ⭐`, onPress: () => confirmUpgrade(planType, 'ANNUAL') }
       ]
     );
   }
 
   async function confirmUpgrade(planType: 'PRO' | 'BUSINESS', billingCycle: 'MONTHLY' | 'ANNUAL') {
+    setPlanUpgrading(true);
     try {
       const res = await api.post('/auth/upgrade-plan', { plan: planType, billingCycle });
       Alert.alert('Sucesso 🎉', res.data.message);
       await refreshUser();
+      setPlanModal(false);
     } catch(e: any) {
       Alert.alert('Erro', e?.response?.data?.message || 'Falha ao realizar upgrade');
+    } finally {
+      setPlanUpgrading(false);
     }
   }
 
@@ -302,7 +324,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Profile Card */}
-      <View style={styles.profileCard}>
+      <View ref={profileCardRef} style={styles.profileCard}>
         <TouchableOpacity style={styles.profileAvatar} onPress={handlePickImage} disabled={avatarUploading} activeOpacity={0.8}>
           {avatarUploading ? (
              <ActivityIndicator color="#fff" />
@@ -363,21 +385,33 @@ export default function SettingsScreen() {
       </View>
 
       {/* Monetização e Busca */}
-      <View style={styles.section}>
+      <View ref={planSectionRef} style={styles.section}>
         <Text style={styles.sectionTitle}>{t('section_plan') || 'Meu Plano e Privacidade'}</Text>
         <View style={styles.menuGroup}>
+          {/* ← CORRIGIDO: sempre abre o modal de plano */}
           <MenuItem 
             icon="star" 
             title={`Plano Atual: ${user?.plan || 'FREE'}`} 
-            subtitle={user?.plan === 'FREE' ? "Faça upgrade para PRO ou BUSINESS" : `Expira em: ${user?.planExpiresAt ? new Date(user.planExpiresAt).toLocaleDateString() : 'Ativo'}`} 
-            onPress={user?.plan === 'FREE' ? undefined : undefined} // só exibição, abaixo terá botão de upgrade
+            subtitle={
+              user?.plan === 'FREE'
+                ? 'Toque para ver opções PRO e BUSINESS'
+                : `Válido até: ${user?.planExpiresAt ? new Date(user.planExpiresAt).toLocaleDateString('pt-BR') : 'Ativo'}`
+            } 
+            onPress={() => setPlanModal(true)}
+            rightComponent={
+              <View style={{
+                backgroundColor: user?.plan === 'FREE' ? Colors.light.border : user?.plan === 'PRO' ? Colors.secondary + '30' : Colors.primary + '30',
+                paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12
+              }}>
+                <Text style={{
+                  color: user?.plan === 'FREE' ? Colors.light.textMuted : user?.plan === 'PRO' ? Colors.secondaryDark : Colors.primary,
+                  fontWeight: '800', fontSize: 11
+                }}>
+                  {user?.plan || 'FREE'}
+                </Text>
+              </View>
+            }
           />
-          {user?.plan === 'FREE' && (
-            <>
-              <MenuItem icon="trending-up" title="Faça Upgrade para PRO (4 G/mês)" subtitle="Ou Anual com 20% Off + 90 Dias Grátis!" onPress={() => handleUpgradePlan('PRO')} rightComponent={<Feather name="chevron-right" size={20} color={Colors.primary} />} />
-              <MenuItem icon="briefcase" title="Faça Upgrade para BUSINESS (40 G/mês)" subtitle="Acesso Vitrine! (Anual 20% Off + 90 Dias Grátis)" onPress={() => handleUpgradePlan('BUSINESS')} rightComponent={<Feather name="chevron-right" size={20} color={Colors.primary} />} />
-            </>
-          )}
 
           <MenuItem icon="eye-off" title="Ocultar meu Perfil Nativamente" subtitle="Remove seu perfil 100% de qualquer busca (Funcionalidade Global)" rightComponent={<Switch value={!isSearchable} onValueChange={(val) => toggleSearchable(!val)} trackColor={{true: Colors.error}} />} />
           <MenuItem icon="award" title="Palavras-Chave de Destaque" subtitle="Apenas para contas PRO e BUSINESS" onPress={() => setKwVisible(true)} />
@@ -393,12 +427,15 @@ export default function SettingsScreen() {
       </View>
 
       {/* App */}
-      <View style={styles.section}>
+      <View ref={languageSectionRef} style={styles.section}>
         <Text style={styles.sectionTitle}>{t('section_app') || 'Aplicativo'}</Text>
         <View style={styles.menuGroup}>
           <MenuItem icon="globe" title={t('language_label') || 'Idioma das Traduções'} subtitle={currentLangLabel} onPress={() => setLangVisible(true)} />
           <MenuItem icon="download-cloud" title="Agendar Downloads" subtitle={dlMode === 'wifi' ? "Apenas Wi-Fi" : dlMode === 'always' ? "Qualquer Rede" : `Madrugada (${dlStart} - ${dlEnd})`} onPress={() => setDlVisible(true)} />
           <MenuItem icon="hard-drive" title="Uso de Dados e Memória" subtitle={`Armazenamento Local: ${formatBytes(cacheSize)}`} onPress={handleClearCache} />
+          <View ref={resetTutorialBtnRef}>
+            <MenuItem icon="help-circle" title="Rever Tutorial" subtitle="Aprenda a usar os recursos do app novamente" onPress={async () => { await resetAll(); Alert.alert('Onboarding Reiniciado', 'O tutorial de boas-vindas e os guias visuais serão exibidos novamente.'); }} />
+          </View>
         </View>
       </View>
 
@@ -602,6 +639,174 @@ export default function SettingsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* ═══ Modal de Gerenciamento de Plano ═══ */}
+      <Modal visible={planModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '92%', padding: 0, overflow: 'hidden' }]}>
+
+            {/* Header */}
+            <View style={{ backgroundColor: Colors.primary, padding: Spacing.lg, alignItems: 'center' }}>
+              <Feather name="star" size={32} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 8 }}>Escolha seu Plano</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                Plano atual: <Text style={{ fontWeight: '800' }}>{user?.plan || 'FREE'}</Text>
+              </Text>
+            </View>
+
+            <ScrollView style={{ padding: Spacing.md }} showsVerticalScrollIndicator={false}>
+
+              {/* Card FREE */}
+              <View style={[styles.planCard, user?.plan === 'FREE' && styles.planCardActive]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View>
+                    <Text style={styles.planName}>FREE</Text>
+                    <Text style={styles.planPrice}>R$ 0 / mês</Text>
+                  </View>
+                  <View style={[styles.planBadge, { backgroundColor: Colors.light.border }]}>
+                    <Text style={[styles.planBadgeText, { color: Colors.light.textMuted }]}>Gratuito</Text>
+                  </View>
+                </View>
+                <Text style={styles.planFeature}>✓  Mensagens ilimitadas</Text>
+                <Text style={styles.planFeature}>✓  Carteira GLB</Text>
+                <Text style={styles.planFeature}>✗  Sem acesso à Vitrine</Text>
+                <Text style={styles.planFeature}>✗  Sem palavras-chave</Text>
+                {user?.plan === 'FREE' && (
+                  <View style={[styles.planCurrentBadge, { backgroundColor: Colors.light.surfaceLight }]}>
+                    <Text style={{ color: Colors.light.textMuted, fontWeight: '700', fontSize: 12 }}>Plano Atual</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Card PRO */}
+              <View style={[styles.planCard, { borderColor: Colors.secondary }, user?.plan === 'PRO' && styles.planCardActivePro]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View>
+                    <Text style={[styles.planName, { color: Colors.secondaryDark }]}>PRO</Text>
+                    <Text style={styles.planPrice}>4 G/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou 38,40 G/ano</Text></Text>
+                  </View>
+                  <View style={[styles.planBadge, { backgroundColor: Colors.secondary + '20' }]}>
+                    <Text style={[styles.planBadgeText, { color: Colors.secondaryDark }]}>Popular</Text>
+                  </View>
+                </View>
+                <Text style={styles.planFeature}>✓  Tudo do FREE</Text>
+                <Text style={styles.planFeature}>✓  Palavras-Chave de Destaque</Text>
+                <Text style={styles.planFeature}>✓  Perfil em destaque na busca</Text>
+                <Text style={[styles.planFeature, { color: Colors.secondary }]}>⭐ 90 dias grátis para novos!</Text>
+                {user?.plan === 'PRO' ? (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <View style={[styles.planCurrentBadge, { flex: 1, backgroundColor: Colors.secondary + '20' }]}>
+                      <Text style={{ color: Colors.secondaryDark, fontWeight: '700', fontSize: 12 }}>Plano Atual ✓</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.planBtn, { flex: 1, backgroundColor: Colors.secondary }]}
+                      onPress={() => handleUpgradePlan('PRO')}
+                      disabled={planUpgrading}
+                    >
+                      <Text style={styles.planBtnText}>Renovar</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.planBtn, { backgroundColor: Colors.secondary, marginTop: 12 }]}
+                    onPress={() => handleUpgradePlan('PRO')}
+                    disabled={planUpgrading}
+                  >
+                    {planUpgrading ? <ActivityIndicator color="#fff" size="small" /> : (
+                      <Text style={styles.planBtnText}>
+                        {user?.plan === 'BUSINESS' ? 'Mudar para PRO' : 'Assinar PRO'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Card BUSINESS */}
+              <View style={[styles.planCard, { borderColor: Colors.primary }, user?.plan === 'BUSINESS' && styles.planCardActiveB]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View>
+                    <Text style={[styles.planName, { color: Colors.primary }]}>BUSINESS</Text>
+                    <Text style={styles.planPrice}>40 G/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou 384 G/ano</Text></Text>
+                  </View>
+                  <View style={[styles.planBadge, { backgroundColor: Colors.primary + '20' }]}>
+                    <Text style={[styles.planBadgeText, { color: Colors.primary }]}>Premium</Text>
+                  </View>
+                </View>
+                <Text style={styles.planFeature}>✓  Tudo do PRO</Text>
+                <Text style={styles.planFeature}>✓  Acesso à Vitrine Pública</Text>
+                <Text style={styles.planFeature}>✓  Publicar produtos / serviços</Text>
+                <Text style={styles.planFeature}>✓  Reservas com pagamento GLB</Text>
+                <Text style={[styles.planFeature, { color: Colors.primary }]}>⭐ 90 dias grátis para novos!</Text>
+                {user?.plan === 'BUSINESS' ? (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <View style={[styles.planCurrentBadge, { flex: 1, backgroundColor: Colors.primary + '20' }]}>
+                      <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 12 }}>Plano Atual ✓</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.planBtn, { flex: 1, backgroundColor: Colors.primary }]}
+                      onPress={() => handleUpgradePlan('BUSINESS')}
+                      disabled={planUpgrading}
+                    >
+                      <Text style={styles.planBtnText}>Renovar</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.planBtn, { backgroundColor: Colors.primary, marginTop: 12 }]}
+                    onPress={() => handleUpgradePlan('BUSINESS')}
+                    disabled={planUpgrading}
+                  >
+                    {planUpgrading ? <ActivityIndicator color="#fff" size="small" /> : (
+                      <Text style={styles.planBtnText}>Assinar BUSINESS</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={{ height: 8 }} />
+            </ScrollView>
+
+            {/* Fechar */}
+            <View style={{ padding: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.light.border }}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setPlanModal(false)}>
+                <Text style={[styles.modalBtnText, { textAlign: 'center' }]}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Coach Marks */}
+      <CoachMark
+        visible={coachVisible}
+        onComplete={async () => { setCoachVisible(false); await markCoachDone('settings'); }}
+        steps={[
+          {
+            targetRef: profileCardRef,
+            title: 'Editar Perfil',
+            description: 'Toque na sua foto para alterar seu avatar ou nos botões de edição para atualizar seu nome e apelido.',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: planSectionRef,
+            title: 'Seu Plano Atos2',
+            description: 'Gerencie seu plano atual e confira os benefícios exclusivos para vendedores PRO e BUSINESS.',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: languageSectionRef,
+            title: 'Idioma do App',
+            description: 'Configure seu idioma preferido. O Atos2 traduzirá automaticamente as mensagens de chat para você!',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: resetTutorialBtnRef,
+            title: 'Rever Tutorial',
+            description: 'Se precisar tirar dúvidas futuramente, toque neste botão para reiniciar o tutorial a qualquer momento.',
+            tooltipPosition: 'top',
+          },
+        ]}
+      />
+
     </ScrollView>
   );
 }
@@ -643,4 +848,41 @@ const styles = StyleSheet.create({
   langOptionFlag: { fontSize: 22, width: 30, textAlign: 'center' },
   langOptionText: { flex: 1, color: Colors.light.text, fontSize: FontSize.sm },
   langOptionTextActive: { color: Colors.primary, fontWeight: '700' },
+  // Plan Modal
+  planCard: {
+    backgroundColor: Colors.light.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    marginHorizontal: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  planCardActive: {
+    borderColor: Colors.light.textMuted,
+    backgroundColor: Colors.light.surfaceLight,
+  },
+  planCardActivePro: {
+    borderColor: Colors.secondary,
+    backgroundColor: Colors.secondary + '08',
+  },
+  planCardActiveB: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + '08',
+  },
+  planName: { fontSize: 18, fontWeight: '800', color: Colors.light.text },
+  planPrice: { fontSize: 14, fontWeight: '600', color: Colors.light.textSecondary, marginTop: 2 },
+  planFeature: { fontSize: 13, color: Colors.light.text, marginTop: 4 },
+  planBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  planBadgeText: { fontSize: 11, fontWeight: '800' },
+  planCurrentBadge: {
+    marginTop: 12, padding: 8, borderRadius: BorderRadius.sm,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  planBtn: {
+    padding: Spacing.md, borderRadius: BorderRadius.sm,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  planBtnText: { color: '#fff', fontWeight: '700', fontSize: FontSize.sm },
 });

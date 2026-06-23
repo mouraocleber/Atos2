@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOnboarding } from '../../contexts/OnboardingContext';
+import CoachMark from '../../components/CoachMark';
 import api, { SERVER_URL } from '../../services/api';
 import CachedImage from '../../components/CachedImage';
 
@@ -23,10 +25,27 @@ interface Conversation {
 
 export default function ChatScreen() {
   const { user } = useAuth();
+  const { isCoachDone, markCoachDone } = useOnboarding();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [coachVisible, setCoachVisible] = useState(false);
+
+  // Refs dos alvos do coach mark
+  const searchRef = useRef<View>(null);
+  const listRef   = useRef<View>(null);
+  const badgeRef  = useRef<View>(null);
+  const fabRef    = useRef<View>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!isCoachDone('chat')) {
+        const t = setTimeout(() => setCoachVisible(true), 500);
+        return () => clearTimeout(t);
+      }
+    }, [isCoachDone])
+  );
 
   const loadConversations = async () => {
     try {
@@ -113,7 +132,7 @@ export default function ChatScreen() {
   return (
     <View style={styles.container}>
       {/* Search */}
-      <View style={styles.searchContainer}>
+      <View ref={searchRef} style={styles.searchContainer}>
         <View style={styles.searchInputWrapper}>
           <Feather name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
           <TextInput
@@ -135,25 +154,62 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* Conversations */}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={renderConversation}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Feather name="message-square" size={48} color={Colors.light.textMuted} />
-            <Text style={styles.emptyTitle}>Nenhuma conversa</Text>
-            <Text style={styles.emptySubtitle}>Busque usuários para começar a conversar</Text>
-          </View>
-        }
-      />
+      {/* Conversations List */}
+      <View ref={listRef} style={{ flex: 1 }}>
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          renderItem={renderConversation}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadConversations(); }} />}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Feather name="message-square" size={48} color={Colors.light.textMuted} />
+              <Text style={styles.emptyTitle}>Nenhuma conversa</Text>
+              <Text style={styles.emptySubtitle}>Busque usuários para começar a conversar</Text>
+            </View>
+          }
+        />
+      </View>
 
       {/* FAB */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8}>
+      <TouchableOpacity ref={fabRef} style={styles.fab} activeOpacity={0.8}
+        onPress={() => router.push('/(tabs)/search')}
+      >
         <Feather name="edit-2" size={24} color="#fff" />
       </TouchableOpacity>
+
+      {/* Coach Marks */}
+      <CoachMark
+        visible={coachVisible}
+        onComplete={async () => { setCoachVisible(false); await markCoachDone('chat'); }}
+        steps={[
+          {
+            targetRef: searchRef,
+            title: 'Buscar Conversas',
+            description: 'Encontre rapidamente qualquer conversa digitando o nome ou apelido do contato.',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: listRef,
+            title: 'Suas Conversas',
+            description: 'Toque em qualquer conversa para abrir o chat e enviar mensagens, áudios, fotos, vídeos e localização.',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: listRef,
+            title: 'Mensagens Não Lidas',
+            description: 'O número em azul indica mensagens ainda não lidas. Nunca perca uma conversa importante!',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: fabRef,
+            title: 'Nova Conversa',
+            description: 'Toque aqui para buscar usuários e iniciar uma nova conversa diretamente.',
+            tooltipPosition: 'top',
+          },
+        ]}
+      />
     </View>
   );
 }

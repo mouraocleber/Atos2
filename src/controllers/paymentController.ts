@@ -118,6 +118,86 @@ export class PaymentController {
       res.status(500).send('Erro no Webhook');
     }
   }
+
+  /**
+   * Endpoint Privado: Realiza um pagamento PIX externo (débito de saldo BRL)
+   */
+  async payPixExternal(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId!;
+      const { pixKey, amount } = req.body;
+
+      if (!pixKey || !pixKey.trim()) {
+        return res.status(400).json({ error: 'Chave PIX inválida ou ausente.' });
+      }
+
+      const parsedAmount = parseFloat(String(amount));
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ error: 'Informe um valor válido maior que R$ 0,00.' });
+      }
+
+      // Buscar carteira do remetente em BRL
+      const walletRes = await query(
+        'SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = $2',
+        [userId, 'BRL']
+      );
+
+      if (walletRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Carteira BRL não encontrada para o usuário.' });
+      }
+
+      const wallet = walletRes.rows[0];
+      const balance = parseFloat(wallet.balance);
+
+      if (balance < parsedAmount) {
+        return res.status(400).json({ error: 'Saldo insuficiente para realizar o pagamento.' });
+      }
+
+      // Executar transação de banco de dados
+      const client = await (require('../config/database').getClient)();
+      try {
+        await client.query('BEGIN');
+
+        // Deduzir o valor da carteira do remetente
+        await client.query(
+          'UPDATE wallets SET balance = balance - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [parsedAmount, wallet.id]
+        );
+
+        // Criar transação de pagamento com valor negativo para refletir débito no extrato
+        const transactionId = uuidv4();
+        const description = `Pagamento PIX externo para: ${pixKey}`;
+        await client.query(
+          `INSERT INTO transactions (
+            id, from_user_id, to_user_id, type, amount, currency, status, description, reference
+          ) VALUES ($1, $2, NULL, 'PAYMENT', $3, 'BRL', 'COMPLETED', $4, $5)`,
+          [transactionId, userId, -parsedAmount, description, pixKey]
+        );
+
+        // Chamar o Mercado Pago para realizar a transferência real de fundos
+        console.log(`[PaymentController] Realizando transferência real via Mercado Pago PIX Payout para chave: ${pixKey}`);
+        await mercadoPagoService.sendExternalPix(parsedAmount, pixKey, transactionId);
+
+        await client.query('COMMIT');
+
+        console.log(`[PaymentController] PIX pago de R$ ${parsedAmount} debitado com sucesso do user: ${userId}`);
+
+        return res.status(200).json({
+          success: true,
+          message: 'PIX enviado com sucesso.',
+          transactionId
+        });
+      } catch (e: any) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    } catch (error: any) {
+      console.error('[PaymentController] Falha no pagamento PIX externo:', error);
+      return res.status(500).json({ error: error.message || 'Erro interno ao processar pagamento PIX.' });
+    }
+  }
 }
 
 export const paymentController = new PaymentController();

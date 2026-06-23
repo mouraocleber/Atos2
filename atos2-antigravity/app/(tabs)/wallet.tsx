@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Modal, TextInput, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform
 } from 'react-native';
@@ -7,11 +7,15 @@ import QRCode from 'react-native-qrcode-svg';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useStripe } from '@stripe/stripe-react-native';
+import { useFocusEffect } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBiometric } from '../../contexts/BiometricContext';
+import { useOnboarding } from '../../contexts/OnboardingContext';
+import CoachMark from '../../components/CoachMark';
 import { getBalance, getTransactionHistory, createTransaction, WalletBalanceResponse } from '../../services/wallet';
-import api from '../../services/api';
+import api, { SERVER_URL } from '../../services/api';
+import CachedImage from '../../components/CachedImage';
 import TapToPayModal from '../../components/TapToPayModal';
 
 interface Transaction {
@@ -35,6 +39,14 @@ const typeLabels: Record<string, { icon: any; label: string; color: string }> = 
 export default function WalletScreen() {
   const { user } = useAuth();
   const { isBiometricEnabled, authenticate } = useBiometric();
+  const { isCoachDone, markCoachDone } = useOnboarding();
+  const [coachVisible, setCoachVisible] = useState(false);
+
+  // Refs para os alvos do tutorial
+  const balanceCardRef  = useRef<View>(null);
+  const depositBtnRef    = useRef<View>(null);
+  const transferBtnRef   = useRef<View>(null);
+  const historyListRef   = useRef<View>(null);
 
   // ─── TODOS os hooks ANTES de qualquer return condicional (regra dos React Hooks) ───
   const [walletUnlocked, setWalletUnlocked] = useState(false);
@@ -77,9 +89,20 @@ export default function WalletScreen() {
   const [txAmount, setTxAmount] = useState('');
   const [txPassword, setTxPassword] = useState('');
   const [txLoading, setTxLoading] = useState(false);
+  const [recipientInfo, setRecipientInfo] = useState<{ name: string; nickname: string; profileImage?: string } | null>(null);
+  const [fetchingRecipient, setFetchingRecipient] = useState(false);
 
   // Receipt State
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (walletUnlocked && !isCoachDone('wallet')) {
+        const t = setTimeout(() => setCoachVisible(true), 500);
+        return () => clearTimeout(t);
+      }
+    }, [walletUnlocked, isCoachDone])
+  );
 
   useEffect(() => {
     // Reset da trava sempre que a tela é (re)montada
@@ -91,6 +114,32 @@ export default function WalletScreen() {
   useEffect(() => {
     if (walletUnlocked) loadData();
   }, [walletUnlocked]);
+
+  useEffect(() => {
+    if (!txTarget || txTarget.trim().length !== 36) {
+      setRecipientInfo(null);
+      return;
+    }
+
+    const fetchRecipient = async () => {
+      setFetchingRecipient(true);
+      try {
+        const { data } = await api.get(`/users/${txTarget.trim()}`);
+        if (data && data.success && data.data) {
+          setRecipientInfo(data.data);
+        } else {
+          setRecipientInfo(null);
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar destinatário:', err);
+        setRecipientInfo(null);
+      } finally {
+        setFetchingRecipient(false);
+      }
+    };
+
+    fetchRecipient();
+  }, [txTarget]);
   // ─────────────────────────────────────────────────────────────────────────────
 
   async function handleWalletBiometric() {
@@ -300,6 +349,12 @@ export default function WalletScreen() {
   const handleTransaction = async () => {
     if (!txAmount || !txPassword) return Alert.alert('Atenção', 'Valor e senha são obrigatórios.');
 
+    if (txTarget && txTarget.trim()) {
+      if (!recipientInfo) {
+        return Alert.alert('Atenção', 'Você precisa confirmar o destinatário com foto e nome antes de prosseguir.');
+      }
+    }
+
     setTxLoading(true);
     try {
       await createTransaction({
@@ -336,15 +391,17 @@ export default function WalletScreen() {
           </Text>
         </View>
         <Text style={[styles.transactionAmount, { color: item.amount >= 0 ? Colors.success : Colors.error }]}>
-          {item.amount >= 0 ? '+' : ''}{item.currency} {Number(Math.abs(item.amount)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {item.amount >= 0 ? '+' : ''}{item.currency} {formatCurrency(Math.abs(item.amount))}
         </Text>
       </TouchableOpacity>
     );
   };
 
-  const formatCurrency = (value: number | undefined | null, decimals: number = 2) => {
+  const formatCurrency = (value: any, decimals: number = 2) => {
     if (value == null) return '0,00';
-    return Number(value).toLocaleString('pt-BR', {
+    const num = Number(value);
+    if (isNaN(num)) return '0,00';
+    return num.toLocaleString('pt-BR', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
@@ -353,7 +410,7 @@ export default function WalletScreen() {
   return (
     <View style={styles.container}>
       {/* Balance Card */}
-      <View style={styles.balanceCard}>
+      <View ref={balanceCardRef} style={styles.balanceCard}>
         {loading ? <ActivityIndicator color={Colors.primary} /> : (
           <>
             <Text style={styles.balanceLabel}>Saldo Local</Text>
@@ -374,6 +431,7 @@ export default function WalletScreen() {
         <View style={styles.actionButtons}>
           {/* Botão 1: Depositar = receber por PIX (mostra QR Code do usuário) */}
           <TouchableOpacity
+            ref={depositBtnRef}
             style={styles.actionBtn}
             onPress={() => {
               if (user?.plan !== 'PRO' && user?.plan !== 'BUSINESS') {
@@ -423,6 +481,7 @@ export default function WalletScreen() {
 
           {/* Botão 3: Transferir = entre usuários Atos2 */}
           <TouchableOpacity
+            ref={transferBtnRef}
             style={styles.actionBtn}
             onPress={() => setModalVisible(true)}
           >
@@ -434,11 +493,15 @@ export default function WalletScreen() {
           {/* Botão 4: Ler QR = pagar PIX externo */}
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={openScanner}
+            onPress={() => {
+              setPixPayTarget('');
+              setPixPayAmount('');
+              setPixPayModalVisible(true);
+            }}
           >
-            <Feather name="camera" size={22} color={Colors.warning} />
-            <Text style={styles.actionLabel}>Ler QR</Text>
-            <Text style={styles.actionSublabel}>Pagar PIX</Text>
+            <Feather name="send" size={22} color={Colors.warning} />
+            <Text style={styles.actionLabel}>Pagar PIX</Text>
+            <Text style={styles.actionSublabel}>Chave ou QR</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -448,13 +511,15 @@ export default function WalletScreen() {
         <Text style={styles.sectionTitle}>Histórico</Text>
       </View>
 
-      <FlatList
-        data={transactions}
-        keyExtractor={(item) => item.id}
-        renderItem={renderTransaction}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
-      />
+      <View ref={historyListRef} style={{ flex: 1 }}>
+        <FlatList
+          data={transactions}
+          keyExtractor={(item) => item.id}
+          renderItem={renderTransaction}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
+        />
+      </View>
 
       {/* Modal 1: Depositar via PIX — exibe QR Code e chave PIX do usuário */}
       <Modal visible={pixQrVisible} transparent animationType="slide">
@@ -668,11 +733,33 @@ export default function WalletScreen() {
             </View>
             <Text style={styles.modalSubtitle}>Confirme os dados antes de enviar o pagamento.</Text>
 
-            {/* Chave detectada */}
-            <View style={{backgroundColor: Colors.warning + '10', borderRadius: 10, padding: 12,
-              borderWidth: 1, borderColor: Colors.warning + '40', marginBottom: 12}}>
-              <Text style={{color: Colors.light.textMuted, fontSize: 11}}>Chave PIX detectada</Text>
-              <Text style={{color: Colors.light.text, fontWeight: '700', marginTop: 2}}>{pixPayTarget}</Text>
+            {/* Chave PIX ou QR */}
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md}}>
+              <TextInput
+                style={[styles.inputModal, {flex: 1, marginBottom: 0}]}
+                placeholder="Chave PIX ou QR Copia/Cola"
+                placeholderTextColor={Colors.light.textMuted}
+                value={pixPayTarget}
+                onChangeText={setPixPayTarget}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={{
+                  backgroundColor: Colors.warning + '15',
+                  padding: Spacing.md,
+                  borderRadius: BorderRadius.sm,
+                  borderWidth: 1,
+                  borderColor: Colors.warning + '40',
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}
+                onPress={() => {
+                  setPixPayModalVisible(false);
+                  openScanner();
+                }}
+              >
+                <Feather name="camera" size={20} color={Colors.warning} />
+              </TouchableOpacity>
             </View>
 
             <TextInput
@@ -682,7 +769,6 @@ export default function WalletScreen() {
               keyboardType="numeric"
               value={pixPayAmount}
               onChangeText={setPixPayAmount}
-              autoFocus
             />
 
             <View style={styles.modalActions}>
@@ -716,6 +802,46 @@ export default function WalletScreen() {
               value={txTarget}
               onChangeText={setTxTarget}
             />
+
+            {fetchingRecipient && (
+              <ActivityIndicator color={Colors.primary} style={{ marginVertical: 8 }} />
+            )}
+
+            {!fetchingRecipient && recipientInfo && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: Colors.light.background,
+                padding: Spacing.md,
+                borderRadius: BorderRadius.md,
+                borderWidth: 1,
+                borderColor: Colors.light.border,
+                marginBottom: Spacing.md,
+                gap: Spacing.md,
+                width: '100%'
+              }}>
+                {recipientInfo.profileImage ? (
+                  <CachedImage
+                    url={recipientInfo.profileImage.startsWith('http') ? recipientInfo.profileImage : `${SERVER_URL}${recipientInfo.profileImage}`}
+                    style={{ width: 44, height: 44, borderRadius: 22 }}
+                  />
+                ) : (
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>{recipientInfo.name?.charAt(0).toUpperCase() || '?'}</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', color: Colors.light.text }}>{recipientInfo.name}</Text>
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.light.textMuted }}>@{recipientInfo.nickname}</Text>
+                </View>
+              </View>
+            )}
+
+            {!fetchingRecipient && txTarget && txTarget.trim().length === 36 && !recipientInfo && (
+              <Text style={{ color: Colors.error, fontSize: FontSize.xs, marginBottom: Spacing.md, textAlign: 'center', width: '100%' }}>
+                ⚠️ Destinatário não encontrado.
+              </Text>
+            )}
             
             <TextInput
               style={styles.inputModal}
@@ -759,7 +885,7 @@ export default function WalletScreen() {
                   </View>
                   <Text style={styles.modalTitle}>Comprovante</Text>
                   <Text style={[styles.transactionAmount, { fontSize: 24, marginVertical: 10, color: selectedTx.amount >= 0 ? Colors.success : Colors.error }]}>
-                    {selectedTx.amount >= 0 ? '+' : ''}{selectedTx.currency} {Number(Math.abs(selectedTx.amount)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {selectedTx.amount >= 0 ? '+' : ''}{selectedTx.currency} {formatCurrency(Math.abs(selectedTx.amount))}
                   </Text>
                 </View>
 
@@ -805,6 +931,38 @@ export default function WalletScreen() {
             setChargeAmount('');
             loadData();
         }}
+      />
+
+      {/* Coach Marks */}
+      <CoachMark
+        visible={coachVisible}
+        onComplete={async () => { setCoachVisible(false); await markCoachDone('wallet'); }}
+        steps={[
+          {
+            targetRef: balanceCardRef,
+            title: 'Seu Saldo Atos2',
+            description: 'Acompanhe seu saldo em moeda local (R$), a moeda original da sua carteira e a moeda global (GLB) para transações internacionais.',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: depositBtnRef,
+            title: 'Depositar via PIX',
+            description: 'Gere um código PIX ou QR Code dinâmico para carregar saldo em sua carteira com facilidade.',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: transferBtnRef,
+            title: 'Transferir GLBs',
+            description: 'Envie saldo para qualquer usuário do Atos2 instantaneamente usando seu nome de usuário ou e-mail.',
+            tooltipPosition: 'bottom',
+          },
+          {
+            targetRef: historyListRef,
+            title: 'Histórico de Transações',
+            description: 'Monitore todos os depósitos, saques, transferências e pagamentos realizados. Toque em qualquer item para ver o comprovante.',
+            tooltipPosition: 'top',
+          },
+        ]}
       />
 
     </View>

@@ -20,6 +20,7 @@ import userReviewRoutes from './routes/userReviews';
 import productReviewRoutes from './routes/productReviews';
 import walletRoutes from './routes/wallet';
 import paymentRoutes from './routes/paymentRoutes';
+import pixRoutes from './routes/pixRoutes';
 import adminRoutes from './routes/admin';
 import keywordRoutes from './routes/keywordRoutes';
 import callRoutes from './routes/calls';
@@ -109,6 +110,7 @@ app.use('/api/users/reviews', userReviewRoutes);
 app.use('/api/products/reviews', productReviewRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/payments', paymentRoutes); // Mercado Pago Integration
+app.use('/api/pix', pixRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/keywords', keywordRoutes);
 app.use('/api/calls', callRoutes);

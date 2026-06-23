@@ -309,10 +309,36 @@ export class MessageController {
         throw new AppError(400, 'ID da mensagem é obrigatório', 'MISSING_FIELDS');
       }
 
+      const message = await messageService.getMessageById(messageId);
+
+      if (!message) {
+        throw new AppError(404, 'Mensagem não encontrada', 'MESSAGE_NOT_FOUND');
+      }
+
+      const senderId = (message as any).sender_id || message.senderId;
+      const recipientId = (message as any).recipient_id || message.recipientId;
+
+      if (senderId !== req.userId!) {
+        throw new AppError(403, 'Você só pode deletar suas próprias mensagens', 'UNAUTHORIZED_ACTION');
+      }
+
       const deleted = await messageService.deleteMessage(messageId);
 
       if (!deleted) {
         throw new AppError(404, 'Mensagem não encontrada', 'MESSAGE_NOT_FOUND');
+      }
+
+      // Emitir evento socket de exclusão em tempo real
+      try {
+        const io = getIO();
+        if (io) {
+          const socketPayload = { messageId, senderId, recipientId };
+          io.to(`user_${recipientId}`).emit('messageDeleted', socketPayload);
+          io.to(`user_${senderId}`).emit('messageDeleted', socketPayload);
+          console.log(`[Socket] messageDeleted emitido para user_${recipientId} e user_${senderId}`);
+        }
+      } catch (socketErr) {
+        console.error('[Socket] Erro ao emitir messageDeleted:', socketErr);
       }
 
       res.json({

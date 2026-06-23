@@ -38,4 +38,7 @@ router.put('/search-visibility', asyncHandler((req, res) => userSearchController
 // Atualizar localização GPS do usuário (para busca por proximidade)
 router.put('/location', asyncHandler((req, res) => userSearchController.updateLocation(req, res)));
 
+// Obter detalhes de um usuário pelo ID
+router.get('/:userId', asyncHandler((req, res) => userSearchController.getUserById(req, res)));
+
 export default router;

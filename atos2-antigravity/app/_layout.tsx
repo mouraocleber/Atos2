@@ -1,22 +1,39 @@
 import { Slot, useRouter, useSegments, usePathname } from 'expo-router';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { StatusBar } from 'expo-status-bar';
+import { ThemeProvider, DefaultTheme } from '@react-navigation/native';
 import { AuthProvider } from '../contexts/AuthContext';
 import { LocalizationProvider } from '../contexts/LocalizationContext';
 import { BiometricProvider, useBiometric } from '../contexts/BiometricContext';
 import { SocketProvider } from '../contexts/SocketContext';
+import { OnboardingProvider, useOnboarding } from '../contexts/OnboardingContext';
+import WelcomeShowcase from '../components/WelcomeShowcase';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, Alert } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
+import { Colors } from '../constants/theme';
+
+// Tema de navegação forçado para Light — evita fundo preto em dispositivos com Dark Mode
+const AppTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: Colors.light.background, // '#f5f5f5' — fundo das telas
+    card: Colors.dark.surface,           // header/tab bar
+    text: Colors.light.text,
+    border: Colors.dark.border,
+    notification: Colors.primary,
+  },
+};
 
 /**
  * Inner component that has access to auth and biometric contexts.
  * Handles the AppState transitions and enforces the 3h lock.
  */
 function AppStateWatcher() {
-  const { token } = useAuth();
+  const { token, signOut } = useAuth();
   const { updateLastActiveAt, checkShouldLock } = useBiometric();
   const router = useRouter();
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -36,14 +53,16 @@ function AppStateWatcher() {
         if (token) {
           const shouldLock = await checkShouldLock();
           if (shouldLock) {
-            router.replace('/lock');
+            // Prazo expirado → logout completo e redireciona para login
+            await signOut();
+            router.replace('/(auth)/login');
           }
         }
       }
     });
 
     return () => subscription.remove();
-  }, [token, updateLastActiveAt, checkShouldLock, router]);
+  }, [token, updateLastActiveAt, checkShouldLock, signOut, router]);
 
   return null;
 }
@@ -110,6 +129,30 @@ function GlobalCallHandler() {
   return null;
 }
 
+/**
+ * Exibe o WelcomeShowcase uma vez, após o login.
+ */
+function OnboardingGate() {
+  const { token } = useAuth();
+  const { showcaseDone, markShowcaseDone } = useOnboarding();
+  const [showShowcase, setShowShowcase] = useState(false);
+
+  useEffect(() => {
+    if (token && !showcaseDone) {
+      // Pequeno delay para a tela principal já estar montada
+      const t = setTimeout(() => setShowShowcase(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, [token, showcaseDone]);
+
+  const handleDone = async () => {
+    setShowShowcase(false);
+    await markShowcaseDone();
+  };
+
+  return <WelcomeShowcase visible={showShowcase} onDone={handleDone} />;
+}
+
 
 // Safe lazy import - if the native module isn't properly linked it won't crash the whole app
 let TerminalProvider: React.ComponentType<any> | null = null;
@@ -137,18 +180,23 @@ export default function RootLayout() {
   const stripeKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_sample';
 
   const content = (
-    <LocalizationProvider>
-      <AuthProvider>
-        <SocketProvider>
-          <BiometricProvider>
-            <StatusBar style="light" />
-            <AppStateWatcher />
-            <GlobalCallHandler />
-            <Slot />
-          </BiometricProvider>
-        </SocketProvider>
-      </AuthProvider>
-    </LocalizationProvider>
+    <ThemeProvider value={AppTheme}>
+      <LocalizationProvider>
+        <AuthProvider>
+          <OnboardingProvider>
+            <SocketProvider>
+              <BiometricProvider>
+                <StatusBar style="light" />
+                <AppStateWatcher />
+                <GlobalCallHandler />
+                <OnboardingGate />
+                <Slot />
+              </BiometricProvider>
+            </SocketProvider>
+          </OnboardingProvider>
+        </AuthProvider>
+      </LocalizationProvider>
+    </ThemeProvider>
   );
 
   return (
