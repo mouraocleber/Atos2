@@ -11,6 +11,7 @@ import api, { SERVER_URL } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import CoachMark from '../../components/CoachMark';
+import CachedImage from '../../components/CachedImage';
 import * as ImagePicker from 'expo-image-picker';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -110,20 +111,12 @@ class ScreenErrorBoundary extends Component<{ children: React.ReactNode }, EBSta
 function SafeImage({ uri, style, resizeMode = 'cover' }: {
   uri: string; style: any; resizeMode?: 'cover' | 'contain' | 'stretch';
 }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return (
-      <View style={[style, { backgroundColor: Colors.light.surfaceLight, justifyContent: 'center', alignItems: 'center' }]}>
-        <Feather name="image" size={24} color={Colors.light.textMuted} />
-      </View>
-    );
-  }
   return (
-    <Image
-      source={{ uri }}
+    <CachedImage
+      url={uri}
       style={style}
-      resizeMode={resizeMode}
-      onError={() => setFailed(true)}
+      resizeMode={resizeMode as any}
+      fallbackIcon={<Feather name="image" size={24} color={Colors.light.textMuted} />}
     />
   );
 }

@@ -790,13 +790,13 @@ export default function SettingsScreen() {
             targetRef: planSectionRef,
             title: 'Seu Plano Atos2',
             description: 'Gerencie seu plano atual e confira os benefícios exclusivos para vendedores PRO e BUSINESS.',
-            tooltipPosition: 'bottom',
+            tooltipPosition: 'top',
           },
           {
             targetRef: languageSectionRef,
             title: 'Idioma do App',
             description: 'Configure seu idioma preferido. O Atos2 traduzirá automaticamente as mensagens de chat para você!',
-            tooltipPosition: 'bottom',
+            tooltipPosition: 'top',
           },
           {
             targetRef: resetTutorialBtnRef,

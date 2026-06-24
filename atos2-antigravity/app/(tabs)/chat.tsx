@@ -194,13 +194,13 @@ export default function ChatScreen() {
             targetRef: listRef,
             title: 'Suas Conversas',
             description: 'Toque em qualquer conversa para abrir o chat e enviar mensagens, áudios, fotos, vídeos e localização.',
-            tooltipPosition: 'bottom',
+            tooltipPosition: 'top',
           },
           {
             targetRef: listRef,
             title: 'Mensagens Não Lidas',
             description: 'O número em azul indica mensagens ainda não lidas. Nunca perca uma conversa importante!',
-            tooltipPosition: 'bottom',
+            tooltipPosition: 'top',
           },
           {
             targetRef: fabRef,

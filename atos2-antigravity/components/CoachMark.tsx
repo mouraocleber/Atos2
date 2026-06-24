@@ -100,7 +100,8 @@ export default function CoachMark({ steps, visible, onComplete, accentColor = Co
     const TOOLTIP_H = 140;
     const pref = steps[currentStep].tooltipPosition;
 
-    if (pref === 'top' || (pref !== 'bottom' && spaceBelow < TOOLTIP_H + 40 && spaceAbove > TOOLTIP_H + 20)) {
+    // Se preferir 'top' OU se não houver espaço embaixo e houver mais espaço acima
+    if (pref === 'top' || (spaceBelow < TOOLTIP_H + 40 && spaceAbove > spaceBelow)) {
       return { bottom: H - targetRect.y + PADDING + 12 };
     }
     return { top: targetRect.y + targetRect.height + PADDING + 12 };
@@ -112,7 +113,8 @@ export default function CoachMark({ steps, visible, onComplete, accentColor = Co
     const spaceAbove = targetRect.y;
     const TOOLTIP_H = 140;
     const pref = steps[currentStep].tooltipPosition;
-    if (pref === 'top' || (pref !== 'bottom' && spaceBelow < TOOLTIP_H + 40 && spaceAbove > TOOLTIP_H + 20)) {
+    
+    if (pref === 'top' || (spaceBelow < TOOLTIP_H + 40 && spaceAbove > spaceBelow)) {
       return false; // tooltip acima → flecha aponta para baixo (para o alvo)
     }
     return true; // tooltip abaixo → flecha aponta para cima (para o alvo)
