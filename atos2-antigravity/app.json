@@ -104,7 +104,9 @@
             "bluetoothAlwaysUsageDescription": "O app usa Bluetooth para conectar ao leitor de cartão."
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-asset"
     ],
     "updates": {
       "url": "https://u.expo.dev/a9bd4606-9485-45af-b237-f7dff175bfc6",
