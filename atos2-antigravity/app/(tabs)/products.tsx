@@ -51,7 +51,8 @@ function resolveUrl(path?: string | null): string | null {
 }
 
 /** Retorna array com até 3 URLs resolvidas para um produto */
-function getProductImages(p: Product): string[] {
+function getProductImages(p: Product | null | undefined): string[] {
+  if (!p) return [];
   const urls: string[] = [];
 
   // Prioridade: imageUrls (array)
@@ -73,7 +74,8 @@ function getProductImages(p: Product): string[] {
 }
 
 /** Nome do vendedor — tenta vários formatos */
-function getSellerName(p: Product): string | null {
+function getSellerName(p: Product | null | undefined): string | null {
+  if (!p) return null;
   return p.user?.name ?? p.userName ?? null;
 }
 
@@ -753,10 +755,10 @@ function MarketplaceScreenInner() {
                 <Text style={styles.productCategory}>{selectedProduct?.category || 'Gerais'}</Text>
 
                 {/* Vendedor */}
-                {getSellerName(selectedProduct!) && (
+                {getSellerName(selectedProduct) && (
                   <View style={styles.sellerRow}>
                     <Feather name="user" size={13} color={Colors.primary} />
-                    <Text style={styles.sellerRowText}>{getSellerName(selectedProduct!)}</Text>
+                    <Text style={styles.sellerRowText}>{getSellerName(selectedProduct)}</Text>
                   </View>
                 )}
 
