@@ -1,4 +1,3 @@
-import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 
@@ -20,16 +19,7 @@ export class MercadoPagoService {
     return token;
   }
 
-  private getClient() {
-    return new MercadoPagoConfig({
-      accessToken: this.getToken(),
-      options: { timeout: 15000 }
-    });
-  }
 
-  private getPaymentService() {
-    return new Payment(this.getClient());
-  }
 
   /**
    * Cria uma intenção de pagamento PIX e retorna os dados de Copia e Cola
@@ -80,11 +70,16 @@ export class MercadoPagoService {
 
       console.log('[MercadoPago] Payload body:', JSON.stringify(body, null, 2));
 
-      const requestOptions = {
-        idempotencyKey: referenceId // Evita gerar duas vezes acidentalmente
-      };
+      const response = await axios.post('https://api.mercadopago.com/v1/payments', body, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': referenceId
+        },
+        timeout: 15000
+      });
 
-      const result = await this.getPaymentService().create({ body, requestOptions });
+      const result = response.data;
 
       return {
         id: result.id,  // ID gerado dentro do próprio Mercado Pago
@@ -121,10 +116,17 @@ export class MercadoPagoService {
    * Consulta o status de um pagamento usando o ID gerado pelo Mercado Pago
    */
   async getPaymentStatus(paymentId: number | string) {
-    if (!process.env.MP_ACCESS_TOKEN) return { status: 'unknown' };
+    const token = (process.env.MP_ACCESS_TOKEN || process.env.ACCESS_TOKEN_MP || '').trim();
+    if (!token) return { status: 'unknown' };
 
     try {
-      const result = await this.getPaymentService().get({ id: paymentId });
+      const response = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        timeout: 15000
+      });
+      const result = response.data;
       return {
         status: result.status,
         external_reference: result.external_reference

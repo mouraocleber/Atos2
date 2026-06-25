@@ -18,8 +18,8 @@ conn.on('error', (err) => {
 conn.on('ready', () => {
   console.log('SSH connection established! Fetching filtered logs...');
   
-  // View the last 5000 lines of the backend container logs excluding the scheduled query spam
-  conn.exec("docker logs atos2-backend --tail 5000 2>&1 | grep -E -v 'SCHEDULED|Query executada' | tail -n 150", (err, stream) => {
+  // View backend container logs for MercadoPago errors
+  conn.exec("docker logs atos2-backend 2>&1 | grep -A 8 -i -E 'Erro detalhado ao gerar PIX|MercadoPago'", (err, stream) => {
     if (err) {
       console.error('Error running exec:', err);
       conn.end();
