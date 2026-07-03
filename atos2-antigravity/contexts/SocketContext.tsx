@@ -24,6 +24,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
 
     // Cria um único socket global para o usuário logado
+    // ⚠️ NOTA DE PRODUÇÃO: Em segundo plano (background), este socket será suspenso pelo S.O.
+    // O tráfego de dados e chamadas em segundo plano deve ser gerenciado por Push Notifications (FCM/APNs),
+    // e o socket deve ser reestabelecido e sincronizado assim que o app voltar para o primeiro plano (foreground).
     const newSocket = io(SERVER_URL, {
       transports: ['websocket'],
       query: { userId: user.id },

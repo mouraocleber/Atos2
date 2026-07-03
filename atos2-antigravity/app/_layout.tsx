@@ -70,6 +70,16 @@ function AppStateWatcher() {
 /**
  * Escuta chamadas entrantes globalmente.
  * Se o usuário NÃO está na tela do chat com o chamador, mostra um Alert.
+ * 
+ * ⚠️ NOTA DE PRODUÇÃO (CHAMADAS EM SEGUNDO PLANO / APP MINIMIZADO):
+ * Quando o aplicativo está minimizado ou em segundo plano, os sistemas operacionais (iOS/Android) 
+ * suspendem o loop do JavaScript, o que desconecta ou silencia este WebSocket.
+ * Para que as chamadas sejam recebidas em segundo plano:
+ * 1. Deve-se integrar o Firebase Cloud Messaging (FCM) para Android e APNs (VoIP) para iOS no backend.
+ * 2. O backend envia um Push Notification do tipo "data" de alta prioridade contendo o payload da chamada.
+ * 3. No React Native, utilize bibliotecas como `@react-native-firebase/messaging` ou `expo-notifications`
+ *    junto com `react-native-callkeep` para interceptar a notificação em segundo plano, acordar o dispositivo
+ *    e renderizar a tela nativa de recebimento de chamada.
  */
 function GlobalCallHandler() {
   const { socket } = useSocket();

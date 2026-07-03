@@ -1324,6 +1324,7 @@ export default function ChatRoomScreen() {
                 mediaPlaybackRequiresUserAction={false}
                 domStorageEnabled
                 javaScriptEnabled
+                {...({ onPermissionRequest: (request: any) => request.grant(request.resources) } as any)}
                 injectedJavaScriptBeforeContentLoaded={`
                   window.webRtcConfig = {
                     iceServers: ${JSON.stringify(iceServers)},

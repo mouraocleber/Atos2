@@ -206,19 +206,19 @@ export default function SettingsScreen() {
 
   async function handleUpgradePlan(planType: 'PRO' | 'BUSINESS') {
     const prices = {
-      PRO:      { m: 4.00,  a: 38.40 },
-      BUSINESS: { m: 40.00, a: 384.00 }
+      PRO:      { m: 2.00,  a: 20.00 },
+      BUSINESS: { m: 5.00, a: 50.00 }
     };
     const { m, a } = prices[planType];
     const isCurrentPlan = user?.plan === planType;
 
     Alert.alert(
       isCurrentPlan ? `Renovar Plano ${planType}` : `Assinar Plano ${planType}`,
-      `Plano atual: ${user?.plan || 'FREE'}\n\nMensal: ${m} G/mês\nAnual: ${a} G/ano (20% Off)\n\n${user?.plan === 'FREE' ? '⭐ 90 dias grátis para novos assinantes!' : ''}`,
+      `Plano atual: ${user?.plan || 'FREE'}\n\nMensal: $ ${m.toFixed(2).replace('.', ',')} USDC/mês\nAnual: $ ${a.toFixed(2).replace('.', ',')} USDC/ano (20% Off)\n\n${user?.plan === 'FREE' ? '⭐ 90 dias grátis para novos assinantes!' : ''}`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: `Mensal (${m} G)`, onPress: () => confirmUpgrade(planType, 'MONTHLY') },
-        { text: `Anual (${a} G) ⭐`, onPress: () => confirmUpgrade(planType, 'ANNUAL') }
+        { text: `Mensal ($ ${m.toFixed(2).replace('.', ',')} USDC)`, onPress: () => confirmUpgrade(planType, 'MONTHLY') },
+        { text: `Anual ($ ${a.toFixed(2).replace('.', ',')} USDC) ⭐`, onPress: () => confirmUpgrade(planType, 'ANNUAL') }
       ]
     );
   }
@@ -682,7 +682,7 @@ export default function SettingsScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <View>
                     <Text style={[styles.planName, { color: Colors.secondaryDark }]}>PRO</Text>
-                    <Text style={styles.planPrice}>4 G/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou 38,40 G/ano</Text></Text>
+                    <Text style={styles.planPrice}>$ 2,00 USDC/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou $ 20,00 USDC/ano</Text></Text>
                   </View>
                   <View style={[styles.planBadge, { backgroundColor: Colors.secondary + '20' }]}>
                     <Text style={[styles.planBadgeText, { color: Colors.secondaryDark }]}>Popular</Text>
@@ -725,7 +725,7 @@ export default function SettingsScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <View>
                     <Text style={[styles.planName, { color: Colors.primary }]}>BUSINESS</Text>
-                    <Text style={styles.planPrice}>40 G/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou 384 G/ano</Text></Text>
+                    <Text style={styles.planPrice}>$ 5,00 USDC/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou $ 50,00 USDC/ano</Text></Text>
                   </View>
                   <View style={[styles.planBadge, { backgroundColor: Colors.primary + '20' }]}>
                     <Text style={[styles.planBadgeText, { color: Colors.primary }]}>Premium</Text>
