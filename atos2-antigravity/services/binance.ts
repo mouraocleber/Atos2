@@ -31,10 +31,8 @@ export const getBinanceQuote = async (asset: string, amountBrl: number): Promise
     return response.data.data;
   } catch (error) {
     console.warn('Backend quote endpoint failed, using local calculation fallback:', error);
-    // Local fallback/simulation in case backend does not have this endpoint yet
-    let rate = 5.6; // standard rate BRL/USDT
-    if (asset === 'BTC') rate = 320000;
-    if (asset === 'ETH') rate = 18000;
+    // Local fallback/simulation for USDC
+    const rate = 5.6; // standard rate BRL/USDC
     
     return {
       asset,
@@ -59,6 +57,7 @@ export const createBinanceBuyOrder = async (amountBrl: number, asset: string): P
   } catch (error: any) {
     console.warn('Backend deposit/binance endpoint failed, using mockup fallback:', error);
     // Simulation fallback if backend is not ready
+    const rate = 5.6;
     return {
       success: true,
       data: {
@@ -66,7 +65,7 @@ export const createBinanceBuyOrder = async (amountBrl: number, asset: string): P
         payUrl: `https://pay.binance.com/checkout?orderId=${Math.random().toString(36).substr(2, 9)}`,
         qrCode: `binance_pay_mock_qr_code_for_${asset}_${amountBrl}`,
         amount: amountBrl,
-        cryptoAmount: amountBrl / (asset === 'BTC' ? 320000 : asset === 'ETH' ? 18000 : 5.6),
+        cryptoAmount: amountBrl / rate,
         cryptoAsset: asset,
         status: 'PENDING'
       }

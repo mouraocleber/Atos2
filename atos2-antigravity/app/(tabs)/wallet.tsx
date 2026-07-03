@@ -550,7 +550,7 @@ export default function WalletScreen() {
               setBinanceQuote(null);
               setBinanceOrder(null);
               setBinanceStep('input');
-              setBinanceAsset('USDT');
+              setBinanceAsset('USDC');
               setBinanceModalVisible(true);
             }}
           >

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- SEO Meta Tags -->
+  <title id="page-title">Atos2 - Mensagens, Carteira Digital e Marketplace P2P</title>
+  <meta name="description" id="meta-desc" content="Atos2 é uma plataforma integrada que une chat em tempo real, chamadas de voz e vídeo por WebRTC, carteira digital para transações instantâneas (BRL/USDC) e um marketplace P2P completo.">
+  <meta name="keywords" content="Atos2, chat, mensagens, carteira digital, USDC, PIX, marketplace, P2P, WebRTC, finanças">
+  <meta name="author" content="Atos2">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://atos2.online/">
+  <meta property="og:title" content="Atos2 - Comunidade, Finanças e Marketplace">
+  <meta property="og:description" content="Conecte-se com seus contatos, realize transações instantâneas em USDC ou BRL e venda seus produtos em um marketplace P2P integrado. Tudo em um único app.">
+  <meta property="og:image" content="assets/atos2_banner.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://atos2.online/">
+  <meta property="twitter:title" content="Atos2 - Comunidade, Finanças e Marketplace">
+  <meta property="twitter:description" content="Conecte-se com seus contatos, realize transações instantâneas em USDC ou BRL e venda seus produtos em um marketplace P2P integrado. Tudo em um único app.">
+  <meta property="twitter:image" content="assets/atos2_banner.png">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Background Glow Accents -->
+  <div class="glow-accent glow-1" aria-hidden="true"></div>
+  <div class="glow-accent glow-2" aria-hidden="true"></div>
+
+  <!-- Header / Navigation -->
+  <header class="navbar" id="main-header">
+    <div class="navbar-container">
+      <a href="#" class="logo-container" id="nav-logo-link">
+        <svg class="logo-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="40" height="40" rx="10" fill="url(#logo-grad)"/>
+          <path d="M12 28L20 12L28 28H12Z" fill="white" fill-opacity="0.9"/>
+          <circle cx="20" cy="20" r="4" fill="#F5B041"/>
+          <defs>
+            <linearGradient id="logo-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#E52E2E"/>
+              <stop offset="1" stop-color="#F5B041"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span class="logo-text">Atos<span class="logo-accent">2</span></span>
+      </a>
+      
+      <nav class="nav-menu" id="nav-menu-bar">
+        <a href="#features" class="nav-link" id="link-features">Recursos</a>
+        <a href="#wallet" class="nav-link" id="link-wallet">Carteira</a>
+        <a href="#marketplace" class="nav-link" id="link-marketplace">Marketplace</a>
+        <a href="#simulator" class="nav-link" id="link-simulator">Simulador</a>
+        <a href="#faq" class="nav-link" id="link-faq">FAQ</a>
+      </nav>
+
+      <div class="nav-actions">
+        <!-- Language Selector -->
+        <div class="lang-selector-container">
+          <select id="lang-selector" class="lang-select-dropdown" aria-label="Mudar idioma / Change language">
+            <option value="pt">PT-BR</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        
+        <a href="#download" class="btn btn-primary" id="btn-header-cta">Baixar App</a>
+        <button class="mobile-menu-toggle" id="menu-toggle-btn" aria-label="Abrir menu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section" id="hero">
+    <div class="container hero-container">
+      <div class="hero-content">
+        <div class="badge-new" id="badge-version">Nova versão 2.0 liberada!</div>
+        <h1 class="hero-title" id="hero-title-text">Conecte sua <span class="text-gradient">Comunidade</span>, Controle suas Finanças.</h1>
+        <p class="hero-subtitle" id="hero-subtitle-text">
+          Atos2 une mensagens em tempo real com chamadas de alta definição (WebRTC), carteira digital segura e um marketplace P2P inovador. Tudo integrado em um ecossistema rápido e moderno.
+        </p>
+        
+        <div class="hero-actions">
+          <a href="#download" class="btn btn-primary btn-lg" id="btn-hero-download">Experimente Grátis</a>
+          <a href="#features" class="btn btn-secondary btn-lg" id="btn-hero-learn">Conhecer Recursos</a>
+        </div>
+
+        <div class="app-badges">
+          <div class="app-badge-item">
+            <span class="badge-icon">⚡</span>
+            <span id="hero-badge-fee-text">Sem taxas ocultas</span>
+          </div>
+          <div class="app-badge-item">
+            <span class="badge-icon">🔒</span>
+            <span id="hero-badge-security-text">Dados protegidos</span>
+          </div>
+          <div class="app-badge-item">
+            <span class="badge-icon">🌎</span>
+            <span id="hero-badge-global-text">Saldo Global USDC</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="phone-mockup-wrapper">
+          <div class="phone-mockup">
+            <div class="phone-screen">
+              <!-- Animated Mockup Interface inside SVG -->
+              <svg viewBox="0 0 320 640" class="screen-svg" xmlns="http://www.w3.org/2000/svg">
+                <rect width="320" height="640" fill="#0F0F11"/>
+                
+                <!-- Status bar -->
+                <rect width="320" height="40" fill="#161619"/>
+                <circle cx="20" cy="20" r="4" fill="#ffffff" opacity="0.8"/>
+                <rect x="270" y="16" width="20" height="8" rx="2" fill="#ffffff" opacity="0.8"/>
+                <circle cx="260" cy="20" r="3" fill="#ffffff" opacity="0.8"/>
+                
+                <!-- App Header -->
+                <rect y="40" width="320" height="60" fill="#161619"/>
+                <text x="24" y="76" font-family="'Outfit', sans-serif" font-weight="800" font-size="20" fill="#ffffff">Atos2</text>
+                <circle cx="280" cy="70" r="16" fill="url(#user-avatar)"/>
+                
+                <!-- Chat & Wallet Tabs -->
+                <rect y="100" width="320" height="40" fill="#1D1D22"/>
+                <text x="40" y="125" font-family="'Inter', sans-serif" font-weight="600" font-size="12" fill="#E52E2E" id="mock-tab-chat">Conversas</text>
+                <text x="140" y="125" font-family="'Inter', sans-serif" font-weight="500" font-size="12" fill="#A0A0AB" id="mock-tab-wallet">Carteira</text>
+                <text x="230" y="125" font-family="'Inter', sans-serif" font-weight="500" font-size="12" fill="#A0A0AB" id="mock-tab-store">Vitrine</text>
+                <line x1="28" y1="138" x2="98" y2="138" stroke="#E52E2E" stroke-width="2"/>
+                
+                <!-- Mockup Content: Chat Bubble -->
+                <rect x="20" y="160" width="220" height="65" rx="12" fill="#161619" stroke="#E52E2E" stroke-width="1" stroke-opacity="0.3"/>
+                <text x="35" y="185" font-family="'Inter', sans-serif" font-weight="600" font-size="12" fill="#F5B041">Mariana Souza</text>
+                <text x="35" y="205" font-family="'Inter', sans-serif" font-size="12" fill="#FFFFFF" id="mock-chat-in">Acabei de enviar o PIX do produto!</text>
+                
+                <rect x="80" y="240" width="220" height="80" rx="12" fill="url(#hero-grad)" opacity="0.9"/>
+                <text x="95" y="265" font-family="'Inter', sans-serif" font-weight="600" font-size="12" fill="#FFFFFF" id="mock-chat-you">Você</text>
+                <text x="95" y="285" font-family="'Inter', sans-serif" font-size="12" fill="#FFFFFF" id="mock-chat-out-1">Confirmado! Seu pagamento</text>
+                <text x="95" y="303" font-family="'Inter', sans-serif" font-size="12" fill="#FFFFFF" id="mock-chat-out-2">foi creditado em USDC.</text>
+                
+                <!-- Mockup Card Widget -->
+                <rect x="20" y="340" width="280" height="150" rx="16" fill="url(#mock-card-grad)"/>
+                <text x="40" y="380" font-family="'Outfit', sans-serif" font-weight="800" font-size="14" fill="#FFFFFF" opacity="0.6" id="mock-card-label">SALDO PRINCIPAL</text>
+                <text x="40" y="420" font-family="'Outfit', sans-serif" font-weight="900" font-size="28" fill="#FFFFFF">$ 420,50</text>
+                <text x="160" y="420" font-family="'Outfit', sans-serif" font-weight="600" font-size="14" fill="#FFFFFF" opacity="0.8">USDC</text>
+                
+                <rect x="40" y="445" width="80" height="24" rx="12" fill="rgba(255,255,255,0.2)"/>
+                <text x="52" y="461" font-family="'Inter', sans-serif" font-weight="700" font-size="10" fill="#FFFFFF" id="mock-card-btn">Ver Cartão</text>
+                
+                <!-- Bottom Navigation Bar -->
+                <rect y="570" width="320" height="70" fill="#161619"/>
+                <circle cx="60" cy="600" r="14" fill="#E52E2E" opacity="0.2"/>
+                <circle cx="60" cy="600" r="6" fill="#E52E2E"/>
+                <circle cx="160" cy="600" r="6" fill="#A0A0AB"/>
+                <circle cx="260" cy="600" r="6" fill="#A0A0AB"/>
+                
+                <defs>
+                  <linearGradient id="mock-card-grad" x1="0" y1="0" x2="280" y2="150" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#161619"/>
+                    <stop offset="1" stop-color="#2D1A1A"/>
+                  </linearGradient>
+                  <pattern id="user-avatar" x="0" y="0" width="32" height="32">
+                    <rect width="32" height="32" fill="#E52E2E"/>
+                    <circle cx="16" cy="16" r="10" fill="#F5B041"/>
+                  </pattern>
+                </defs>
+              </svg>
+            </div>
+            <!-- Interactive UI Floating Elements -->
+            <div class="floating-badge badge-top-right">
+              <span class="icon">💬</span>
+              <div>
+                <strong id="float-badge-chat-title">+24 Mensagens</strong>
+                <span id="float-badge-chat-subtitle">Ativas hoje</span>
+              </div>
+            </div>
+            <div class="floating-badge badge-bottom-left">
+              <span class="icon">📈</span>
+              <div>
+                <strong id="float-badge-wallet-title">BRL &lt;-&gt; USDC</strong>
+                <span id="float-badge-wallet-subtitle">Taxa zero depósito</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title" id="features-title">Um Ecossistema Completo no seu Bolso</h2>
+        <p class="section-description" id="features-desc">
+          Chega de pular de aplicativo em aplicativo. Com o Atos2, você gerencia suas amizades, negocia seus produtos e efetua pagamentos rápidos sem sair da tela.
+        </p>
+      </div>
+
+      <div class="features-grid">
+        <!-- Feature 1 -->
+        <div class="feature-card" id="feat-chat">
+          <div class="feature-icon-wrapper">
+            <svg class="feature-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <h3 class="feature-card-title" id="feat-chat-card-title">Mensagens & Voz</h3>
+          <p class="feature-card-text" id="feat-chat-card-desc">
+            Troque mensagens de texto, mídias e faça chamadas de vídeo ou voz de altíssima definição diretamente nas suas conversas via protocolo WebRTC.
+          </p>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card" id="feat-wallet">
+          <div class="feature-icon-wrapper">
+            <svg class="feature-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 class="feature-card-title" id="feat-wallet-card-title">Carteira USDC e PIX</h3>
+          <p class="feature-card-text" id="feat-wallet-card-desc">
+            Deposite via PIX sem taxas e converta seu saldo para USDC com taxas justas e transparentes para proteção do seu patrimônio de maneira global.
+          </p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card" id="feat-market">
+          <div class="feature-icon-wrapper">
+            <svg class="feature-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+          </div>
+          <h3 class="feature-card-title" id="feat-market-card-title">Marketplace Integrado</h3>
+          <p class="feature-card-text" id="feat-market-card-desc">
+            Crie sua loja P2P instantaneamente, anuncie seus produtos, gerencie seu estoque de maneira simples e venda para outros usuários da rede Atos2.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Detailed Wallet & Virtual Card Section -->
+  <section class="wallet-showcase-section" id="wallet">
+    <div class="container grid-2">
+      <div class="visual-col">
+        <!-- Interactive 3D Card Display -->
+        <div class="card-3d-container" id="card-3d-area">
+          <div class="credit-card" id="virtual-card">
+            <div class="card-face card-front">
+              <div class="card-header">
+                <span class="card-logo">Atos2</span>
+                <span class="card-type" id="card-front-type">Cartão Virtual</span>
+              </div>
+              <div class="card-chip"></div>
+              <div class="card-number">•••• •••• •••• 8842</div>
+              <div class="card-footer">
+                <div class="card-holder">
+                  <span class="card-label" id="card-holder-label-text">TITULAR</span>
+                  <span class="card-val" id="card-holder-name-text">SEU NOME AQUI</span>
+                </div>
+                <div class="card-expiry">
+                  <span class="card-label" id="card-expiry-label-text">VALIDADE</span>
+                  <span class="card-val">12/31</span>
+                </div>
+              </div>
+            </div>
+            <div class="card-face card-back">
+              <div class="card-magnetic-strip"></div>
+              <div class="card-signature">
+                <span class="card-cvv-label">CVV</span>
+                <span class="card-cvv-val">422</span>
+              </div>
+              <p class="card-terms" id="card-back-terms-text">Uso exclusivo para membros Atos2. Transações protegidas e criptografadas de ponta a ponta.</p>
+            </div>
+          </div>
+        </div>
+        <p class="text-center font-sm text-secondary" id="card-tip-text" style="margin-top: 15px; color: #a0a0ab;">Passe o mouse ou toque no cartão para girá-lo.</p>
+      </div>
+
+      <div class="content-col">
+        <h2 class="section-title" id="wallet-title">Liberdade Financeira Sem Burocracia</h2>
+        <p class="section-description" id="wallet-desc">
+          A carteira virtual do Atos2 foi projetada para que você realize saques e depósitos rápidos via PIX em BRL, ou compre saldo global indexado ao Dólar (USDC) para guardar riqueza.
+        </p>
+
+        <ul class="benefit-list">
+          <li class="benefit-item">
+            <span class="benefit-check">✓</span>
+            <div>
+              <strong id="wallet-benefit-1-title">Transferências Internas Gratuitas:</strong>
+              <span id="wallet-benefit-1-desc">Envie saldo instantaneamente para qualquer contato na sua agenda Atos2 com taxa zero.</span>
+            </div>
+          </li>
+          <li class="benefit-item">
+            <span class="benefit-check">✓</span>
+            <div>
+              <strong id="wallet-benefit-2-title">Depósito de BRL Facilitado:</strong>
+              <span id="wallet-benefit-2-desc">Faça um PIX simples para sua carteira e comece a operar ou negociar no Marketplace em segundos.</span>
+            </div>
+          </li>
+          <li class="benefit-item">
+            <span class="benefit-check">✓</span>
+            <div>
+              <strong id="wallet-benefit-3-title">Conversão Dinâmica:</strong>
+              <span id="wallet-benefit-3-desc">Compre e venda USDC com apenas um clique utilizando nossa integração otimizada de conversão direta.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Conversion Simulator Section -->
+  <section class="simulator-section" id="simulator">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title" id="sim-section-title">Simulador de Conversão BRL / USDC</h2>
+        <p class="section-description" id="sim-section-desc">
+          Veja quanto você recebe ao converter BRL para USDC. Nossas taxas de conversão são atualizadas com base na cotação simulada e o spread de 2%.
+        </p>
+      </div>
+
+      <div class="simulator-box" id="calc-container">
+        <div class="calculator-grid">
+          <div class="calc-input-group">
+            <label for="brl-amount" class="calc-label" id="sim-label-send">Você envia (BRL)</label>
+            <div class="input-wrapper">
+              <span class="input-prefix">R$</span>
+              <input type="number" id="brl-amount" class="calc-input" value="1000" min="10" placeholder="0,00">
+            </div>
+          </div>
+
+          <div class="calc-divider">
+            <svg class="swap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" width="24" height="24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+          </div>
+
+          <div class="calc-input-group">
+            <label for="usdc-amount" class="calc-label" id="sim-label-receive">Você recebe (USDC)</label>
+            <div class="input-wrapper">
+              <span class="input-prefix">$</span>
+              <input type="text" id="usdc-amount" class="calc-input" readonly>
+            </div>
+          </div>
+        </div>
+
+        <div class="calc-details">
+          <div class="detail-row">
+            <span id="sim-rate-text">Cotação de Referência (USD/BRL):</span>
+            <strong id="usd-rate">R$ 5,60</strong>
+          </div>
+          <div class="detail-row">
+            <span id="sim-spread-text">Spread de Conversão (2%):</span>
+            <strong id="conversion-fee">R$ 20,00</strong>
+          </div>
+          <div class="detail-row highlight">
+            <span id="sim-total-text">Total Líquido Convertido:</span>
+            <strong id="final-converted">R$ 980,00</strong>
+          </div>
+        </div>
+
+        <div class="text-center" style="margin-top: 25px;">
+          <a href="#download" class="btn btn-primary" id="btn-calc-cta">Fazer Conversão no App</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- P2P Marketplace Details -->
+  <section class="marketplace-showcase" id="marketplace">
+    <div class="container grid-2 reverse-layout">
+      <div class="content-col">
+        <h2 class="section-title" id="market-section-title">Negocie no Marketplace P2P</h2>
+        <p class="section-description" id="market-section-desc">
+          O Atos2 facilita a negociação comercial direta entre pessoas físicas e jurídicas na sua rede social. Sem intermediários, sem comissões abusivas de plataformas terceiras.
+        </p>
+
+        <div class="showcase-features">
+          <div class="showcase-item">
+            <h4 class="showcase-item-title" id="market-item-1-title">Vitrine Digital Rápida</h4>
+            <p class="showcase-item-desc" id="market-item-1-desc">Publique anúncios com fotos, descrição detalhada e preço diretamente do seu painel do usuário no app.</p>
+          </div>
+          <div class="showcase-item">
+            <h4 class="showcase-item-title" id="market-item-2-title">Negociação por Chat</h4>
+            <p class="showcase-item-desc" id="market-item-2-desc">Seus clientes podem abrir conversas diretas a partir da sua vitrine de produtos para negociar preços e entregas.</p>
+          </div>
+          <div class="showcase-item">
+            <h4 class="showcase-item-title" id="market-item-3-title">Pagamento Facilitado</h4>
+            <p class="showcase-item-desc" id="market-item-3-desc">Receba pagamentos instantâneos que vão direto para a sua carteira digital protegida do Atos2.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="visual-col">
+        <!-- Interactive Storefront Mockup -->
+        <div class="storefront-card">
+          <div class="storefront-header">
+            <span class="storefront-status" id="storefront-status-text">Vitrine Digital</span>
+            <h3 id="storefront-title-text">Atos2 Marketplace</h3>
+          </div>
+          <div class="storefront-products-grid">
+            <div class="product-item">
+              <div class="product-image-placeholder">📱</div>
+              <div class="product-details">
+                <span class="product-title" id="product-1-title-text">Smartphone X</span>
+                <span class="product-price">R$ 1.890,00</span>
+              </div>
+            </div>
+            <div class="product-item">
+              <div class="product-image-placeholder">🎧</div>
+              <div class="product-details">
+                <span class="product-title" id="product-2-title-text">Fones de Ouvido Pro</span>
+                <span class="product-price">R$ 349,00</span>
+              </div>
+            </div>
+          </div>
+          <div class="storefront-footer-btn" id="storefront-footer-btn-text">
+            Ver Todos os Produtos
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="faq-section" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title" id="faq-section-title">Perguntas Frequentes</h2>
+        <p class="section-description" id="faq-section-subtitle">
+          Dúvidas sobre o funcionamento do Atos2? Aqui estão as respostas mais rápidas para ajudar você.
+        </p>
+      </div>
+
+      <div class="faq-accordion-container">
+        <!-- FAQ 1 -->
+        <div class="faq-item" id="faq-q1">
+          <button class="faq-trigger" aria-expanded="false" aria-controls="faq-a1" id="faq-btn-1">
+            <span id="faq-q1-text">Como faço para colocar saldo no Atos2?</span>
+            <span class="faq-icon" aria-hidden="true">+</span>
+          </button>
+          <div class="faq-content" id="faq-a1" hidden>
+            <p id="faq-a1-text">Você pode depositar fundos em Reais (BRL) na sua carteira de forma rápida e segura gerando uma chave PIX diretamente na aba "Carteira" do aplicativo Atos2. O depósito é processado e creditado instantaneamente.</p>
+          </div>
+        </div>
+
+        <!-- FAQ 2 -->
+        <div class="faq-item" id="faq-q2">
+          <button class="faq-trigger" aria-expanded="false" aria-controls="faq-a2" id="faq-btn-2">
+            <span id="faq-q2-text">O que é a moeda USDC disponível no app?</span>
+            <span class="faq-icon" aria-hidden="true">+</span>
+          </button>
+          <div class="faq-content" id="faq-a2" hidden>
+            <p id="faq-a2-text">A USD Coin (USDC) é uma stablecoin lastreada no dólar americano. Ela permite que você guarde o seu saldo em uma moeda forte e global, protegendo o seu capital contra flutuações e desvalorizações locais de forma muito simples.</p>
+          </div>
+        </div>
+
+        <!-- FAQ 3 -->
+        <div class="faq-item" id="faq-q3">
+          <button class="faq-trigger" aria-expanded="false" aria-controls="faq-a3" id="faq-btn-3">
+            <span id="faq-q3-text">Há tarifas cobradas pelo aplicativo?</span>
+            <span class="faq-icon" aria-hidden="true">+</span>
+          </button>
+          <div class="faq-content" id="faq-a3" hidden>
+            <p id="faq-a3-text">Os depósitos PIX e transferências diretas entre usuários do Atos2 são 100% gratuitos. Existe uma taxa de apenas R$ 1,99 para retiradas externas via PIX e um spread de 2% sobre as conversões financeiras entre BRL e USDC.</p>
+          </div>
+        </div>
+
+        <!-- FAQ 4 -->
+        <div class="faq-item" id="faq-q4">
+          <button class="faq-trigger" aria-expanded="false" aria-controls="faq-a4" id="faq-btn-4">
+            <span id="faq-q4-text">Como funcionam as chamadas no chat?</span>
+            <span class="faq-icon" aria-hidden="true">+</span>
+          </button>
+          <div class="faq-content" id="faq-a4" hidden>
+            <p id="faq-a4-text">As chamadas de áudio e vídeo utilizam a tecnologia WebRTC nativa de alto desempenho. Elas são iniciadas diretamente dentro da conversa com o seu contato e funcionam com qualidade HD.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA / Download Section -->
+  <section class="download-section" id="download">
+    <div class="container text-center">
+      <div class="download-card">
+        <h2 class="section-title" id="download-section-title">Pronto para começar na Atos2?</h2>
+        <p class="section-description" id="download-section-desc" style="color: #fff; opacity: 0.9; max-width: 600px; margin: 0 auto 30px;">
+          Baixe agora mesmo o aplicativo e comece a enviar mensagens e gerenciar suas finanças com estabilidade global.
+        </p>
+
+        <div class="download-buttons">
+          <a href="#" class="download-btn" id="btn-download-apk">
+            <span class="btn-subtext" id="btn-download-apk-sub">Download Direto</span>
+            <span class="btn-maintext" id="btn-download-apk-main">Arquivo APK</span>
+          </a>
+          <a href="#" class="download-btn active" id="btn-download-playstore">
+            <span class="btn-subtext" id="btn-download-play-sub">Baixar na</span>
+            <span class="btn-maintext" id="btn-download-play-main">Google Play</span>
+          </a>
+          <a href="#" class="download-btn" id="btn-download-appstore">
+            <span class="btn-subtext" id="btn-download-store-sub">Baixar na</span>
+            <span class="btn-maintext" id="btn-download-store-main">App Store</span>
+          </a>
+        </div>
+
+        <div class="download-info" id="download-info-text">
+          <span>Versão Recente: v2.0.2 (Android e iOS) • Tamanho: ~28MB</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col brand-col">
+          <div class="logo-container">
+            <svg class="logo-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+              <rect width="40" height="40" rx="10" fill="url(#logo-grad-footer)"/>
+              <path d="M12 28L20 12L28 28H12Z" fill="white" fill-opacity="0.9"/>
+              <circle cx="20" cy="20" r="4" fill="#F5B041"/>
+              <defs>
+                <linearGradient id="logo-grad-footer" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#E52E2E"/>
+                  <stop offset="1" stop-color="#F5B041"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <span class="logo-text" style="color: #fff;">Atos<span class="logo-accent">2</span></span>
+          </div>
+          <p class="footer-brand-desc" id="footer-brand-desc-text">
+            A união inteligente de rede social, finanças globais descentralizadas e comércio P2P em um aplicativo único e veloz.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h4 id="footer-platform-title">Plataforma</h4>
+          <a href="#features" class="footer-link" id="footer-link-features">Recursos</a>
+          <a href="#wallet" class="footer-link" id="footer-link-wallet">Carteira USDC</a>
+          <a href="#marketplace" class="footer-link" id="footer-link-marketplace">Marketplace</a>
+          <a href="#simulator" class="footer-link" id="footer-link-simulator">Simulador BRL</a>
+        </div>
+
+        <div class="footer-col">
+          <h4 id="footer-legal-title">Legal</h4>
+          <a href="#" class="footer-link" id="footer-link-terms">Termos de Serviço</a>
+          <a href="#" class="footer-link" id="footer-link-privacy">Política de Privacidade</a>
+          <a href="#" class="footer-link" id="footer-link-security">Segurança e LGPD</a>
+        </div>
+
+        <div class="footer-col">
+          <h4 id="footer-support-title">Suporte</h4>
+          <a href="mailto:suporte@atos2.online" class="footer-link">suporte@atos2.online</a>
+          <a href="#faq" class="footer-link" id="footer-link-help">Central de Ajuda</a>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p id="footer-bottom-text">&copy; 2026 Atos2. Todos os direitos reservados. atos2.online</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="script.js"></script>
+</body>
+</html>
