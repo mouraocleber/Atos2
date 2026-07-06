@@ -621,11 +621,14 @@ function MarketplaceScreenInner() {
   // ─── JSX ─────────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
+      {/* Background Glows */}
+      <View style={styles.glowBlue} pointerEvents="none" />
+      <View style={styles.glowPurple} pointerEvents="none" />
 
       {/* Banner de Vitrine do Usuário (quando vindo do chat) */}
       {sellerFilter && (
         <View style={styles.sellerFilterBanner}>
-          <Feather name="shopping-bag" size={14} color={Colors.primary} />
+          <Feather name="shopping-bag" size={14} color="#00F2FE" />
           <Text style={styles.sellerFilterText} numberOfLines={1}>
             Vitrine de <Text style={{ fontWeight: '800' }}>{sellerFilter.name}</Text>
           </Text>
@@ -633,7 +636,7 @@ function MarketplaceScreenInner() {
             onPress={() => { setSellerFilter(null); router.setParams({ sellerId: undefined, sellerName: undefined }); }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Feather name="x" size={16} color={Colors.primary} />
+            <Feather name="x" size={16} color="#00F2FE" />
           </TouchableOpacity>
         </View>
       )}
@@ -644,7 +647,7 @@ function MarketplaceScreenInner() {
           style={[styles.modeBtn, mode === 'vitrine' && styles.modeBtnActive]}
           onPress={() => setMode('vitrine')}
         >
-          <Feather name="shopping-bag" size={14} color={mode === 'vitrine' ? '#fff' : Colors.primary} />
+          <Feather name="shopping-bag" size={14} color={mode === 'vitrine' ? '#000' : '#00F2FE'} />
           <Text style={[styles.modeBtnText, mode === 'vitrine' && styles.modeBtnTextActive]}>
             Vitrine Pública
           </Text>
@@ -653,7 +656,7 @@ function MarketplaceScreenInner() {
           style={[styles.modeBtn, mode === 'meus' && styles.modeBtnActive]}
           onPress={() => setMode('meus')}
         >
-          <Feather name="package" size={14} color={mode === 'meus' ? '#fff' : Colors.primary} />
+          <Feather name="package" size={14} color={mode === 'meus' ? '#000' : '#9B51E0'} />
           <Text style={[styles.modeBtnText, mode === 'meus' && styles.modeBtnTextActive]}>
             Meus Produtos
           </Text>
@@ -1006,7 +1009,27 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.dark.background,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  glowBlue: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+  },
+  glowPurple: {
+    position: 'absolute',
+    bottom: 100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(155, 81, 224, 0.12)',
   },
 
   // Toggle de modo
@@ -1015,6 +1038,7 @@ const styles = StyleSheet.create({
     margin: Spacing.md,
     marginBottom: 0,
     gap: 8,
+    zIndex: 10,
   },
   modeBtn: {
     flex: 1,
@@ -1026,50 +1050,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: BorderRadius.full,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderColor: '#00F2FE',
     backgroundColor: 'transparent',
   },
   modeBtnActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#00F2FE',
+    borderColor: '#00F2FE',
   },
   modeBtnText: {
-    color: Colors.primary,
+    color: '#00F2FE',
     fontWeight: '700',
     fontSize: FontSize.sm,
   },
   modeBtnTextActive: {
-    color: '#fff',
+    color: '#000',
   },
 
   // Busca
-  searchContainer: { padding: Spacing.md, paddingBottom: 0, marginTop: Spacing.sm },
+  searchContainer: { padding: Spacing.md, paddingBottom: 0, marginTop: Spacing.sm, zIndex: 10 },
   searchInputWrapper: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.full,
-    borderWidth: 1, borderColor: Colors.light.border,
+    borderWidth: 1, borderColor: Colors.dark.border,
     paddingHorizontal: Spacing.md,
   },
   searchIcon: { marginRight: Spacing.sm },
   searchInput: {
     flex: 1, paddingVertical: Spacing.md,
-    color: Colors.light.text, fontSize: FontSize.md,
+    color: '#fff', fontSize: FontSize.md,
   },
 
   // Lista
   listContent: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 100 },
   productCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     gap: Spacing.md,
-    borderWidth: 1, borderColor: Colors.light.border,
+    borderWidth: 1, borderColor: Colors.dark.border,
     alignItems: 'center',
   },
   productThumb: {
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: Colors.dark.surfaceLight,
     justifyContent: 'center', alignItems: 'center',
   },
   imageBadge: {
@@ -1089,12 +1113,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   productInfo: { flex: 1, gap: 2 },
-  productName: { color: Colors.light.text, fontSize: FontSize.md, fontWeight: '700' },
+  productName: { color: '#fff', fontSize: FontSize.md, fontWeight: '700' },
   productCategory: { color: Colors.secondary, fontSize: FontSize.xs, fontWeight: '600' },
-  productDescription: { color: Colors.light.textSecondary, fontSize: FontSize.sm },
+  productDescription: { color: Colors.dark.textSecondary, fontSize: FontSize.sm },
   productFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, alignItems: 'center' },
-  productPrice: { color: Colors.success, fontSize: FontSize.md, fontWeight: '700' },
-  productStock: { color: Colors.light.textMuted, fontSize: FontSize.sm },
+  productPrice: { color: '#00F2FE', fontSize: FontSize.md, fontWeight: '700' },
+  productStock: { color: Colors.dark.textMuted, fontSize: FontSize.sm },
   deleteBtn: { padding: 6 },
 
   // Badge do vendedor no card
@@ -1102,14 +1126,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: 'rgba(155, 81, 224, 0.15)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     maxWidth: 120,
   },
   sellerBadgeText: {
-    color: Colors.primary,
+    color: '#A5B4FC',
     fontSize: 10,
     fontWeight: '600',
     flexShrink: 1,
@@ -1117,74 +1141,74 @@ const styles = StyleSheet.create({
 
   // Empty
   emptyContainer: { alignItems: 'center', padding: Spacing.xxl, gap: Spacing.sm },
-  emptyTitle: { color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700' },
-  emptySubtitle: { color: Colors.light.textSecondary, fontSize: FontSize.sm, textAlign: 'center' },
+  emptyTitle: { color: '#fff', fontSize: FontSize.lg, fontWeight: '700' },
+  emptySubtitle: { color: Colors.dark.textMuted, fontSize: FontSize.sm, textAlign: 'center' },
 
   // Error Boundary
   errorContainer: {
     flex: 1,
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.dark.background,
     padding: 24,
   },
   errorTitle: {
-    color: Colors.light.text, fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center',
+    color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center',
   },
   errorMsg: {
-    color: Colors.light.textMuted, fontSize: 13, marginTop: 8, textAlign: 'center',
+    color: Colors.dark.textMuted, fontSize: 13, marginTop: 8, textAlign: 'center',
   },
 
   // Modais base
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(6, 8, 20, 0.85)',
     justifyContent: 'center', alignItems: 'center',
   },
   modalContent: {
     width: '92%',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: '#0B2039',
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.light.border,
+    borderWidth: 1, borderColor: Colors.dark.border,
   },
   modalTitle: {
-    color: Colors.light.text, fontSize: FontSize.lg,
+    color: '#fff', fontSize: FontSize.lg,
     fontWeight: '700', textAlign: 'center', marginBottom: Spacing.md,
   },
   inputModal: {
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.md,
-    borderWidth: 1, borderColor: Colors.light.border,
+    borderWidth: 1, borderColor: Colors.dark.border,
     marginBottom: Spacing.sm,
   },
   modalActions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm },
   modalBtnCancel: {
     flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.light.surfaceLight,
-    borderWidth: 1, borderColor: Colors.light.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1, borderColor: Colors.dark.border,
     flexDirection: 'row',
   },
-  modalBtnText: { color: Colors.light.textSecondary, fontWeight: '600' },
+  modalBtnText: { color: '#fff', fontWeight: '600' },
   modalBtnSubmit: {
     flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     flexDirection: 'row',
   },
-  modalBtnSubmitText: { color: '#fff', fontWeight: '700' },
+  modalBtnSubmitText: { color: '#000', fontWeight: '700' },
 
   // FAB
   fab: {
     position: 'absolute', bottom: 20, right: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     width: 56, height: 56, borderRadius: 28,
     justifyContent: 'center', alignItems: 'center',
     elevation: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#00F2FE', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3, shadowRadius: 4,
   },
 
@@ -1193,11 +1217,11 @@ const styles = StyleSheet.create({
     position: 'absolute', right: 12, top: 12, zIndex: 10,
   },
   detailCloseBtnInner: {
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 20,
     padding: 6,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
   },
   sellerRow: {
     flexDirection: 'row',
@@ -1207,12 +1231,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sellerRowText: {
-    color: Colors.primary,
+    color: '#9B51E0',
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
   detailDescription: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.sm,
     lineHeight: 20,
     marginTop: 8,
@@ -1226,25 +1250,25 @@ const styles = StyleSheet.create({
   priceBox: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: Colors.success + '12',
+    backgroundColor: 'rgba(6, 214, 160, 0.1)',
     borderRadius: BorderRadius.sm,
     paddingVertical: 12,
   },
   priceBoxValue: {
     fontSize: FontSize.xl,
     fontWeight: '800',
-    color: Colors.success,
+    color: '#06D6A0',
   },
   priceBoxLabel: {
     fontSize: FontSize.xs,
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     marginTop: 2,
   },
 
   // Galeria de detalhes
   galleryEmpty: {
     height: 120,
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: Colors.dark.surfaceLight,
     borderRadius: BorderRadius.sm,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1283,7 +1307,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
   },
   galleryIndexBadge: {
     position: 'absolute',
@@ -1294,7 +1318,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   galleryHint: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontSize: 11,
     textAlign: 'center',
     marginBottom: 8,
@@ -1303,7 +1327,7 @@ const styles = StyleSheet.create({
   // Lightbox
   lightboxOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.97)',
+    backgroundColor: 'rgba(6,8,20,0.97)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1374,7 +1398,7 @@ const styles = StyleSheet.create({
 
   // Create — slots de foto
   photoSlotsLabel: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.sm,
     fontWeight: '600',
     marginBottom: 8,
@@ -1404,9 +1428,9 @@ const styles = StyleSheet.create({
   photoSlotEmpty: {
     flex: 1,
     borderRadius: 8,
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1.5,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1414,7 +1438,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
   },
   photoSlotEmptyText: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontSize: 11,
     fontWeight: '500',
   },
@@ -1424,15 +1448,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: 'rgba(0, 242, 254, 0.1)',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.primary + '25',
+    borderBottomColor: 'rgba(0, 242, 254, 0.25)',
     paddingHorizontal: Spacing.md,
     paddingVertical: 10,
   },
   sellerFilterText: {
     flex: 1,
-    color: Colors.primary,
+    color: '#00F2FE',
     fontSize: FontSize.sm,
   },
+});
 });

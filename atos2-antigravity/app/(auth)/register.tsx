@@ -136,6 +136,10 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Background Glows */}
+      <View style={styles.glowBlue} pointerEvents="none" />
+      <View style={styles.glowPurple} pointerEvents="none" />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -158,9 +162,9 @@ export default function RegisterScreen() {
 
             {/* Botão de idioma centralizado abaixo do subtítulo */}
             <TouchableOpacity style={styles.headerLangBtn} onPress={() => setShowLangModal(true)}>
-              <Feather name="globe" size={16} color={Colors.primary} />
+              <Feather name="globe" size={16} color="#00F2FE" />
               <Text style={styles.headerLangCode}>{language.toUpperCase()}</Text>
-              <Feather name="chevron-down" size={15} color={Colors.primary} />
+              <Feather name="chevron-down" size={15} color="#00F2FE" />
             </TouchableOpacity>
           </View>
 
@@ -171,17 +175,17 @@ export default function RegisterScreen() {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Selecionar Idioma</Text>
                   <TouchableOpacity onPress={() => setShowLangModal(false)}>
-                    <Feather name="x" size={24} color={Colors.light.text} />
+                    <Feather name="x" size={24} color="#fff" />
                   </TouchableOpacity>
                 </View>
 
                 {/* Barra de Busca Modal */}
                 <View style={styles.searchBar}>
-                  <Feather name="search" size={16} color={Colors.light.textMuted} style={{ marginRight: 8 }} />
+                  <Feather name="search" size={16} color="#6366F1" style={{ marginRight: 8 }} />
                   <TextInput
                     style={styles.searchInput}
                     placeholder="Pesquisar idioma..."
-                    placeholderTextColor={Colors.light.textMuted}
+                    placeholderTextColor="#6366F1"
                     value={langSearch}
                     onChangeText={setLangSearch}
                     autoCorrect={false}
@@ -213,7 +217,7 @@ export default function RegisterScreen() {
                   )}
                   ListEmptyComponent={() => (
                     <View style={styles.emptySearch}>
-                      <Feather name="globe" size={32} color={Colors.light.textMuted} />
+                      <Feather name="globe" size={32} color={Colors.dark.textMuted} />
                       <Text style={styles.emptyText}>Nenhum idioma encontrado</Text>
                     </View>
                   )}
@@ -230,12 +234,12 @@ export default function RegisterScreen() {
                   {termsType === 'termos' ? 'Termos de Uso' : 'Política de Privacidade'}
                 </Text>
                 <TouchableOpacity onPress={() => setShowTermsModal(false)}>
-                  <Feather name="x" size={24} color={Colors.light.text} />
+                  <Feather name="x" size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
                 {termsType === 'termos' ? (
-                  <Text style={{ color: Colors.light.text, lineHeight: 22 }}>
+                  <Text style={{ color: '#fff', lineHeight: 22 }}>
                     Para utilizar o Atos2 (carteira Global, marketplace e chat), você concorda que: {'\n\n'}
                     1. Fornecerá dados reais (PF/PJ) para viabilizar as transações financeiras. {'\n'}
                     2. As transferências internas são gratuitas, porém saques/repasses externos possuem taxas progressivas. {'\n'}
@@ -243,7 +247,7 @@ export default function RegisterScreen() {
                     4. As conversões da moeda (Global - G) flutuam com as bolsas internacionais livremente.
                   </Text>
                 ) : (
-                  <Text style={{ color: Colors.light.text, lineHeight: 22 }}>
+                  <Text style={{ color: '#fff', lineHeight: 22 }}>
                     Suas informações são tratadas rigorosamente confidenciais, baseando-se na LGPD Brasileira: {'\n\n'}
                     1. Rastreamos IPS e exigimos validações matemáticas de CPF/CNPJ contra fraudes. {'\n'}
                     2. Senhas e biometria recebem Hash de alta complexidade e não chegam cruas à nossa nuvem. {'\n'}
@@ -274,7 +278,7 @@ export default function RegisterScreen() {
                 onPress={handleGoogleSignIn}
                 disabled={loading}
               >
-                <FontAwesome name="google" size={20} color="#DB4437" />
+                <FontAwesome name="google" size={20} color="#fff" />
                 <Text style={styles.googleBtnText}>Continuar com o Google</Text>
               </TouchableOpacity>
 
@@ -287,7 +291,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('email')}
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor="#6366F1"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -297,7 +301,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('phone') + ' (ex: 11999998888)'}
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor="#6366F1"
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
@@ -318,14 +322,14 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('name')}
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor="#6366F1"
                 value={name}
                 onChangeText={setName}
               />
               <TextInput
                 style={styles.input}
                 placeholder={t('nickname')}
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor="#6366F1"
                 value={nickname}
                 onChangeText={setNickname}
                 autoCapitalize="none"
@@ -349,7 +353,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('cpf')}
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor="#6366F1"
                 value={cpf}
                 onChangeText={setCpf}
                 keyboardType="numeric"
@@ -357,7 +361,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('cep')}
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor="#6366F1"
                 value={cep}
                 onChangeText={setCep}
                 keyboardType="numeric"
@@ -366,7 +370,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={[styles.input, { paddingRight: 50 }]}
                   placeholder={t('password')}
-                  placeholderTextColor={Colors.light.textMuted}
+                  placeholderTextColor="#6366F1"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -384,7 +388,7 @@ export default function RegisterScreen() {
                   <Feather 
                     name={agreedToTerms ? "check-square" : "square"} 
                     size={20} 
-                    color={agreedToTerms ? Colors.primary : Colors.light.textMuted} 
+                    color={agreedToTerms ? '#00F2FE' : Colors.dark.textMuted} 
                   />
                 </TouchableOpacity>
                 <Text style={styles.checkboxText}>
@@ -398,7 +402,7 @@ export default function RegisterScreen() {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color={Colors.light.text} />
+                  <ActivityIndicator color="#000" />
                 ) : (
                   <Text style={styles.btnSubmitText}>{t('register')}</Text>
                 )}
@@ -431,9 +435,29 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.dark.background,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  keyboardView: { flex: 1 },
+  glowBlue: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+  },
+  glowPurple: {
+    position: 'absolute',
+    bottom: -80,
+    right: -80,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(155, 81, 224, 0.12)',
+  },
+  keyboardView: { flex: 1, zIndex: 10 },
   scrollContent: {
     padding: Spacing.xl,
     flexGrow: 1,
@@ -449,13 +473,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   title: {
-    color: Colors.primary,
+    color: '#fff',
     fontSize: FontSize.xxl,
     fontWeight: '800',
     textAlign: 'center',
   },
   subtitle: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.md,
     textAlign: 'center',
     marginTop: Spacing.xs,
@@ -471,15 +495,15 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   progressActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
   },
   progressLine: {
     width: 30,
     height: 2,
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   form: {
     gap: Spacing.md,
@@ -488,17 +512,17 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
     marginBottom: Spacing.sm,
   },
   searchInput: {
     flex: 1,
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.sm,
     paddingVertical: 0,
   },
@@ -509,36 +533,31 @@ const styles = StyleSheet.create({
   },
   langItem: {
     width: '47.5%',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
     alignItems: 'center',
     gap: 4,
   },
   langItemActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '12',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: '#00F2FE',
+    backgroundColor: 'rgba(0, 242, 254, 0.15)',
   },
   langFlag: {
     fontSize: 28,
     lineHeight: 34,
   },
   langText: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.xs,
     fontWeight: '500',
     textAlign: 'center',
   },
   langTextActive: {
-    color: Colors.primary,
+    color: '#00F2FE',
     fontWeight: '700',
   },
   emptySearch: {
@@ -547,22 +566,22 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   emptyText: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontSize: FontSize.sm,
   },
 
   input: {
-    backgroundColor: Colors.light.surface,
-    color: Colors.light.text,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    color: '#fff',
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     fontSize: FontSize.md,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
   },
   methodToggle: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.md,
     padding: 4,
     marginBottom: Spacing.sm,
@@ -574,14 +593,14 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   methodBtnActive: {
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: Colors.dark.surfaceLight,
   },
   methodBtnText: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontWeight: '600',
   },
   methodBtnTextActive: {
-    color: Colors.primary,
+    color: '#00F2FE',
   },
   typeToggle: {
     flexDirection: 'row',
@@ -596,27 +615,27 @@ const styles = StyleSheet.create({
   separatorLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.light.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   separatorText: {
     marginHorizontal: Spacing.sm,
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontSize: FontSize.sm,
   },
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#0B2039',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: Colors.dark.border,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
   googleBtnText: {
-    color: '#333',
+    color: '#fff',
     fontWeight: '600',
     fontSize: FontSize.md,
   },
@@ -625,35 +644,31 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
     alignItems: 'center',
+    backgroundColor: Colors.dark.surface,
   },
   typeBtnActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '10',
+    borderColor: '#00F2FE',
+    backgroundColor: 'rgba(0, 242, 254, 0.15)',
   },
   typeBtnText: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontSize: FontSize.sm,
   },
   typeBtnTextActive: {
-    color: Colors.primary,
+    color: '#00F2FE',
     fontWeight: '600',
   },
   btnSubmit: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     marginTop: Spacing.md,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   btnSubmitText: {
-    color: '#fff',
+    color: '#000',
     fontSize: FontSize.md,
     fontWeight: '700',
   },
@@ -662,7 +677,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnBackText: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
@@ -672,11 +687,11 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xxl,
   },
   footerText: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.sm,
   },
   footerLink: {
-    color: Colors.primary,
+    color: '#00F2FE',
     fontSize: FontSize.sm,
     fontWeight: '700',
   },
@@ -685,30 +700,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'center',
     marginTop: Spacing.md,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: 'rgba(0, 242, 254, 0.15)',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.xl || 24,
+    borderRadius: 24,
     gap: 6,
     borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    borderColor: 'rgba(0, 242, 254, 0.3)',
   },
   headerLangCode: {
     fontSize: FontSize.md,
-    color: Colors.primary,
+    color: '#00F2FE',
     fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(6, 8, 20, 0.85)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: '#0B2039',
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
     padding: Spacing.lg,
     height: '80%',
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -719,7 +736,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: FontSize.lg,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: '#fff',
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -730,12 +747,12 @@ const styles = StyleSheet.create({
   },
   checkboxText: {
     fontSize: FontSize.xs,
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     flex: 1,
     lineHeight: 18,
   },
   linkText: {
-    color: Colors.primary,
+    color: '#00F2FE',
     fontWeight: '600',
     textDecorationLine: 'underline',
   },

@@ -131,14 +131,18 @@ export default function ChatScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Background Glows */}
+      <View style={styles.glowBlue} pointerEvents="none" />
+      <View style={styles.glowPurple} pointerEvents="none" />
+
       {/* Search */}
       <View ref={searchRef} style={styles.searchContainer}>
         <View style={styles.searchInputWrapper}>
-          <Feather name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
+          <Feather name="search" size={20} color="#6366F1" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar conversas..."
-            placeholderTextColor={Colors.light.textMuted}
+            placeholderTextColor="#6366F1"
             value={search}
             onChangeText={setSearch}
           />
@@ -161,10 +165,10 @@ export default function ChatScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderConversation}
           contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadConversations(); }} />}
+          refreshControl={<RefreshControl refreshing={refreshing} tintColor="#00F2FE" onRefresh={() => { setRefreshing(true); loadConversations(); }} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Feather name="message-square" size={48} color={Colors.light.textMuted} />
+              <Feather name="message-square" size={48} color="#6366F1" />
               <Text style={styles.emptyTitle}>Nenhuma conversa</Text>
               <Text style={styles.emptySubtitle}>Busque usuários para começar a conversar</Text>
             </View>
@@ -176,7 +180,7 @@ export default function ChatScreen() {
       <TouchableOpacity ref={fabRef} style={styles.fab} activeOpacity={0.8}
         onPress={() => router.push('/(tabs)/search')}
       >
-        <Feather name="edit-2" size={24} color="#fff" />
+        <Feather name="edit-2" size={24} color="#000" />
       </TouchableOpacity>
 
       {/* Coach Marks */}
@@ -217,19 +221,40 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.dark.background,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  glowBlue: {
+    position: 'absolute',
+    top: -40,
+    left: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(0, 242, 254, 0.1)',
+  },
+  glowPurple: {
+    position: 'absolute',
+    bottom: -50,
+    right: -50,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(155, 81, 224, 0.1)',
   },
   searchContainer: {
     padding: Spacing.md,
     paddingBottom: Spacing.sm,
+    zIndex: 10,
   },
   searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
     paddingHorizontal: Spacing.md,
   },
   searchIcon: {
@@ -238,31 +263,36 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     paddingVertical: Spacing.md,
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.md,
   },
   welcomeBar: {
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
+    zIndex: 10,
   },
   welcomeText: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.sm,
   },
   welcomeName: {
-    color: Colors.secondary,
+    color: '#00F2FE',
     fontWeight: '700',
   },
   listContent: {
     paddingBottom: 80,
+    paddingHorizontal: Spacing.md,
   },
   conversationItem: {
     flexDirection: 'row',
     padding: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.dark.surface,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
     gap: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border + '40',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   avatarContainer: {
     position: 'relative',
@@ -271,9 +301,11 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: Colors.primary,
+    backgroundColor: 'rgba(99, 102, 241, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#6366F1',
   },
   avatarText: {
     color: '#fff',
@@ -289,7 +321,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: Colors.success,
     borderWidth: 2,
-    borderColor: Colors.light.background,
+    borderColor: '#060814',
   },
   conversationInfo: {
     flex: 1,
@@ -302,13 +334,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   conversationName: {
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontWeight: '700',
     flex: 1,
   },
   time: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontSize: FontSize.xs,
   },
   messageRow: {
@@ -317,12 +349,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   lastMessage: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.sm,
     flex: 1,
   },
   badge: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     borderRadius: 12,
     minWidth: 22,
     height: 22,
@@ -331,7 +363,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   badgeText: {
-    color: '#fff',
+    color: '#000',
     fontSize: FontSize.xs,
     fontWeight: '700',
   },
@@ -340,14 +372,13 @@ const styles = StyleSheet.create({
     padding: Spacing.xxl,
     gap: Spacing.sm,
   },
-  emptyIcon: { fontSize: 48 },
   emptyTitle: {
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.lg,
     fontWeight: '700',
   },
   emptySubtitle: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textMuted,
     fontSize: FontSize.sm,
     textAlign: 'center',
   },
@@ -358,14 +389,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.primary,
+    shadowColor: '#00F2FE',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
   },
-  fabIcon: { fontSize: 24 },
 });

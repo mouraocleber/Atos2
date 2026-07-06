@@ -1111,7 +1111,7 @@ export default function ChatRoomScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={24} color={Colors.light.text} />
+          <Feather name="arrow-left" size={24} color="#ffffff" />
         </TouchableOpacity>
 
         {/* Contact Profile Image in Header */}
@@ -1132,21 +1132,21 @@ export default function ChatRoomScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={() => handleStartCall('audio')}><Feather name="phone" size={20} color={Colors.primary} /></TouchableOpacity>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={() => handleStartCall('video')}><Feather name="video" size={20} color={Colors.primary} /></TouchableOpacity>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => handleStartCall('audio')}><Feather name="phone" size={20} color="#00F2FE" /></TouchableOpacity>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => handleStartCall('video')}><Feather name="video" size={20} color="#00F2FE" /></TouchableOpacity>
           <TouchableOpacity style={styles.headerActionBtn} onPress={() => setHeaderMenuVisible(true)}>
-             <Feather name="more-vertical" size={20} color={Colors.primary} />
+             <Feather name="more-vertical" size={20} color="#00F2FE" />
           </TouchableOpacity>
         </View>
 
         {headerMenuVisible && (
           <Modal transparent visible animationType="fade" onRequestClose={() => setHeaderMenuVisible(false)}>
             <Pressable style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.1)'}} onPress={() => setHeaderMenuVisible(false)}>
-              <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: Colors.light.surface, borderRadius: 10, elevation: 6, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.18, shadowRadius: 8, width: 210, overflow: 'hidden'}}>
+              <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: '#0B2039', borderRadius: 10, elevation: 6, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.18, shadowRadius: 8, width: 210, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)'}}>
 
                 {/* Vitrine do Usuário */}
                 <TouchableOpacity
-                  style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
+                  style={{padding: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)', flexDirection: 'row', alignItems: 'center', gap: 10}}
                   onPress={() => {
                     setHeaderMenuVisible(false);
                     router.push({
@@ -1155,13 +1155,13 @@ export default function ChatRoomScreen() {
                     });
                   }}
                 >
-                  <Feather name="shopping-bag" size={16} color={Colors.primary} />
-                  <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 14}}>Vitrine do Usuário</Text>
+                  <Feather name="shopping-bag" size={16} color="#00F2FE" />
+                  <Text style={{color: '#00F2FE', fontWeight: '700', fontSize: 14}}>Vitrine do Usuário</Text>
                 </TouchableOpacity>
 
                 {/* Bloquear */}
                 <TouchableOpacity
-                  style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
+                  style={{padding: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)', flexDirection: 'row', alignItems: 'center', gap: 10}}
                   onPress={handleBlockUser}
                 >
                   <Feather name="slash" size={16} color={Colors.error} />
@@ -1454,7 +1454,7 @@ export default function ChatRoomScreen() {
             )}
 
             <View style={{flexDirection: 'row', gap: 12}}>
-               <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.light.surfaceLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.light.border}} onPress={() => { setScheduleDateObj(null); setScheduleModalVisible(false); }}>
+               <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.light.surfaceLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.light.border} onPress={() => { setScheduleDateObj(null); setScheduleModalVisible(false); }}>
                   <Text style={{color: Colors.error, fontWeight: 'bold'}}>Remover</Text>
                </TouchableOpacity>
 
@@ -1474,12 +1474,12 @@ export default function ChatRoomScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
+  container: { flex: 1, backgroundColor: Colors.dark.background },
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    padding: Spacing.md, backgroundColor: Colors.light.surface,
-    borderBottomWidth: 1, borderBottomColor: Colors.light.border,
+    padding: Spacing.md, backgroundColor: '#060814',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   backButton: { padding: Spacing.sm, marginRight: Spacing.xs },
   headerAvatarContainer: {
@@ -1494,9 +1494,11 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: Colors.primary,
+    backgroundColor: 'rgba(99, 102, 241, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#6366F1',
   },
   headerAvatarText: {
     color: '#fff',
@@ -1504,8 +1506,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   headerInfo: { flex: 1 },
-  headerName: { color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700' },
-  headerStatus: { color: Colors.light.textMuted, fontSize: FontSize.xs, marginTop: 2 },
+  headerName: { color: '#fff', fontSize: FontSize.lg, fontWeight: '700' },
+  headerStatus: { color: Colors.dark.textMuted, fontSize: FontSize.xs, marginTop: 2 },
   headerStatusOnline: { color: Colors.success },
   headerActions: { flexDirection: 'row', gap: Spacing.sm },
   headerActionBtn: { padding: Spacing.sm },
@@ -1528,10 +1530,10 @@ const styles = StyleSheet.create({
 
   messageBubble: { padding: Spacing.md, borderRadius: BorderRadius.lg },
   messageBubbleMedia: { padding: 4, overflow: 'hidden' },
-  messageBubbleMe: { backgroundColor: '#0ea5e9', borderBottomRightRadius: 4 },
+  messageBubbleMe: { backgroundColor: '#00F2FE', borderBottomRightRadius: 4 },
   messageBubbleOther: {
-    backgroundColor: '#ffffff', borderBottomLeftRadius: 4,
-    borderWidth: 1, borderColor: '#e2e8f0',
+    backgroundColor: Colors.dark.surface, borderBottomLeftRadius: 4,
+    borderWidth: 1, borderColor: Colors.dark.border,
   },
 
   // Location card styling
@@ -1552,10 +1554,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   locationIconCircleMe: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
   },
   locationIconCircleOther: {
-    backgroundColor: Colors.primary,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
   },
   locationTextContainer: {
     flex: 1,
@@ -1569,16 +1571,16 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
   },
   locationTextMe: {
-    color: '#fff',
+    color: '#000',
   },
   locationTextOther: {
-    color: '#1e293b',
+    color: '#fff',
   },
   locationSubtextMe: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(0,0,0,0.6)',
   },
   locationSubtextOther: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
   },
   locationActionLine: {
     flexDirection: 'row',
@@ -1588,20 +1590,20 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   locationActionLineMe: {
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
   locationActionLineOther: {
-    borderTopColor: Colors.light.border,
+    borderTopColor: Colors.dark.border,
   },
   locationActionText: {
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
   locationActionTextMe: {
-    color: '#fff',
+    color: '#000',
   },
   locationActionTextOther: {
-    color: Colors.primary,
+    color: '#00F2FE',
   },
 
   // Media
@@ -1612,7 +1614,7 @@ const styles = StyleSheet.create({
   audioBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, paddingHorizontal: 4 },
   audioIconCircle: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(0, 242, 254, 0.25)', justifyContent: 'center', alignItems: 'center',
   },
   audioIconCirclePlaying: { backgroundColor: Colors.accent },
   audioWaveform: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 28 },
@@ -1620,25 +1622,25 @@ const styles = StyleSheet.create({
   audioLabel: { fontSize: FontSize.xs, maxWidth: 80 },
 
   messageText: { fontSize: FontSize.md, lineHeight: 22 },
-  messageTextMe: { color: '#ffffff' },
-  messageTextOther: { color: '#1e293b' },
+  messageTextMe: { color: '#000000' },
+  messageTextOther: { color: '#ffffff' },
 
   translationBox: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1 },
-  translationBoxMe: { borderTopColor: 'rgba(255,255,255,0.2)' },
-  translationBoxOther: { borderTopColor: Colors.light.border },
+  translationBoxMe: { borderTopColor: 'rgba(0,0,0,0.1)' },
+  translationBoxOther: { borderTopColor: Colors.dark.border },
   translationLabel: { fontSize: FontSize.xs, opacity: 0.8, marginBottom: 2, fontWeight: '600' },
 
   messageFooter: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 4, gap: 4 },
   messageTime: { fontSize: 10 },
-  messageTimeMe: { color: 'rgba(255,255,255,0.7)' },
-  messageTimeOther: { color: Colors.light.textMuted },
-  messageStatus: { color: 'rgba(255,255,255,0.9)', fontSize: 10, fontWeight: 'bold' },
+  messageTimeMe: { color: 'rgba(0,0,0,0.5)' },
+  messageTimeOther: { color: Colors.dark.textMuted },
+  messageStatus: { color: 'rgba(0,0,0,0.6)', fontSize: 10, fontWeight: 'bold' },
 
   actionPopover: {
-    flexDirection: 'row', backgroundColor: Colors.light.surface,
+    flexDirection: 'row', backgroundColor: '#0B2039',
     padding: Spacing.xs, borderRadius: BorderRadius.full,
     marginTop: 4, alignSelf: 'flex-start',
-    borderWidth: 1, borderColor: Colors.light.border,
+    borderWidth: 1, borderColor: Colors.dark.border,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4,
   },
   actionPopoverMe: { alignSelf: 'flex-end' },
@@ -1650,21 +1652,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-end',
     padding: Spacing.md,
     paddingBottom: Platform.OS === 'ios' ? Spacing.xl : Spacing.md,
-    backgroundColor: Colors.light.surface,
-    borderTopWidth: 1, borderTopColor: Colors.light.border, gap: Spacing.sm,
+    backgroundColor: '#060814',
+    borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.08)', gap: Spacing.sm,
   },
   inputAction: { padding: Spacing.sm, paddingBottom: 10 },
   textInput: {
     flex: 1, minHeight: 40, maxHeight: 100,
-    backgroundColor: Colors.light.background,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md, paddingTop: 12, paddingBottom: 12,
-    color: Colors.light.text, fontSize: FontSize.md,
-    borderWidth: 1, borderColor: Colors.light.border,
+    color: '#fff', fontSize: FontSize.md,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   sendButton: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     justifyContent: 'center', alignItems: 'center',
   },
   sendButtonRecording: { backgroundColor: '#ef4444' },
@@ -1677,7 +1679,7 @@ const styles = StyleSheet.create({
 
   // Fullscreen image
   fullscreenModal: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.95)',
+    flex: 1, backgroundColor: 'rgba(6,8,20,0.95)',
     justifyContent: 'center', alignItems: 'center',
   },
   fullscreenImage: { width: '100%', height: '85%' },
@@ -1688,30 +1690,29 @@ const styles = StyleSheet.create({
   },
 
   // Media Menu Sheet
-  mediaMenuOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  mediaMenuOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(6,8,20,0.7)' },
   mediaMenuSheet: {
-    backgroundColor: Colors.light.surface,
+    backgroundColor: '#0B2039',
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: Spacing.xl, paddingBottom: 40,
+    borderWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   mediaMenuTitle: {
-    color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700',
+    color: '#fff', fontSize: FontSize.lg, fontWeight: '700',
     marginBottom: Spacing.xl, textAlign: 'center',
   },
   mediaMenuGrid: { flexDirection: 'row', justifyContent: 'space-around', gap: Spacing.sm, flexWrap: 'wrap' },
   mediaMenuOption: { alignItems: 'center', gap: 6, minWidth: 60 },
   mediaMenuIcon: { width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  mediaMenuLabel: { color: Colors.light.textSecondary, fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  mediaMenuLabel: { color: Colors.dark.textSecondary, fontSize: 11, fontWeight: '600', textAlign: 'center' },
 
   // Native call modal
   callModal: {
-    flex: 1, backgroundColor: '#0a0a1a',
+    flex: 1, backgroundColor: '#060814',
     justifyContent: 'center', alignItems: 'center', gap: 16,
   },
   callAvatar: {
     width: 120, height: 120, borderRadius: 60,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center', alignItems: 'center',
     borderWidth: 4, borderColor: 'rgba(255,255,255,0.2)',
     marginBottom: 8,
   },

@@ -322,7 +322,12 @@ export default function SettingsScreen() {
     : selectedLang;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
+      {/* Background Glows */}
+      <View style={styles.glowBlue} pointerEvents="none" />
+      <View style={styles.glowPurple} pointerEvents="none" />
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
       {/* Profile Card */}
       <View ref={profileCardRef} style={styles.profileCard}>
         <TouchableOpacity style={styles.profileAvatar} onPress={handlePickImage} disabled={avatarUploading} activeOpacity={0.8}>
@@ -807,73 +812,108 @@ export default function SettingsScreen() {
         ]}
       />
 
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  glowBlue: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+  },
+  glowPurple: {
+    position: 'absolute',
+    bottom: 100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(155, 81, 224, 0.12)',
+  },
   content: { paddingBottom: Spacing.xxl },
-  profileCard: { flexDirection: 'row', margin: Spacing.md, backgroundColor: Colors.light.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, gap: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.primary + '40' },
-  profileAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
+  profileCard: {
+    flexDirection: 'row',
+    margin: Spacing.md,
+    backgroundColor: Colors.dark.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  profileAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(99, 102, 241, 0.25)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#6366F1' },
   profileAvatarText: { color: '#fff', fontSize: FontSize.xxl, fontWeight: '800' },
   profileInfo: { flex: 1 },
-  profileName: { color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700' },
-  profileNickname: { color: Colors.secondary, fontSize: FontSize.sm, fontWeight: '600' },
-  profileEmail: { color: Colors.light.textMuted, fontSize: FontSize.xs, marginTop: 2 },
+  profileName: { color: '#fff', fontSize: FontSize.lg, fontWeight: '700' },
+  profileNickname: { color: '#00F2FE', fontSize: FontSize.sm, fontWeight: '600' },
+  profileEmail: { color: Colors.dark.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
   section: { marginTop: Spacing.md },
-  sectionTitle: { color: Colors.light.textMuted, fontSize: FontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs },
-  menuGroup: { backgroundColor: Colors.light.surface, marginHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.light.border, overflow: 'hidden' },
-  menuItem: { flexDirection: 'row', padding: Spacing.md, paddingHorizontal: Spacing.lg, alignItems: 'center', gap: Spacing.md, borderBottomColor: Colors.light.border + '60' },
+  sectionTitle: { color: Colors.dark.textMuted, fontSize: FontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs },
+  menuGroup: { backgroundColor: Colors.dark.surface, marginHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.dark.border, overflow: 'hidden' },
+  menuItem: { flexDirection: 'row', padding: Spacing.md, paddingHorizontal: Spacing.lg, alignItems: 'center', gap: Spacing.md, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' },
   menuInfo: { flex: 1 },
-  menuTitle: { color: Colors.light.text, fontSize: FontSize.md, fontWeight: '500' },
+  menuTitle: { color: '#fff', fontSize: FontSize.md, fontWeight: '500' },
   menuTitleDanger: { color: Colors.error },
-  menuSubtitle: { color: Colors.light.textMuted, fontSize: FontSize.xs, marginTop: 1 },
+  menuSubtitle: { color: Colors.dark.textMuted, fontSize: FontSize.xs, marginTop: 1 },
   footer: { alignItems: 'center', padding: Spacing.lg },
-  footerText: { color: Colors.light.textMuted, fontSize: FontSize.xs },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '90%', backgroundColor: Colors.light.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.light.border },
-  modalTitle: { color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700', textAlign: 'center', marginBottom: Spacing.sm },
-  modalSubtitle: { color: Colors.light.textMuted, fontSize: FontSize.xs, textAlign: 'center', marginBottom: Spacing.md },
-  inputModal: { backgroundColor: Colors.light.surfaceLight, borderRadius: BorderRadius.sm, padding: Spacing.md, color: Colors.light.text, fontSize: FontSize.md, borderWidth: 1, borderColor: Colors.light.border, marginBottom: Spacing.sm },
+  footerText: { color: Colors.dark.textMuted, fontSize: FontSize.xs },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(6, 8, 20, 0.85)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '90%', backgroundColor: '#0B2039', borderRadius: BorderRadius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.dark.border },
+  modalTitle: { color: '#fff', fontSize: FontSize.lg, fontWeight: '700', textAlign: 'center', marginBottom: Spacing.sm },
+  modalSubtitle: { color: Colors.dark.textMuted, fontSize: FontSize.xs, textAlign: 'center', marginBottom: Spacing.md },
+  inputModal: { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: BorderRadius.sm, padding: Spacing.md, color: '#fff', fontSize: FontSize.md, borderWidth: 1, borderColor: Colors.dark.border, marginBottom: Spacing.sm },
   modalActions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm },
-  modalBtnCancel: { flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center', backgroundColor: Colors.light.surfaceLight, borderWidth: 1, borderColor: Colors.light.border },
-  modalBtnText: { color: Colors.light.textSecondary, fontWeight: '600' },
-  modalBtnSubmit: { flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center', backgroundColor: Colors.primary },
-  modalBtnSubmitText: { color: '#fff', fontWeight: '700' },
-  langSearchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.light.surfaceLight, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 6, borderWidth: 1, borderColor: Colors.light.border, marginBottom: Spacing.sm },
-  langSearchInput: { flex: 1, color: Colors.light.text, fontSize: FontSize.sm, paddingVertical: 0 },
-  langOption: { flexDirection: 'row', alignItems: 'center', padding: Spacing.sm, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.light.border, marginBottom: Spacing.xs, gap: Spacing.sm },
-  langOptionActive: { backgroundColor: Colors.primary + '15', borderColor: Colors.primary },
+  modalBtnCancel: { flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: 1, borderColor: Colors.dark.border },
+  modalBtnText: { color: '#fff', fontWeight: '600' },
+  modalBtnSubmit: { flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center', backgroundColor: '#00F2FE' },
+  modalBtnSubmitText: { color: '#000', fontWeight: '700' },
+  langSearchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 6, borderWidth: 1, borderColor: Colors.dark.border, marginBottom: Spacing.sm },
+  langSearchInput: { flex: 1, color: '#fff', fontSize: FontSize.sm, paddingVertical: 0 },
+  langOption: { flexDirection: 'row', alignItems: 'center', padding: Spacing.sm, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.dark.border, marginBottom: Spacing.xs, gap: Spacing.sm, backgroundColor: Colors.dark.surface },
+  langOptionActive: { backgroundColor: 'rgba(0, 242, 254, 0.15)', borderColor: '#00F2FE' },
   langOptionFlag: { fontSize: 22, width: 30, textAlign: 'center' },
-  langOptionText: { flex: 1, color: Colors.light.text, fontSize: FontSize.sm },
-  langOptionTextActive: { color: Colors.primary, fontWeight: '700' },
+  langOptionText: { flex: 1, color: '#fff', fontSize: FontSize.sm },
+  langOptionTextActive: { color: '#00F2FE', fontWeight: '700' },
+  
   // Plan Modal
   planCard: {
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1.5,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
     padding: Spacing.md,
     marginBottom: Spacing.md,
     marginHorizontal: Spacing.xs,
     marginTop: Spacing.xs,
   },
   planCardActive: {
-    borderColor: Colors.light.textMuted,
-    backgroundColor: Colors.light.surfaceLight,
+    borderColor: Colors.dark.textMuted,
+    backgroundColor: Colors.dark.surfaceLight,
   },
   planCardActivePro: {
     borderColor: Colors.secondary,
-    backgroundColor: Colors.secondary + '08',
+    backgroundColor: 'rgba(255, 200, 87, 0.08)',
   },
   planCardActiveB: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '08',
+    borderColor: '#00F2FE',
+    backgroundColor: 'rgba(0, 242, 254, 0.08)',
   },
-  planName: { fontSize: 18, fontWeight: '800', color: Colors.light.text },
-  planPrice: { fontSize: 14, fontWeight: '600', color: Colors.light.textSecondary, marginTop: 2 },
-  planFeature: { fontSize: 13, color: Colors.light.text, marginTop: 4 },
+  planName: { fontSize: 18, fontWeight: '800', color: '#fff' },
+  planPrice: { fontSize: 14, fontWeight: '600', color: Colors.dark.textSecondary, marginTop: 2 },
+  planFeature: { fontSize: 13, color: '#fff', marginTop: 4 },
   planBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   planBadgeText: { fontSize: 11, fontWeight: '800' },
   planCurrentBadge: {

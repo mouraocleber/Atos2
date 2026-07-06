@@ -76,10 +76,14 @@ export default function LockScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
+      {/* Background Glows */}
+      <View style={styles.glowBlue} pointerEvents="none" />
+      <View style={styles.glowPurple} pointerEvents="none" />
+
       <View style={styles.content}>
         {/* Lock Icon */}
         <View style={styles.iconWrapper}>
-          <Feather name="lock" size={48} color={Colors.primary} />
+          <Feather name="lock" size={48} color="#00F2FE" />
         </View>
 
         {/* Greeting */}
@@ -96,10 +100,10 @@ export default function LockScreen() {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#000" />
             ) : (
               <>
-                <Feather name="shield" size={22} color="#fff" />
+                <Feather name="shield" size={22} color="#000" />
                 <Text style={styles.biometricBtnText}>Usar Biometria</Text>
               </>
             )}
@@ -117,7 +121,7 @@ export default function LockScreen() {
             <TextInput
               style={styles.input}
               placeholder="Digite sua senha"
-              placeholderTextColor={Colors.light.textMuted}
+              placeholderTextColor="#6366F1"
               secureTextEntry
               value={password}
               onChangeText={setPassword}
@@ -131,7 +135,7 @@ export default function LockScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#000" />
               ) : (
                 <Text style={styles.submitBtnText}>Desbloquear</Text>
               )}
@@ -162,35 +166,56 @@ export default function LockScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.dark.background,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  glowBlue: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+  },
+  glowPurple: {
+    position: 'absolute',
+    bottom: -80,
+    right: -80,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(155, 81, 224, 0.12)',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
+    zIndex: 10,
   },
   iconWrapper: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: Colors.primary + '18',
+    backgroundColor: 'rgba(0, 242, 254, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
     borderWidth: 2,
-    borderColor: Colors.primary + '40',
+    borderColor: 'rgba(0, 242, 254, 0.3)',
   },
   title: {
     fontSize: FontSize.xl,
     fontWeight: '800',
-    color: Colors.light.text,
+    color: '#fff',
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
   subtitle: {
     fontSize: FontSize.sm,
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: Spacing.xl,
@@ -199,25 +224,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.lg,
     width: '100%',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   biometricBtnText: {
-    color: '#fff',
+    color: '#000',
     fontSize: FontSize.md,
     fontWeight: '700',
   },
   fallbackHint: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.sm,
     marginBottom: Spacing.sm,
     alignSelf: 'flex-start',
@@ -227,23 +247,23 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   input: {
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.md,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
     marginBottom: Spacing.md,
   },
   submitBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     alignItems: 'center',
   },
   submitBtnText: {
-    color: '#fff',
+    color: '#000',
     fontWeight: '700',
     fontSize: FontSize.md,
   },
@@ -251,7 +271,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
   },
   altLinkText: {
-    color: Colors.primary,
+    color: '#00F2FE',
     fontSize: FontSize.sm,
     fontWeight: '600',
   },

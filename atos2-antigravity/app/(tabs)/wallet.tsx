@@ -466,66 +466,71 @@ export default function WalletScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Carrossel de Saldos Multi-moedas */}
-      <View style={{ marginBottom: Spacing.xl }}>
-        {loading ? (
-          <View style={[styles.balanceCardSlider, { justifyContent: 'center' }]}>
-            <ActivityIndicator color={Colors.primary} />
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            pagingEnabled
-            snapToInterval={Dimensions.get('window').width - Spacing.lg * 2 + 16}
-            decelerationRate="fast"
-            contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingBottom: 8, gap: 16 }}
-            style={{ marginHorizontal: -Spacing.lg }} // Para o scroll vazar pelas bordas da tela
-          >
-            {/* Card 1: Saldo BRL (Local) */}
-            <View ref={balanceCardRef} style={styles.balanceCardSlider}>
-              <View style={styles.balanceHeaderRow}>
-                <Text style={styles.balanceLabel}>Saldo Local</Text>
-                <View style={styles.currencyBadge}><Text style={styles.currencyBadgeText}>🇧🇷 BRL</Text></View>
-              </View>
-              <Text style={styles.balanceValue}>
-                {balanceData?.local?.currency} {formatCurrency(balanceData?.local?.balance)}
-              </Text>
-              <Text style={styles.balanceCurrency}>
-                Disponível para saque e pagamentos em Reais
-              </Text>
-            </View>
+      {/* Background Neon Glows */}
+      <View style={styles.glowBlue} pointerEvents="none" />
+      <View style={styles.glowPurple} pointerEvents="none" />
 
-            {/* Card 2: Saldo Original / G */}
-            <View style={styles.balanceCardSlider}>
-              <View style={styles.balanceHeaderRow}>
-                <Text style={styles.balanceLabel}>Atos2 Tokens</Text>
-                <View style={styles.currencyBadge}><Text style={styles.currencyBadgeText}>💎 G</Text></View>
-              </View>
-              <Text style={styles.balanceValue}>
-                G {formatCurrency(balanceData?.global?.balance, 4)}
-              </Text>
-              <Text style={styles.balanceCurrency}>
-                Original: {balanceData?.original?.currency} {formatCurrency(balanceData?.original?.balance)}
-              </Text>
-            </View>
-
-            {/* Card 3: Saldo Global USDC (Mock) */}
-            <View style={[styles.balanceCardSlider, { backgroundColor: '#1A1C29' }]}>
-              <View style={styles.balanceHeaderRow}>
-                <Text style={[styles.balanceLabel, { color: '#8892B0' }]}>Dólar Digital (Global)</Text>
-                <View style={[styles.currencyBadge, { backgroundColor: '#2B4A8E' }]}><Text style={[styles.currencyBadgeText, { color: '#fff' }]}>🇺🇸 USDC</Text></View>
-              </View>
-              <Text style={[styles.balanceValue, { color: '#fff' }]}>
-                $ 0.00
-              </Text>
-              <TouchableOpacity style={styles.btnSmallGhost}>
-                <Text style={styles.btnSmallGhostText}>+ Ativar Conta Global</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        )})
+      {/* Top Header */}
+      <View style={styles.customHeader}>
+        <Text style={styles.headerLogo}>Atos<Text style={{color: '#00F2FE'}}>2</Text></Text>
+        <TouchableOpacity style={styles.notificationBell}>
+          <Feather name="bell" size={22} color="#fff" />
+          <View style={styles.bellBadge} />
+        </TouchableOpacity>
       </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
+        {/* Global Balance Section */}
+        <View style={styles.globalBalanceContainer}>
+          <Text style={styles.globalBalanceLabel}>Global Balance</Text>
+          <Text style={styles.globalBalanceValue}>
+            $ {formatCurrency((balanceData?.local?.balance || 0) / 5.6 + (balanceData?.global?.balance || 0) * 1.0)} <Text style={{fontSize: FontSize.lg, color: '#A5B4FC', fontWeight: '600'}}>USD</Text>
+          </Text>
+          <Text style={styles.globalTxHeader}>Global Transactions</Text>
+        </View>
+
+        {/* Side-by-Side Glassmorphic Balance Cards */}
+        <View style={styles.cardsRow}>
+          {/* Card 1: USDC Stablecoin */}
+          <View ref={balanceCardRef} style={styles.glassCard}>
+            <View style={styles.cardHeaderRow}>
+              <View style={[styles.tokenIconCircle, { backgroundColor: 'rgba(0, 242, 254, 0.15)' }]}>
+                <Feather name="dollar-sign" size={18} color="#00F2FE" />
+              </View>
+              <Feather name="credit-card" size={14} color="#6366F1" />
+            </View>
+            <Text style={styles.cardSubtitle}>USDC Stablecoin</Text>
+            <Text style={styles.cardTitle}>
+              ${formatCurrency((balanceData?.global?.balance || 0) * 1.0)}
+            </Text>
+            <Text style={styles.cardCurrency}>USDC</Text>
+          </View>
+
+          {/* Card 2: Transactions to (Local/BRL) */}
+          <View style={styles.glassCard}>
+            <View style={styles.cardHeaderRow}>
+              <View style={[styles.tokenIconCircle, { backgroundColor: 'rgba(155, 81, 224, 0.15)' }]}>
+                <Feather name="repeat" size={18} color="#9B51E0" />
+              </View>
+              <Feather name="key" size={14} color="#6366F1" />
+            </View>
+            <Text style={styles.cardSubtitle}>Transactions to</Text>
+            <Text style={styles.cardTitle}>
+              R$ {formatCurrency(balanceData?.local?.balance)}
+            </Text>
+            <Text style={styles.cardCurrency}>
+              G {formatCurrency(balanceData?.global?.balance, 2)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Dot Indicators */}
+        <View style={styles.dotIndicatorsContainer}>
+          <View style={styles.dotIndicator} />
+          <View style={[styles.dotIndicator, styles.dotIndicatorActive]} />
+          <View style={styles.dotIndicator} />
+        </View>
+
         {/* Grid de Ações Rápidas (5x1) */}
         <View style={styles.actionGridContainer}>
           <TouchableOpacity
@@ -539,7 +544,7 @@ export default function WalletScreen() {
               setPixQrVisible(true);
             }}
           >
-            <View style={styles.actionGridIcon}><Feather name="plus" size={24} color={Colors.primary} /></View>
+            <View style={styles.actionGridIcon}><Feather name="plus" size={24} color="#00F2FE" /></View>
             <Text style={styles.actionGridText}>Depositar</Text>
           </TouchableOpacity>
 
@@ -554,7 +559,7 @@ export default function WalletScreen() {
               setBinanceModalVisible(true);
             }}
           >
-            <View style={styles.actionGridIcon}><Feather name="trending-up" size={24} color={Colors.primary} /></View>
+            <View style={styles.actionGridIcon}><Feather name="trending-up" size={24} color="#9B51E0" /></View>
             <Text style={styles.actionGridText}>Comprar</Text>
           </TouchableOpacity>
 
@@ -562,7 +567,7 @@ export default function WalletScreen() {
             style={styles.actionGridItem}
             onPress={() => Alert.alert('Em Breve', 'A conversão BRL ↔ USDC estará disponível em breve.')}
           >
-            <View style={styles.actionGridIcon}><Feather name="refresh-cw" size={24} color={Colors.primary} /></View>
+            <View style={styles.actionGridIcon}><Feather name="refresh-cw" size={24} color="#00F2FE" /></View>
             <Text style={styles.actionGridText}>Converter</Text>
           </TouchableOpacity>
 
@@ -572,7 +577,7 @@ export default function WalletScreen() {
               (historyListRef.current as any)?.scrollIntoView?.() || Alert.alert('Extrato', 'Deslize para baixo para ver seu histórico.');
             }}
           >
-            <View style={styles.actionGridIcon}><Feather name="list" size={24} color={Colors.primary} /></View>
+            <View style={styles.actionGridIcon}><Feather name="list" size={24} color="#9B51E0" /></View>
             <Text style={styles.actionGridText}>Extrato</Text>
           </TouchableOpacity>
 
@@ -580,7 +585,7 @@ export default function WalletScreen() {
             style={styles.actionGridItem}
             onPress={() => setPixPayModalVisible(true)}
           >
-            <View style={styles.actionGridIcon}><Feather name="send" size={24} color={Colors.primary} /></View>
+            <View style={styles.actionGridIcon}><Feather name="send" size={24} color="#00F2FE" /></View>
             <Text style={styles.actionGridText}>Enviar</Text>
           </TouchableOpacity>
         </View>
@@ -589,7 +594,7 @@ export default function WalletScreen() {
         <View style={styles.cardWidgetContainer}>
           <View style={styles.cardWidgetHeader}>
             <Text style={styles.cardWidgetTitle}>Meu Cartão Atos2</Text>
-            <Feather name="more-horizontal" size={20} color={Colors.light.textMuted} />
+            <Feather name="more-horizontal" size={20} color="#6366F1" />
           </View>
           <View style={styles.cardWidgetBody}>
             <View style={styles.virtualCardGraphic}>
@@ -599,16 +604,17 @@ export default function WalletScreen() {
             </View>
             <View style={styles.cardWidgetActions}>
               <TouchableOpacity style={styles.cardActionBtn} onPress={() => Alert.alert('Apple Pay', 'Em breve: Integração nativa de tokenização.')}>
-                <Feather name="smartphone" size={18} color={Colors.primary} />
+                <Feather name="smartphone" size={18} color="#00F2FE" />
                 <Text style={styles.cardActionBtnText}>Carteira Apple/Google</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cardActionBtn}>
-                <Feather name="eye" size={18} color={Colors.primary} />
+                <Feather name="eye" size={18} color="#00F2FE" />
                 <Text style={styles.cardActionBtnText}>Cartão Virtual</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
+      </ScrollView>
 
       {/* Transactions */}
       <View style={styles.sectionHeader}>
@@ -1211,19 +1217,163 @@ export default function WalletScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
+  container: { flex: 1, backgroundColor: Colors.dark.background, position: 'relative', overflow: 'hidden' },
+  
+  // Neon Background Glows
+  glowBlue: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+    filter: Platform.OS === 'ios' ? 'blur(50px)' : undefined,
+  },
+  glowPurple: {
+    position: 'absolute',
+    bottom: 100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(155, 81, 224, 0.12)',
+    filter: Platform.OS === 'ios' ? 'blur(60px)' : undefined,
+  },
+
+  // Custom Header
+  customHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: Spacing.md,
+  },
+  headerLogo: {
+    fontSize: FontSize.xl,
+    fontWeight: '900',
+    color: '#fff',
+    fontFamily: Platform.OS === 'ios' ? 'Outfit' : 'sans-serif-medium',
+  },
+  notificationBell: {
+    position: 'relative',
+    padding: 6,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.error,
+  },
+
+  // Global Balance
+  globalBalanceContainer: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  globalBalanceLabel: {
+    color: Colors.dark.textMuted,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  globalBalanceValue: {
+    color: '#fff',
+    fontSize: FontSize.title + 6,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  globalTxHeader: {
+    color: '#fff',
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    marginTop: Spacing.lg,
+  },
+
+  // Side-by-side Cards
+  cardsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    gap: 12,
+    marginBottom: Spacing.md,
+  },
+  glassCard: {
+    flex: 1,
+    backgroundColor: Colors.dark.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    minHeight: 120,
+    justifyContent: 'space-between',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  tokenIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardSubtitle: {
+    color: Colors.dark.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: Spacing.xs,
+  },
+  cardTitle: {
+    color: '#fff',
+    fontSize: FontSize.lg + 2,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  cardCurrency: {
+    color: Colors.dark.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  // Dot Indicators
+  dotIndicatorsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.lg,
+  },
+  dotIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  dotIndicatorActive: {
+    backgroundColor: '#00F2FE',
+    width: 14,
+  },
+
   balanceCardSlider: {
     width: Dimensions.get('window').width - Spacing.lg * 2,
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
+    borderColor: Colors.dark.border,
   },
   balanceHeaderRow: {
     flexDirection: 'row',
@@ -1232,31 +1382,31 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   balanceLabel: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontSize: FontSize.sm,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   currencyBadge: {
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: 'rgba(0, 242, 254, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
   currencyBadgeText: {
-    color: Colors.primary,
+    color: '#00F2FE',
     fontSize: 10,
     fontWeight: '900',
   },
   balanceValue: {
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: 38,
     fontWeight: '900',
     letterSpacing: -1,
   },
   balanceCurrency: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontSize: FontSize.xs,
     marginTop: 6,
   },
@@ -1273,6 +1423,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
+
+  // Actions Grid
   actionGridContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1287,24 +1439,21 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
   },
   actionGridText: {
-    color: Colors.light.text,
+    color: Colors.dark.textSecondary,
     fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
   },
+
+  // Card Widget
   cardWidgetContainer: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.xl,
@@ -1318,17 +1467,17 @@ const styles = StyleSheet.create({
   cardWidgetTitle: {
     fontSize: FontSize.md,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: '#fff',
   },
   cardWidgetBody: {
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
   },
   virtualCardGraphic: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#0D2C54',
     borderRadius: 12,
     padding: 16,
     height: 90,
@@ -1366,38 +1515,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    backgroundColor: Colors.light.surfaceLight,
+    backgroundColor: Colors.dark.surfaceLight,
     borderRadius: 8,
   },
   cardActionBtnText: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.light.textSecondary,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    marginTop: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  actionBtn: {
-    flex: 1,
-    backgroundColor: Colors.light.surfaceLight,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.sm,
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  actionLabel: {
-    color: Colors.light.textSecondary,
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-  },
-  actionSublabel: {
-    color: Colors.light.textMuted,
-    fontSize: 10,
-    fontWeight: '500',
+    color: '#fff',
   },
   sectionHeader: {
     paddingHorizontal: Spacing.lg,
@@ -1405,20 +1529,20 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   sectionTitle: {
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.lg,
     fontWeight: '700',
   },
   listContent: { paddingHorizontal: Spacing.md, gap: Spacing.xs },
   transactionItem: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     gap: Spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
   },
   transactionIcon: {
     width: 44,
@@ -1429,12 +1553,12 @@ const styles = StyleSheet.create({
   },
   transactionInfo: { flex: 1 },
   transactionDesc: {
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
   transactionDate: {
-    color: Colors.light.textMuted,
+    color: Colors.dark.textMuted,
     fontSize: FontSize.xs,
     marginTop: 2,
   },
@@ -1442,22 +1566,24 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: '700',
   },
+
+  // Modals
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center'
+    flex: 1, backgroundColor: 'rgba(6, 8, 20, 0.85)', justifyContent: 'center', alignItems: 'center'
   },
   modalContent: {
-    width: '85%', backgroundColor: Colors.light.surface, borderRadius: BorderRadius.lg,
-    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.light.border
+    width: '85%', backgroundColor: '#0B2039', borderRadius: BorderRadius.lg,
+    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.dark.border
   },
   modalTitle: {
-    color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700', textAlign: 'center'
+    color: '#fff', fontSize: FontSize.lg, fontWeight: '700', textAlign: 'center'
   },
   modalSubtitle: {
-    color: Colors.primary, fontSize: FontSize.xs, textAlign: 'center', marginBottom: Spacing.lg
+    color: '#00F2FE', fontSize: FontSize.xs, textAlign: 'center', marginBottom: Spacing.lg
   },
   inputModal: {
-    backgroundColor: Colors.light.surfaceLight, borderRadius: BorderRadius.sm, padding: Spacing.md,
-    color: Colors.light.text, fontSize: FontSize.md, borderWidth: 1, borderColor: Colors.light.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: BorderRadius.sm, padding: Spacing.md,
+    color: '#fff', fontSize: FontSize.md, borderWidth: 1, borderColor: Colors.dark.border,
     marginBottom: Spacing.md
   },
   modalActions: {
@@ -1465,19 +1591,20 @@ const styles = StyleSheet.create({
   },
   modalBtnCancel: {
     flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center',
-    backgroundColor: Colors.light.surfaceLight, borderWidth: 1, borderColor: Colors.light.border
+    backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: 1, borderColor: Colors.dark.border
   },
   modalBtnText: {
-    color: Colors.light.textSecondary, fontWeight: '600'
+    color: '#fff', fontWeight: '600'
   },
   modalBtnSubmit: {
     flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center',
-    backgroundColor: Colors.primary
+    backgroundColor: '#00F2FE'
   },
   modalBtnSubmitText: {
-    color: '#fff', fontWeight: '700'
+    color: '#000', fontWeight: '700'
   },
-  // Wallet Lock Screen styles
+
+  // Wallet Lock Screen
   walletLockWrapper: {
     width: '100%',
     alignItems: 'center',
@@ -1486,22 +1613,22 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: Colors.primary + '18',
+    backgroundColor: 'rgba(0, 242, 254, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
     borderWidth: 2,
-    borderColor: Colors.primary + '40',
+    borderColor: 'rgba(0, 242, 254, 0.3)',
   },
   walletLockTitle: {
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.xl,
     fontWeight: '800',
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
   walletLockSubtitle: {
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textMuted,
     fontSize: FontSize.sm,
     textAlign: 'center',
     lineHeight: 22,
@@ -1512,19 +1639,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.lg,
     width: '100%',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   walletLockBtnText: {
-    color: '#fff',
+    color: '#000',
     fontSize: FontSize.md,
     fontWeight: '700',
   },

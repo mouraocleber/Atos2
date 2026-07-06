@@ -157,18 +157,22 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Background Glows */}
+      <View style={styles.glowBlue} pointerEvents="none" />
+      <View style={styles.glowPurple} pointerEvents="none" />
+
       <View ref={searchFieldRef} style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
           placeholder="Nome, apelido, email..."
-          placeholderTextColor={Colors.light.textMuted}
+          placeholderTextColor="#6366F1"
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
         />
         <TouchableOpacity style={styles.searchBtn} onPress={handleSearch}>
-          <Feather name="search" size={20} color="#fff" />
+          <Feather name="search" size={20} color="#000" />
         </TouchableOpacity>
       </View>
 
@@ -201,13 +205,13 @@ export default function SearchScreen() {
           ListEmptyComponent={
             searched ? (
               <View style={styles.emptyContainer}>
-                <Feather name="search" size={48} color={Colors.light.textMuted} />
+                <Feather name="search" size={48} color="#6366F1" />
                 <Text style={styles.emptyTitle}>Nenhum resultado</Text>
                 <Text style={styles.emptySubtitle}>Tente buscar por outro nome ou apelido</Text>
               </View>
             ) : (
               <View style={styles.emptyContainer}>
-                <Feather name="users" size={48} color={Colors.light.textMuted} />
+                <Feather name="users" size={48} color="#6366F1" />
                 <Text style={styles.emptyTitle}>Buscar Usuários</Text>
                 <Text style={styles.emptySubtitle}>Encontre pessoas por nome, apelido ou email</Text>
               </View>
@@ -252,28 +256,52 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  glowBlue: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+  },
+  glowPurple: {
+    position: 'absolute',
+    bottom: 100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(155, 81, 224, 0.12)',
+  },
   searchRow: {
     flexDirection: 'row',
     padding: Spacing.md,
     gap: Spacing.sm,
+    zIndex: 10,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.full,
     padding: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    color: Colors.light.text,
+    color: '#fff',
     fontSize: FontSize.md,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
   },
   searchBtn: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#00F2FE',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -283,61 +311,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
+    zIndex: 10,
   },
   radiusToggleBtn: {
     flex: 1,
     paddingVertical: 8,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
     alignItems: 'center',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
   },
   radiusToggleBtnActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#00F2FE',
+    borderColor: '#00F2FE',
   },
   radiusToggleText: {
     fontSize: FontSize.sm,
-    color: Colors.light.textSecondary,
+    color: Colors.dark.textSecondary,
     fontWeight: '500',
   },
   radiusToggleTextActive: {
-    color: '#fff',
+    color: '#000',
   },
   listContent: { padding: Spacing.md, gap: Spacing.sm },
   userCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.surface,
+    backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     gap: Spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: Colors.dark.border,
   },
   userAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.info,
+    backgroundColor: 'rgba(99, 102, 241, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#6366F1',
   },
   avatarText: { color: '#fff', fontSize: FontSize.xl, fontWeight: '700' },
   userInfo: { flex: 1 },
-  userName: { color: Colors.light.text, fontSize: FontSize.md, fontWeight: '600' },
-  userNickname: { color: Colors.light.textMuted, fontSize: FontSize.sm },
-  userLocation: { color: Colors.light.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
+  userName: { color: '#fff', fontSize: FontSize.md, fontWeight: '700' },
+  userNickname: { color: Colors.dark.textSecondary, fontSize: FontSize.sm },
+  userLocation: { color: Colors.dark.textMuted, fontSize: FontSize.xs, marginTop: 2 },
   typeBadge: {
-    backgroundColor: Colors.secondary + '20',
+    backgroundColor: 'rgba(155, 81, 224, 0.15)',
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.sm,
   },
-  typeBadgeText: { color: Colors.secondary, fontSize: FontSize.xs, fontWeight: '700' },
+  typeBadgeText: { color: '#A5B4FC', fontSize: FontSize.xs, fontWeight: '700' },
   emptyContainer: { alignItems: 'center', padding: Spacing.xxl, gap: Spacing.sm },
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700' },
-  emptySubtitle: { color: Colors.light.textSecondary, fontSize: FontSize.sm, textAlign: 'center' },
+  emptyTitle: { color: '#fff', fontSize: FontSize.lg, fontWeight: '700' },
+  emptySubtitle: { color: Colors.dark.textMuted, fontSize: FontSize.sm, textAlign: 'center' },
 });

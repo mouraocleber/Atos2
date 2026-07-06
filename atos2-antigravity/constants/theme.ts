@@ -6,14 +6,17 @@ export const Colors = {
   accent: '#FFD60A', // Bright yellow
   
   dark: {
-    background: '#041527', // Very deep blue
-    surface: '#0B2039', // Navy surface
-    surfaceLight: '#143152', // Lighter navy
-    card: '#0B2039',
+    background: '#060814', // Deep purple-navy black
+    surface: 'rgba(20, 25, 45, 0.65)', // Glassmorphic translucent surface
+    surfaceLight: 'rgba(30, 37, 66, 0.45)', // Translucent inner elements
+    card: 'rgba(20, 25, 45, 0.65)',
     text: '#ffffff',
-    textSecondary: '#FFC857', // Yellow for secondary text
-    textMuted: '#6889A9', // Muted blue-grey
-    border: '#143152',
+    textSecondary: '#A5B4FC', // Light indigo
+    textMuted: '#6366F1', // Muted violet
+    border: 'rgba(255, 255, 255, 0.08)', // Very thin light border for glass effect
+    neonBlue: '#00F2FE',
+    neonPurple: '#9B51E0',
+    neonPink: '#FF007F',
   },
 
   light: {
@@ -35,7 +38,7 @@ export const Colors = {
   gradient: {
     primary: ['#143152', '#0D2C54'],
     secondary: ['#FFD60A', '#FFC857'],
-    dark: ['#041527', '#06162A'],
+    dark: ['#060814', '#0B2039'],
   },
 };
 
