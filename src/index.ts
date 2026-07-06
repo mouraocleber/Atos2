@@ -125,6 +125,9 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// Servir a landing page
+app.use(express.static(path.join(process.cwd(), 'landing-page')));
+
 // 404 handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({

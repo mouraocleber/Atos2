@@ -1454,7 +1454,7 @@ export default function ChatRoomScreen() {
             )}
 
             <View style={{flexDirection: 'row', gap: 12}}>
-               <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.light.surfaceLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.light.border} onPress={() => { setScheduleDateObj(null); setScheduleModalVisible(false); }}>
+               <TouchableOpacity style={{flex: 1, padding: 16, borderRadius: 8, backgroundColor: Colors.light.surfaceLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.light.border}} onPress={() => { setScheduleDateObj(null); setScheduleModalVisible(false); }}>
                   <Text style={{color: Colors.error, fontWeight: 'bold'}}>Remover</Text>
                </TouchableOpacity>
 

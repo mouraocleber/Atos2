@@ -27,6 +27,7 @@ RUN mkdir -p uploads/images uploads/videos uploads/audio
 # Copiar apenas os arquivos necessários do estágio de compilação
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
+COPY landing-page ./landing-page
 
 # Instalar apenas dependências de produção
 RUN npm install --omit=dev

@@ -1,5 +1,5 @@
 Write-Host "1/3 Zippando os arquivos do backend (src, package.json, docker-compose.yml, Dockerfile, tsconfig.json)..."
-Compress-Archive -Path "src", "package.json", "package-lock.json", "docker-compose.yml", "Dockerfile", "tsconfig.json" -DestinationPath deploy.zip -Force
+Compress-Archive -Path "src", "package.json", "package-lock.json", "docker-compose.yml", "Dockerfile", "tsconfig.json", "landing-page" -DestinationPath deploy.zip -Force
 
 Write-Host "2/3 Criando o diretório remoto e enviando os arquivos para a DigitalOcean (142.93.59.54)..."
 ssh -o StrictHostKeyChecking=no root@142.93.59.54 "mkdir -p /app/atos2"

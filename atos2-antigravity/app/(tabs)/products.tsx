@@ -1460,4 +1460,3 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
 });
-});
