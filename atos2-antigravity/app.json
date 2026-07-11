@@ -85,26 +85,7 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "merchant.com.atos2.app",
-          "enableGooglePay": true
-        }
-      ],
       "@react-native-google-signin/google-signin",
-      [
-        "@stripe/stripe-terminal-react-native",
-        {
-          "android": {
-            "permission": "Always"
-          },
-          "ios": {
-            "locationWhenInUseUsageDescription": "O app precisa da localização para conectar ao terminal de pagamento.",
-            "bluetoothAlwaysUsageDescription": "O app usa Bluetooth para conectar ao leitor de cartão."
-          }
-        }
-      ],
       "expo-font",
       "expo-asset"
     ],

@@ -1,5 +1,4 @@
 import { Slot, useRouter, useSegments, usePathname } from 'expo-router';
-import { StripeProvider } from '@stripe/stripe-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, DefaultTheme } from '@react-navigation/native';
 import { AuthProvider } from '../contexts/AuthContext';
@@ -164,60 +163,26 @@ function OnboardingGate() {
 }
 
 
-// Safe lazy import - if the native module isn't properly linked it won't crash the whole app
-let TerminalProvider: React.ComponentType<any> | null = null;
-try {
-  TerminalProvider = require('@stripe/stripe-terminal-react-native').TerminalProvider;
-} catch (e) {
-  console.warn('[Stripe Terminal] Native module not available:', e);
-}
-
-import api from '../services/api';
-
-// This never throws - if it fails, Stripe Terminal just won't work,
-// but the rest of the app continues normally.
-const fetchTokenProvider = async () => {
-  try {
-    const { data } = await api.post('/stripe/connection_token');
-    return data.secret as string;
-  } catch (e) {
-    console.error('Falha ao obter ConnectionToken para Stripe Terminal:', e);
-    return ''; // Return empty string instead of throwing
-  }
-};
-
 export default function RootLayout() {
-  const stripeKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_sample';
-
-  const content = (
-    <ThemeProvider value={AppTheme}>
-      <LocalizationProvider>
-        <AuthProvider>
-          <OnboardingProvider>
-            <SocketProvider>
-              <BiometricProvider>
-                <StatusBar style="light" />
-                <AppStateWatcher />
-                <GlobalCallHandler />
-                <OnboardingGate />
-                <Slot />
-              </BiometricProvider>
-            </SocketProvider>
-          </OnboardingProvider>
-        </AuthProvider>
-      </LocalizationProvider>
-    </ThemeProvider>
-  );
-
   return (
     <SafeAreaProvider>
-      <StripeProvider publishableKey={stripeKey}>
-        {TerminalProvider ? (
-          <TerminalProvider logLevel="verbose" tokenProvider={fetchTokenProvider}>
-            {content}
-          </TerminalProvider>
-        ) : content}
-      </StripeProvider>
+      <ThemeProvider value={AppTheme}>
+        <LocalizationProvider>
+          <AuthProvider>
+            <OnboardingProvider>
+              <SocketProvider>
+                <BiometricProvider>
+                  <StatusBar style="light" />
+                  <AppStateWatcher />
+                  <GlobalCallHandler />
+                  <OnboardingGate />
+                  <Slot />
+                </BiometricProvider>
+              </SocketProvider>
+            </OnboardingProvider>
+          </AuthProvider>
+        </LocalizationProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

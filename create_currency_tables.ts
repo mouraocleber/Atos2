@@ -4,7 +4,7 @@ async function createCurrencyTables() {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS currency_rates (
-          currency VARCHAR(3) PRIMARY KEY,
+          currency VARCHAR(10) PRIMARY KEY,
           rate DECIMAL(15, 6) NOT NULL,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );

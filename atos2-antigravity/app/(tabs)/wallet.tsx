@@ -6,7 +6,6 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { useStripe } from '@stripe/stripe-react-native';
 import { useFocusEffect } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,7 +15,6 @@ import CoachMark from '../../components/CoachMark';
 import { getBalance, getTransactionHistory, createTransaction, WalletBalanceResponse } from '../../services/wallet';
 import api, { SERVER_URL } from '../../services/api';
 import CachedImage from '../../components/CachedImage';
-import TapToPayModal from '../../components/TapToPayModal';
 import { ATOS2_FEES } from '../../constants/fees';
 import * as Linking from 'expo-linking';
 import { getBinanceQuote, createBinanceBuyOrder } from '../../services/binance';
@@ -71,10 +69,13 @@ export default function WalletScreen() {
   const [generatedPixCode, setGeneratedPixCode] = useState('');
   const [depositStep, setDepositStep] = useState<'input' | 'qr'>('input');
 
-  // Cobrar (Stripe POS maquininha)
-  const [chargeModalVisible, setChargeModalVisible] = useState(false);
-  const [chargeAmount, setChargeAmount] = useState('');
-  const [chargeLoading, setChargeLoading] = useState(false);
+  // Conversão BRL ⇄ USDC
+  const [convertModalVisible, setConvertModalVisible] = useState(false);
+  const [convertDirection, setConvertDirection] = useState<'brl_to_usdc' | 'usdc_to_brl'>('brl_to_usdc');
+  const [convertAmount, setConvertAmount] = useState('');
+  const [convertLoading, setConvertLoading] = useState(false);
+  const [activatingGlobal, setActivatingGlobal] = useState(false);
+  const [usdRate, setUsdRate] = useState(5.6); // Fallback 1 USD = 5.6 BRL
 
   // QR Code Scanner (Ler QR = pagar PIX externo)
   const [permission, requestPermission] = useCameraPermissions();
@@ -83,8 +84,6 @@ export default function WalletScreen() {
   const [pixPayAmount, setPixPayAmount] = useState('');
   const [pixPayModalVisible, setPixPayModalVisible] = useState(false);
   const [pixPayLoading, setPixPayLoading] = useState(false);
-  const [tapToPayVisible, setTapToPayVisible] = useState(false);
-  const [tapToPayAmountCents, setTapToPayAmountCents] = useState(0);
 
   // Transfer State
   const [modalVisible, setModalVisible] = useState(false);
@@ -315,16 +314,78 @@ export default function WalletScreen() {
   };
 
 
-  // Cobrar via Stripe Tap to Pay
-  const handleChargeStripe = async () => {
-    if (!chargeAmount || parseFloat(chargeAmount.replace(',', '.')) <= 0) {
-      return Alert.alert('Atenção', 'Informe um valor válido.');
+  const fetchUsdRate = async () => {
+    try {
+      const { data } = await api.get('/wallet/exchange-rates');
+      if (data && data.success) {
+        const rateObj = data.data.find((r: any) => r.from_currency === 'USD' && r.to_currency === 'BRL');
+        if (rateObj) {
+          setUsdRate(parseFloat(rateObj.rate));
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar taxa de câmbio para simulação:', e);
+    }
+  };
+
+  // Ativar Conta Global USDC
+  const handleActivateGlobal = async () => {
+    setActivatingGlobal(true);
+    try {
+      const { data } = await api.post('/wallet/activate-global');
+      if (data && data.success) {
+        Alert.alert('Sucesso 🎉', 'Sua Conta Global em USDC foi ativada com sucesso!');
+        loadData();
+      } else {
+        throw new Error('Falha ao ativar.');
+      }
+    } catch (e: any) {
+      Alert.alert('Erro', e?.response?.data?.error || 'Não foi possível ativar sua Conta Global agora.');
+    } finally {
+      setActivatingGlobal(false);
+    }
+  };
+
+  // Executar Conversão Real
+  const handleExecuteConversion = async () => {
+    const amountNum = parseFloat(convertAmount.replace(',', '.'));
+    if (isNaN(amountNum) || amountNum <= 0) {
+      return Alert.alert('Atenção', 'Informe um valor válido maior que zero.');
     }
 
-    const amountCents = Math.round(parseFloat(chargeAmount.replace(',', '.')) * 100);
-    setTapToPayAmountCents(amountCents);
-    setChargeModalVisible(false);
-    setTapToPayVisible(true);
+    setConvertLoading(true);
+    try {
+      const fromCurrency = convertDirection === 'brl_to_usdc' ? 'BRL' : 'USDC';
+      const toCurrency = convertDirection === 'brl_to_usdc' ? 'USDC' : 'BRL';
+
+      const { data } = await api.post('/wallet/convert-balance', {
+        amount: amountNum,
+        fromCurrency,
+        toCurrency
+      });
+
+      if (data && data.success) {
+        Alert.alert('Conversão Concluída! 🎉', `Seu saldo foi convertido com sucesso.`);
+        setConvertModalVisible(false);
+        setConvertAmount('');
+        loadData();
+      } else {
+        throw new Error('Falha na conversão.');
+      }
+    } catch (e: any) {
+      Alert.alert('Erro na Conversão', e?.response?.data?.error || 'Não foi possível processar a conversão agora.');
+    } finally {
+      setConvertLoading(false);
+    }
+  };
+
+  const getEstimatedReceivedAmount = () => {
+    const amountNum = parseFloat(convertAmount.replace(',', '.'));
+    if (isNaN(amountNum) || amountNum <= 0) return '0.00';
+
+    const rate = convertDirection === 'brl_to_usdc' ? (1 / usdRate) : usdRate;
+    const effectiveRate = rate * 0.98;
+    return (amountNum * effectiveRate).toFixed(2);
   };
 
   // Pagar PIX externo (fora do Atos2) após escanear QR
@@ -466,71 +527,88 @@ export default function WalletScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Background Neon Glows */}
-      <View style={styles.glowBlue} pointerEvents="none" />
-      <View style={styles.glowPurple} pointerEvents="none" />
+      {/* Carrossel de Saldos Multi-moedas */}
+      <View style={{ marginBottom: Spacing.xl }}>
+        {loading ? (
+          <View style={[styles.balanceCardSlider, { justifyContent: 'center' }]}>
+            <ActivityIndicator color={Colors.primary} />
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            snapToInterval={Dimensions.get('window').width - Spacing.lg * 2 + 16}
+            decelerationRate="fast"
+            contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingBottom: 8, gap: 16 }}
+            style={{ marginHorizontal: -Spacing.lg }} // Para o scroll vazar pelas bordas da tela
+          >
+            {/* Card 1: Saldo BRL (Local) */}
+            <View ref={balanceCardRef} style={styles.balanceCardSlider}>
+              <View style={styles.balanceHeaderRow}>
+                <Text style={styles.balanceLabel}>Saldo Local</Text>
+                <View style={styles.currencyBadge}><Text style={styles.currencyBadgeText}>🇧🇷 BRL</Text></View>
+              </View>
+              <Text style={styles.balanceValue}>
+                {balanceData?.local?.currency} {formatCurrency(balanceData?.local?.balance)}
+              </Text>
+              <Text style={styles.balanceCurrency}>
+                Disponível para saque e pagamentos em Reais
+              </Text>
+            </View>
 
-      {/* Top Header */}
-      <View style={styles.customHeader}>
-        <Text style={styles.headerLogo}>Atos<Text style={{color: '#00F2FE'}}>2</Text></Text>
-        <TouchableOpacity style={styles.notificationBell}>
-          <Feather name="bell" size={22} color="#fff" />
-          <View style={styles.bellBadge} />
-        </TouchableOpacity>
+            {/* Card 2: Saldo Original / G */}
+            <View style={styles.balanceCardSlider}>
+              <View style={styles.balanceHeaderRow}>
+                <Text style={styles.balanceLabel}>Atos2 Tokens</Text>
+                <View style={styles.currencyBadge}><Text style={styles.currencyBadgeText}>💎 G</Text></View>
+              </View>
+              <Text style={styles.balanceValue}>
+                G {formatCurrency(balanceData?.global?.balance, 4)}
+              </Text>
+              <Text style={styles.balanceCurrency}>
+                Original: {balanceData?.original?.currency} {formatCurrency(balanceData?.original?.balance)}
+              </Text>
+            </View>
+
+            {/* Card 3: Saldo Global USDC */}
+            <View style={[styles.balanceCardSlider, { backgroundColor: '#1A1C29' }]}>
+              <View style={styles.balanceHeaderRow}>
+                <Text style={[styles.balanceLabel, { color: '#8892B0' }]}>Dólar Digital (Global)</Text>
+                <View style={[styles.currencyBadge, { backgroundColor: '#2B4A8E' }]}><Text style={[styles.currencyBadgeText, { color: '#fff' }]}>🇺🇸 USDC</Text></View>
+              </View>
+              {balanceData?.usdc?.activated ? (
+                <>
+                  <Text style={[styles.balanceValue, { color: '#fff' }]}>
+                    $ {formatCurrency(balanceData?.usdc?.balance, 2)}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 4 }}>
+                    <Feather name="check-circle" size={12} color={Colors.success} />
+                    <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '600' }}>Conta Global Ativa</Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.balanceValue, { color: '#fff', opacity: 0.5 }]}>
+                    $ 0.00
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.btnSmallGhost} 
+                    onPress={handleActivateGlobal}
+                    disabled={activatingGlobal}
+                  >
+                    {activatingGlobal ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.btnSmallGhostText}>+ Ativar Conta Global</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </ScrollView>
+        )})
       </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
-        {/* Global Balance Section */}
-        <View style={styles.globalBalanceContainer}>
-          <Text style={styles.globalBalanceLabel}>Global Balance</Text>
-          <Text style={styles.globalBalanceValue}>
-            $ {formatCurrency((balanceData?.local?.balance || 0) / 5.6 + (balanceData?.global?.balance || 0) * 1.0)} <Text style={{fontSize: FontSize.lg, color: '#A5B4FC', fontWeight: '600'}}>USD</Text>
-          </Text>
-          <Text style={styles.globalTxHeader}>Global Transactions</Text>
-        </View>
-
-        {/* Side-by-Side Glassmorphic Balance Cards */}
-        <View style={styles.cardsRow}>
-          {/* Card 1: USDC Stablecoin */}
-          <View ref={balanceCardRef} style={styles.glassCard}>
-            <View style={styles.cardHeaderRow}>
-              <View style={[styles.tokenIconCircle, { backgroundColor: 'rgba(0, 242, 254, 0.15)' }]}>
-                <Feather name="dollar-sign" size={18} color="#00F2FE" />
-              </View>
-              <Feather name="credit-card" size={14} color="#6366F1" />
-            </View>
-            <Text style={styles.cardSubtitle}>USDC Stablecoin</Text>
-            <Text style={styles.cardTitle}>
-              ${formatCurrency((balanceData?.global?.balance || 0) * 1.0)}
-            </Text>
-            <Text style={styles.cardCurrency}>USDC</Text>
-          </View>
-
-          {/* Card 2: Transactions to (Local/BRL) */}
-          <View style={styles.glassCard}>
-            <View style={styles.cardHeaderRow}>
-              <View style={[styles.tokenIconCircle, { backgroundColor: 'rgba(155, 81, 224, 0.15)' }]}>
-                <Feather name="repeat" size={18} color="#9B51E0" />
-              </View>
-              <Feather name="key" size={14} color="#6366F1" />
-            </View>
-            <Text style={styles.cardSubtitle}>Transactions to</Text>
-            <Text style={styles.cardTitle}>
-              R$ {formatCurrency(balanceData?.local?.balance)}
-            </Text>
-            <Text style={styles.cardCurrency}>
-              G {formatCurrency(balanceData?.global?.balance, 2)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Dot Indicators */}
-        <View style={styles.dotIndicatorsContainer}>
-          <View style={styles.dotIndicator} />
-          <View style={[styles.dotIndicator, styles.dotIndicatorActive]} />
-          <View style={styles.dotIndicator} />
-        </View>
-
         {/* Grid de Ações Rápidas (5x1) */}
         <View style={styles.actionGridContainer}>
           <TouchableOpacity
@@ -544,7 +622,7 @@ export default function WalletScreen() {
               setPixQrVisible(true);
             }}
           >
-            <View style={styles.actionGridIcon}><Feather name="plus" size={24} color="#00F2FE" /></View>
+            <View style={styles.actionGridIcon}><Feather name="plus" size={24} color={Colors.primary} /></View>
             <Text style={styles.actionGridText}>Depositar</Text>
           </TouchableOpacity>
 
@@ -559,15 +637,22 @@ export default function WalletScreen() {
               setBinanceModalVisible(true);
             }}
           >
-            <View style={styles.actionGridIcon}><Feather name="trending-up" size={24} color="#9B51E0" /></View>
+            <View style={styles.actionGridIcon}><Feather name="trending-up" size={24} color={Colors.primary} /></View>
             <Text style={styles.actionGridText}>Comprar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionGridItem}
-            onPress={() => Alert.alert('Em Breve', 'A conversão BRL ↔ USDC estará disponível em breve.')}
+            onPress={() => {
+              if (balanceData?.usdc?.activated) {
+                fetchUsdRate();
+                setConvertModalVisible(true);
+              } else {
+                Alert.alert('Conta Global Necessária', 'Ative sua Conta Global em USDC primeiro.');
+              }
+            }}
           >
-            <View style={styles.actionGridIcon}><Feather name="refresh-cw" size={24} color="#00F2FE" /></View>
+            <View style={styles.actionGridIcon}><Feather name="refresh-cw" size={24} color={Colors.primary} /></View>
             <Text style={styles.actionGridText}>Converter</Text>
           </TouchableOpacity>
 
@@ -577,7 +662,7 @@ export default function WalletScreen() {
               (historyListRef.current as any)?.scrollIntoView?.() || Alert.alert('Extrato', 'Deslize para baixo para ver seu histórico.');
             }}
           >
-            <View style={styles.actionGridIcon}><Feather name="list" size={24} color="#9B51E0" /></View>
+            <View style={styles.actionGridIcon}><Feather name="list" size={24} color={Colors.primary} /></View>
             <Text style={styles.actionGridText}>Extrato</Text>
           </TouchableOpacity>
 
@@ -585,7 +670,7 @@ export default function WalletScreen() {
             style={styles.actionGridItem}
             onPress={() => setPixPayModalVisible(true)}
           >
-            <View style={styles.actionGridIcon}><Feather name="send" size={24} color="#00F2FE" /></View>
+            <View style={styles.actionGridIcon}><Feather name="send" size={24} color={Colors.primary} /></View>
             <Text style={styles.actionGridText}>Enviar</Text>
           </TouchableOpacity>
         </View>
@@ -594,7 +679,7 @@ export default function WalletScreen() {
         <View style={styles.cardWidgetContainer}>
           <View style={styles.cardWidgetHeader}>
             <Text style={styles.cardWidgetTitle}>Meu Cartão Atos2</Text>
-            <Feather name="more-horizontal" size={20} color="#6366F1" />
+            <Feather name="more-horizontal" size={20} color={Colors.light.textMuted} />
           </View>
           <View style={styles.cardWidgetBody}>
             <View style={styles.virtualCardGraphic}>
@@ -604,17 +689,16 @@ export default function WalletScreen() {
             </View>
             <View style={styles.cardWidgetActions}>
               <TouchableOpacity style={styles.cardActionBtn} onPress={() => Alert.alert('Apple Pay', 'Em breve: Integração nativa de tokenização.')}>
-                <Feather name="smartphone" size={18} color="#00F2FE" />
+                <Feather name="smartphone" size={18} color={Colors.primary} />
                 <Text style={styles.cardActionBtnText}>Carteira Apple/Google</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cardActionBtn}>
-                <Feather name="eye" size={18} color="#00F2FE" />
+                <Feather name="eye" size={18} color={Colors.primary} />
                 <Text style={styles.cardActionBtnText}>Cartão Virtual</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      </ScrollView>
 
       {/* Transactions */}
       <View style={styles.sectionHeader}>
@@ -1170,15 +1254,74 @@ export default function WalletScreen() {
         </View>
       </Modal>
 
-      <TapToPayModal
-        visible={tapToPayVisible}
-        onClose={() => setTapToPayVisible(false)}
-        amount={tapToPayAmountCents}
-        onSuccess={() => {
-          setChargeAmount('');
-          loadData();
-        }}
-      />
+      {/* Modal de Conversão BRL ⇄ USDC */}
+      <Modal visible={convertModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContent, { backgroundColor: Colors.light.surface }]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Converter Saldo</Text>
+              <TouchableOpacity onPress={() => { setConvertModalVisible(false); setConvertAmount(''); }}>
+                <Feather name="x" size={24} color={Colors.light.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ width: '100%', alignItems: 'center', marginVertical: Spacing.md }}>
+              {/* Direção da conversão */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.lg }}>
+                <Text style={{ fontSize: FontSize.md, fontWeight: 'bold', color: convertDirection === 'brl_to_usdc' ? Colors.primary : Colors.light.text }}>BRL (R$)</Text>
+                <TouchableOpacity 
+                  onPress={() => setConvertDirection(prev => prev === 'brl_to_usdc' ? 'usdc_to_brl' : 'brl_to_usdc')}
+                  style={{ backgroundColor: Colors.primary + '20', padding: 10, borderRadius: 20 }}
+                >
+                  <Feather name="repeat" size={20} color={Colors.primary} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: FontSize.md, fontWeight: 'bold', color: convertDirection === 'usdc_to_brl' ? Colors.primary : Colors.light.text }}>USDC ($)</Text>
+              </View>
+
+              <Text style={{ alignSelf: 'flex-start', color: Colors.light.textMuted, fontSize: FontSize.sm, marginBottom: 4 }}>Valor a Converter</Text>
+              <TextInput
+                style={styles.inputModal}
+                placeholder={convertDirection === 'brl_to_usdc' ? "Valor em BRL (R$)" : "Valor em USDC ($)"}
+                placeholderTextColor={Colors.light.textMuted}
+                keyboardType="decimal-pad"
+                value={convertAmount}
+                onChangeText={setConvertAmount}
+              />
+
+              <View style={{ backgroundColor: Colors.light.background, padding: Spacing.md, borderRadius: BorderRadius.md, width: '100%', marginTop: Spacing.sm, borderLeftWidth: 4, borderLeftColor: Colors.primary }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.light.textMuted }}>Taxa de Câmbio:</Text>
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.light.text, fontWeight: '600' }}>
+                    1 USDC = R$ {usdRate.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.light.textMuted }}>Spread de Conversão:</Text>
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.warning, fontWeight: '600' }}>2% (Incluso)</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderColor: Colors.light.border, paddingTop: 4, marginTop: 4 }}>
+                  <Text style={{ fontSize: FontSize.sm, fontWeight: 'bold', color: Colors.light.text }}>Você recebe estimado:</Text>
+                  <Text style={{ fontSize: FontSize.sm, fontWeight: 'bold', color: Colors.success }}>
+                    {convertDirection === 'brl_to_usdc' ? '$' : 'R$'} {getEstimatedReceivedAmount()}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => { setConvertModalVisible(false); setConvertAmount(''); }} disabled={convertLoading}>
+                <Text style={styles.modalBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalBtnSubmit} onPress={handleExecuteConversion} disabled={convertLoading}>
+                {convertLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnSubmitText}>Converter</Text>}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* Coach Marks */}
       <CoachMark
@@ -1217,163 +1360,19 @@ export default function WalletScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.dark.background, position: 'relative', overflow: 'hidden' },
-  
-  // Neon Background Glows
-  glowBlue: {
-    position: 'absolute',
-    top: -50,
-    left: -50,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(0, 242, 254, 0.12)',
-    filter: Platform.OS === 'ios' ? 'blur(50px)' : undefined,
-  },
-  glowPurple: {
-    position: 'absolute',
-    bottom: 100,
-    right: -100,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(155, 81, 224, 0.12)',
-    filter: Platform.OS === 'ios' ? 'blur(60px)' : undefined,
-  },
-
-  // Custom Header
-  customHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    paddingBottom: Spacing.md,
-  },
-  headerLogo: {
-    fontSize: FontSize.xl,
-    fontWeight: '900',
-    color: '#fff',
-    fontFamily: Platform.OS === 'ios' ? 'Outfit' : 'sans-serif-medium',
-  },
-  notificationBell: {
-    position: 'relative',
-    padding: 6,
-  },
-  bellBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.error,
-  },
-
-  // Global Balance
-  globalBalanceContainer: {
-    paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  globalBalanceLabel: {
-    color: Colors.dark.textMuted,
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  globalBalanceValue: {
-    color: '#fff',
-    fontSize: FontSize.title + 6,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  globalTxHeader: {
-    color: '#fff',
-    fontSize: FontSize.md,
-    fontWeight: '700',
-    marginTop: Spacing.lg,
-  },
-
-  // Side-by-side Cards
-  cardsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    gap: 12,
-    marginBottom: Spacing.md,
-  },
-  glassCard: {
-    flex: 1,
-    backgroundColor: Colors.dark.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    minHeight: 120,
-    justifyContent: 'space-between',
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  tokenIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardSubtitle: {
-    color: Colors.dark.textMuted,
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginTop: Spacing.xs,
-  },
-  cardTitle: {
-    color: '#fff',
-    fontSize: FontSize.lg + 2,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  cardCurrency: {
-    color: Colors.dark.textSecondary,
-    fontSize: FontSize.xs,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-
-  // Dot Indicators
-  dotIndicatorsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: Spacing.lg,
-  },
-  dotIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  dotIndicatorActive: {
-    backgroundColor: '#00F2FE',
-    width: 14,
-  },
-
+  container: { flex: 1, backgroundColor: Colors.light.background },
   balanceCardSlider: {
     width: Dimensions.get('window').width - Spacing.lg * 2,
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.primary + '40',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
   },
   balanceHeaderRow: {
     flexDirection: 'row',
@@ -1382,31 +1381,31 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   balanceLabel: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   currencyBadge: {
-    backgroundColor: 'rgba(0, 242, 254, 0.15)',
+    backgroundColor: Colors.primary + '15',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
   currencyBadgeText: {
-    color: '#00F2FE',
+    color: Colors.primary,
     fontSize: 10,
     fontWeight: '900',
   },
   balanceValue: {
-    color: '#fff',
+    color: Colors.light.text,
     fontSize: 38,
     fontWeight: '900',
     letterSpacing: -1,
   },
   balanceCurrency: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontSize: FontSize.xs,
     marginTop: 6,
   },
@@ -1423,8 +1422,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
-
-  // Actions Grid
   actionGridContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1439,21 +1436,24 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   actionGridText: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.text,
     fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
   },
-
-  // Card Widget
   cardWidgetContainer: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.xl,
@@ -1467,17 +1467,17 @@ const styles = StyleSheet.create({
   cardWidgetTitle: {
     fontSize: FontSize.md,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.text,
   },
   cardWidgetBody: {
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   virtualCardGraphic: {
-    backgroundColor: '#0D2C54',
+    backgroundColor: Colors.primary,
     borderRadius: 12,
     padding: 16,
     height: 90,
@@ -1515,13 +1515,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    backgroundColor: Colors.dark.surfaceLight,
+    backgroundColor: Colors.light.surfaceLight,
     borderRadius: 8,
   },
   cardActionBtnText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.textSecondary,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  actionBtn: {
+    flex: 1,
+    backgroundColor: Colors.light.surfaceLight,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  actionLabel: {
+    color: Colors.light.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
+  actionSublabel: {
+    color: Colors.light.textMuted,
+    fontSize: 10,
+    fontWeight: '500',
   },
   sectionHeader: {
     paddingHorizontal: Spacing.lg,
@@ -1529,20 +1554,20 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   sectionTitle: {
-    color: '#fff',
+    color: Colors.light.text,
     fontSize: FontSize.lg,
     fontWeight: '700',
   },
   listContent: { paddingHorizontal: Spacing.md, gap: Spacing.xs },
   transactionItem: {
     flexDirection: 'row',
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     gap: Spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   transactionIcon: {
     width: 44,
@@ -1553,12 +1578,12 @@ const styles = StyleSheet.create({
   },
   transactionInfo: { flex: 1 },
   transactionDesc: {
-    color: '#fff',
+    color: Colors.light.text,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
   transactionDate: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontSize: FontSize.xs,
     marginTop: 2,
   },
@@ -1566,24 +1591,29 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: '700',
   },
-
-  // Modals
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(6, 8, 20, 0.85)', justifyContent: 'center', alignItems: 'center'
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center'
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: Spacing.md,
   },
   modalContent: {
-    width: '85%', backgroundColor: '#0B2039', borderRadius: BorderRadius.lg,
-    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.dark.border
+    width: '85%', backgroundColor: Colors.light.surface, borderRadius: BorderRadius.lg,
+    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.light.border
   },
   modalTitle: {
-    color: '#fff', fontSize: FontSize.lg, fontWeight: '700', textAlign: 'center'
+    color: Colors.light.text, fontSize: FontSize.lg, fontWeight: '700', textAlign: 'center'
   },
   modalSubtitle: {
-    color: '#00F2FE', fontSize: FontSize.xs, textAlign: 'center', marginBottom: Spacing.lg
+    color: Colors.primary, fontSize: FontSize.xs, textAlign: 'center', marginBottom: Spacing.lg
   },
   inputModal: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: BorderRadius.sm, padding: Spacing.md,
-    color: '#fff', fontSize: FontSize.md, borderWidth: 1, borderColor: Colors.dark.border,
+    backgroundColor: Colors.light.surfaceLight, borderRadius: BorderRadius.sm, padding: Spacing.md,
+    color: Colors.light.text, fontSize: FontSize.md, borderWidth: 1, borderColor: Colors.light.border,
     marginBottom: Spacing.md
   },
   modalActions: {
@@ -1591,20 +1621,19 @@ const styles = StyleSheet.create({
   },
   modalBtnCancel: {
     flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: 1, borderColor: Colors.dark.border
+    backgroundColor: Colors.light.surfaceLight, borderWidth: 1, borderColor: Colors.light.border
   },
   modalBtnText: {
-    color: '#fff', fontWeight: '600'
+    color: Colors.light.textSecondary, fontWeight: '600'
   },
   modalBtnSubmit: {
     flex: 1, padding: Spacing.md, borderRadius: BorderRadius.sm, alignItems: 'center',
-    backgroundColor: '#00F2FE'
+    backgroundColor: Colors.primary
   },
   modalBtnSubmitText: {
-    color: '#000', fontWeight: '700'
+    color: '#fff', fontWeight: '700'
   },
-
-  // Wallet Lock Screen
+  // Wallet Lock Screen styles
   walletLockWrapper: {
     width: '100%',
     alignItems: 'center',
@@ -1613,22 +1642,22 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: 'rgba(0, 242, 254, 0.15)',
+    backgroundColor: Colors.primary + '18',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
     borderWidth: 2,
-    borderColor: 'rgba(0, 242, 254, 0.3)',
+    borderColor: Colors.primary + '40',
   },
   walletLockTitle: {
-    color: '#fff',
+    color: Colors.light.text,
     fontSize: FontSize.xl,
     fontWeight: '800',
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
   walletLockSubtitle: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
     textAlign: 'center',
     lineHeight: 22,
@@ -1639,14 +1668,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: '#00F2FE',
+    backgroundColor: Colors.primary,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.lg,
     width: '100%',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   walletLockBtnText: {
-    color: '#000',
+    color: '#fff',
     fontSize: FontSize.md,
     fontWeight: '700',
   },

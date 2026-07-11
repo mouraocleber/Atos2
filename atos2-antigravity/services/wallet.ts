@@ -4,6 +4,7 @@ export interface WalletBalanceResponse {
   original: { balance: number; currency: string };
   local: { balance: number; currency: string };
   global: { balance: number; currency: string };
+  usdc?: { balance: number; currency: string; activated: boolean };
 }
 
 export const getBalance = async (): Promise<WalletBalanceResponse> => {

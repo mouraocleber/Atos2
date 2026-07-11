@@ -106,11 +106,12 @@ CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active);
 -- Tabela de Carteiras (Moeda Local)
 CREATE TABLE IF NOT EXISTS wallets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
   balance DECIMAL(15, 2) DEFAULT 0.00,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, currency)
 );
 
 CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id);
@@ -119,8 +120,8 @@ CREATE INDEX IF NOT EXISTS idx_wallets_currency ON wallets(currency);
 -- Tabela de Taxas de Câmbio
 CREATE TABLE IF NOT EXISTS exchange_rates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  from_currency VARCHAR(3) NOT NULL,
-  to_currency VARCHAR(3) NOT NULL,
+  from_currency VARCHAR(10) NOT NULL,
+  to_currency VARCHAR(10) NOT NULL,
   rate DECIMAL(15, 6) NOT NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(from_currency, to_currency)
@@ -135,9 +136,9 @@ CREATE TABLE IF NOT EXISTS transactions (
   to_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   type VARCHAR(20) NOT NULL CHECK (type IN ('DEPOSIT', 'WITHDRAW', 'TRANSFER', 'PAYMENT', 'REFUND')),
   amount DECIMAL(15, 2) NOT NULL,
-  currency VARCHAR(3) NOT NULL,
+  currency VARCHAR(10) NOT NULL,
   converted_amount DECIMAL(15, 2),
-  converted_currency VARCHAR(3),
+  converted_currency VARCHAR(10),
   exchange_rate DECIMAL(15, 6),
   fee DECIMAL(15, 2),
   status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'COMPLETED', 'FAILED', 'CANCELLED')),

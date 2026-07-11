@@ -33,9 +33,6 @@ export class WalletController {
     }
   }
 
-  /**
-   * Obter saldo
-   */
   async getBalance(req: AuthenticatedRequest, res: Response) {
     try {
       const userId = req.userId!;
@@ -43,10 +40,12 @@ export class WalletController {
         return res.status(401).json({ error: 'Não autenticado' });
       }
 
-      let wallet = await service.getWallet(userId);
+      let wallet = await service.getWallet(userId, 'BRL');
       if (!wallet) {
         wallet = await service.createWallet(userId, 'BRL');
       }
+
+      let usdcWallet = await service.getWallet(userId, 'USDC');
 
       const user = await userService.getUserById(userId);
       // Se não houver req.query.currency, assume moeda base do país do perfil do usuário
@@ -61,7 +60,10 @@ export class WalletController {
         data: {
           original: { balance: wallet.balance, currency: wallet.currency },
           local: { balance: Math.round(localBalance * 100) / 100, currency: localCurrencyCode },
-          global: { balance: Math.round(globalBalance * 10000) / 10000, currency: 'G' }
+          global: { balance: Math.round(globalBalance * 10000) / 10000, currency: 'G' },
+          usdc: usdcWallet 
+            ? { balance: parseFloat(usdcWallet.balance as any), currency: 'USDC', activated: true } 
+            : { balance: 0.00, currency: 'USDC', activated: false }
         }
       });
     } catch (error: any) {
@@ -375,6 +377,56 @@ export class WalletController {
         success: true,
         message: 'Transação reembolsada com sucesso',
         data: refund
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  /**
+   * Ativar Carteira Global USDC
+   */
+  async activateGlobalWallet(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId!;
+      if (!userId) {
+        return res.status(401).json({ error: 'Não autenticado' });
+      }
+
+      const wallet = await service.createWallet(userId, 'USDC');
+      res.json({
+        success: true,
+        message: 'Conta Global USDC ativada com sucesso',
+        data: wallet
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * Executar conversão real de saldos BRL ⇄ USDC
+   */
+  async executeConversion(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId!;
+      if (!userId) {
+        return res.status(401).json({ error: 'Não autenticado' });
+      }
+
+      const { amount, fromCurrency, toCurrency } = req.body;
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ error: 'Valor de conversão inválido' });
+      }
+      if (!fromCurrency || !toCurrency) {
+        return res.status(400).json({ error: 'Moedas de origem e destino obrigatórias' });
+      }
+
+      const result = await service.convertBalance(userId, fromCurrency, toCurrency, amount);
+      res.json({
+        success: true,
+        message: 'Conversão concluída com sucesso',
+        data: result
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });

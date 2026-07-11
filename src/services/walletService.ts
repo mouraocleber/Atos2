@@ -50,6 +50,7 @@ export class WalletService {
     const result = await query(
       `INSERT INTO wallets (id, user_id, currency, balance)
        VALUES ($1, $2, $3, 0)
+       ON CONFLICT (user_id, currency) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
       [id, userId, currency]
     );
@@ -60,10 +61,10 @@ export class WalletService {
   /**
    * Obter carteira do usuário
    */
-  async getWallet(userId: string): Promise<Wallet | null> {
+  async getWallet(userId: string, currency: string = 'BRL'): Promise<Wallet | null> {
     const result = await query(
-      `SELECT * FROM wallets WHERE user_id = $1`,
-      [userId]
+      `SELECT * FROM wallets WHERE user_id = $1 AND currency = $2`,
+      [userId, currency]
     );
 
     return result.rows[0] || null;
@@ -72,15 +73,15 @@ export class WalletService {
   /**
    * Obter saldo em moeda específica
    */
-  async getBalance(userId: string, currency?: string): Promise<number> {
-    if (currency && !isCurrencySupported(currency)) {
+  async getBalance(userId: string, currency: string = 'BRL'): Promise<number> {
+    if (!isCurrencySupported(currency)) {
       throw new Error(`Moeda não suportada: ${currency}`);
     }
 
     const result = await query(
       `SELECT balance FROM wallets 
-       WHERE user_id = $1 ${currency ? 'AND currency = $2' : ''}`,
-      currency ? [userId, currency] : [userId]
+       WHERE user_id = $1 AND currency = $2`,
+      [userId, currency]
     );
 
     if (result.rows.length === 0) {
@@ -289,7 +290,7 @@ export class WalletService {
         await client.query(
           `INSERT INTO wallets (user_id, currency, balance) 
            VALUES ($1, $3, $2)
-           ON CONFLICT (user_id) 
+           ON CONFLICT (user_id, currency) 
            DO UPDATE SET balance = wallets.balance + EXCLUDED.balance, updated_at = CURRENT_TIMESTAMP`,
           [data.toUserId, recipientAmount, recipientCurrency]
         );
@@ -460,6 +461,92 @@ export class WalletService {
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Realizar conversão de saldo entre moedas (BRL ⇄ USDC) com spread de 2%
+   */
+  async convertBalance(userId: string, fromCurrency: string, toCurrency: string, amount: number): Promise<any> {
+    if (fromCurrency === toCurrency) {
+      throw new Error('As moedas de origem e destino devem ser diferentes');
+    }
+    if (amount <= 0) {
+      throw new Error('O valor de conversão deve ser maior que zero');
+    }
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Verificar carteira de origem
+      const fromWalletRes = await client.query(
+        `SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = $2 FOR UPDATE`,
+        [userId, fromCurrency]
+      );
+      if (fromWalletRes.rows.length === 0) {
+        throw new Error(`Carteira de origem (${fromCurrency}) não encontrada`);
+      }
+      const fromBalance = parseFloat(fromWalletRes.rows[0].balance);
+      if (fromBalance < amount) {
+        throw new Error('Saldo insuficiente para conversão');
+      }
+
+      // 2. Obter taxa de câmbio
+      const rawRate = await this.getExchangeRate(fromCurrency, toCurrency);
+      
+      // Aplicar spread de 2% (o usuário recebe 98% do valor de conversão)
+      const effectiveRate = rawRate * 0.98;
+      const convertedAmount = Math.round((amount * effectiveRate) * 100) / 100;
+      const fee = Math.round((amount * 0.02) * 100) / 100; // 2% spread fee
+
+      // 3. Atualizar saldo de origem
+      await client.query(
+        `UPDATE wallets SET balance = balance - $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 AND currency = $3`,
+        [amount, userId, fromCurrency]
+      );
+
+      // 4. Atualizar/Inserir saldo de destino
+      const toWalletRes = await client.query(
+        `INSERT INTO wallets (user_id, currency, balance)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, currency)
+         DO UPDATE SET balance = wallets.balance + EXCLUDED.balance, updated_at = CURRENT_TIMESTAMP
+         RETURNING *`,
+        [userId, toCurrency, convertedAmount]
+      );
+
+      // 5. Registrar transação de débito no histórico
+      const txId = uuidv4();
+      await client.query(
+        `INSERT INTO transactions (
+          id, from_user_id, type, amount, currency, converted_amount, converted_currency, exchange_rate, fee, status, description
+        ) VALUES ($1, $2, 'TRANSFER', $3, $4, $5, $6, $7, $8, 'COMPLETED', $9)`,
+        [
+          txId,
+          userId,
+          -amount, // valor negativo no extrato do remetente
+          fromCurrency,
+          convertedAmount,
+          toCurrency,
+          effectiveRate,
+          fee,
+          `Conversão de ${fromCurrency} para ${toCurrency}`
+        ]
+      );
+
+      await client.query('COMMIT');
+      return {
+        fromWallet: { currency: fromCurrency, balance: fromBalance - amount },
+        toWallet: toWalletRes.rows[0],
+        convertedAmount,
+        rate: effectiveRate
+      };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
     } finally {
       client.release();
     }

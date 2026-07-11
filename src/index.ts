@@ -94,7 +94,7 @@ const io = new SocketIOServer(httpServer, {
   },
 });
 
-import stripeRoutes from './routes/stripeRoutes';
+
 
 // Rotas
 app.use('/api/auth', authRoutes);
@@ -114,7 +114,7 @@ app.use('/api/pix', pixRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/keywords', keywordRoutes);
 app.use('/api/calls', callRoutes);
-app.use('/api/stripe', stripeRoutes);
+
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {

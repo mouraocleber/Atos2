@@ -24,6 +24,8 @@ router.get('/statistics', (req, res) => controller.getStatistics(req, res));
 
 // Rotas de cambio
 router.post('/convert', (req, res) => controller.convertCurrency(req, res));
+router.post('/convert-balance', (req, res) => controller.executeConversion(req, res));
+router.post('/activate-global', (req, res) => controller.activateGlobalWallet(req, res));
 router.get('/exchange-rates', (req, res) => controller.getExchangeRates(req, res));
 router.get('/currencies', (req, res) => controller.getSupportedCurrencies(req, res));
 router.get('/currencies/:code', (req, res) => controller.getCurrencyInfo(req, res));

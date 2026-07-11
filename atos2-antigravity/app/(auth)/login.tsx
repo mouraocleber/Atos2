@@ -47,12 +47,10 @@ export default function LoginScreen() {
     } finally {
       setGoogleLoading(false);
     }
-  }  return (
-    <SafeAreaView style={styles.container}>
-      {/* Background Glows */}
-      <View style={styles.glowBlue} pointerEvents="none" />
-      <View style={styles.glowPurple} pointerEvents="none" />
+  }
 
+  return (
+    <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -68,7 +66,7 @@ export default function LoginScreen() {
               style={styles.logoImage} 
               resizeMode="contain" 
             />
-            <Text style={styles.title}>Atos<Text style={{color: '#00F2FE'}}>2</Text></Text>
+            <Text style={styles.title}>Atos2</Text>
             <Text style={styles.subtitle}>{t('connect_with_world')}</Text>
           </View>
 
@@ -79,7 +77,7 @@ export default function LoginScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('email_placeholder')}
-                placeholderTextColor="#6366F1"
+                placeholderTextColor={Colors.light.textMuted}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -94,7 +92,7 @@ export default function LoginScreen() {
                 <TextInput
                   style={[styles.input, styles.passwordInput]}
                   placeholder="••••••••"
-                  placeholderTextColor="#6366F1"
+                  placeholderTextColor={Colors.light.textMuted}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -116,7 +114,7 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               {loading ? (
-                <ActivityIndicator color="#000" />
+                <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.loginButtonText}>{t('login')}</Text>
               )}
@@ -137,7 +135,7 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               {googleLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#333" />
               ) : (
                 <>
                   <Text style={styles.googleIcon}>G</Text>
@@ -164,31 +162,10 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  glowBlue: {
-    position: 'absolute',
-    top: -50,
-    left: -50,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(0, 242, 254, 0.12)',
-  },
-  glowPurple: {
-    position: 'absolute',
-    bottom: -80,
-    right: -80,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(155, 81, 224, 0.12)',
+    backgroundColor: Colors.light.background,
   },
   keyboardView: {
     flex: 1,
-    zIndex: 10,
   },
   scrollContent: {
     flexGrow: 1,
@@ -207,38 +184,38 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FontSize.title,
     fontWeight: '800',
-    color: '#fff',
+    color: Colors.light.text,
     letterSpacing: 1,
   },
   subtitle: {
     fontSize: FontSize.md,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   form: {
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: Colors.light.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     gap: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   inputGroup: {
     gap: Spacing.xs,
   },
   label: {
-    color: '#fff',
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: Colors.light.surfaceLight,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
-    color: '#fff',
+    color: Colors.light.text,
     fontSize: FontSize.md,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
   },
   passwordContainer: {
     position: 'relative',
@@ -257,17 +234,22 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   loginButton: {
-    backgroundColor: '#00F2FE',
+    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
     alignItems: 'center',
     marginTop: Spacing.sm,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   loginButtonText: {
-    color: '#000',
+    color: '#fff',
     fontSize: FontSize.lg,
     fontWeight: '700',
   },
@@ -279,11 +261,11 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   footerText: {
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontSize: FontSize.sm,
   },
   registerLink: {
-    color: '#00F2FE',
+    color: Colors.secondary,
     fontSize: FontSize.sm,
     fontWeight: '700',
   },
@@ -295,30 +277,35 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: Colors.light.border,
   },
   dividerText: {
-    color: Colors.dark.textMuted,
+    color: Colors.light.textMuted,
     fontSize: FontSize.sm,
   },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0B2039',
+    backgroundColor: '#ffffff',
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderWidth: 1.5,
+    borderColor: '#dadce0',
     gap: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   googleIcon: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#fff',
+    color: '#4285F4',
   },
   googleButtonText: {
-    color: '#fff',
+    color: '#3c4043',
     fontSize: FontSize.md,
     fontWeight: '600',
   },

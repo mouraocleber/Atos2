@@ -14,22 +14,22 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#060814',
+          backgroundColor: Colors.dark.surface,
           shadowColor: 'transparent',
           elevation: 0,
         },
-        headerTintColor: '#ffffff',
+        headerTintColor: Colors.dark.text,
         headerTitleStyle: { fontWeight: '700' },
         tabBarStyle: {
-          backgroundColor: '#060814',
-          borderTopColor: 'rgba(255, 255, 255, 0.08)',
+          backgroundColor: Colors.dark.surface,
+          borderTopColor: Colors.dark.border,
           borderTopWidth: 1,
           height: 60 + Math.max(15, insets.bottom),
           paddingBottom: 8 + Math.max(15, insets.bottom),
           paddingTop: 4,
         },
-        tabBarActiveTintColor: '#00F2FE', // Neon Blue
-        tabBarInactiveTintColor: '#6366F1', // Indigo/violet muted
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.dark.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
@@ -103,6 +103,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   iconContainerFocused: {
-    backgroundColor: 'rgba(0, 242, 254, 0.15)',
+    backgroundColor: Colors.primary + '30',
   }
 });
