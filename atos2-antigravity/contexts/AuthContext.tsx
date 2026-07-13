@@ -58,11 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Configura o Google Sign-In com o webClientId do google-services.json
-    GoogleSignin.configure({
-      webClientId: '399781155509-82nebimrcr62redp0q0o782jajc6uimg.apps.googleusercontent.com',
-      offlineAccess: false,
-    });
+    // Configura o Google Sign-In com o webClientId do google-services.json com fallback de erro
+    try {
+       GoogleSignin.configure({
+         webClientId: '399781155509-82nebimrcr62redp0q0o782jajc6uimg.apps.googleusercontent.com',
+         offlineAccess: false,
+       });
+    } catch (e) {
+      console.warn('[AuthContext] Google Sign-In initialization failed:', e);
+    }
     loadStoredData();
   }, []);
 

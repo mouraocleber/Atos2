@@ -77,7 +77,6 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setCoachDone({ chat: false, products: false, wallet: false, search: false, settings: false });
   }, []);
 
-  if (!loaded) return null; // aguarda carregar antes de renderizar
 
   return (
     <OnboardingContext.Provider value={{ showcaseDone, markShowcaseDone, isCoachDone, markCoachDone, resetAll }}>

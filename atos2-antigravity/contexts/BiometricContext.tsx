@@ -29,9 +29,14 @@ export function BiometricProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function checkSupport() {
-    const compatible = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
-    setIsBiometricSupported(compatible && enrolled);
+    try {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      setIsBiometricSupported(compatible && enrolled);
+    } catch (e) {
+      console.warn('[BiometricContext] local authentication hardware check failed:', e);
+      setIsBiometricSupported(false);
+    }
   }
 
   async function loadPreferences() {
