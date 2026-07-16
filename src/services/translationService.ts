@@ -10,6 +10,22 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const DEEPL_SUPPORTED_CODES = new Set([
+  'AR', 'BG', 'CS', 'DA', 'DE', 'EL', 'EN', 'EN-US', 'EN-GB', 'ES', 'ET',
+  'FI', 'FR', 'HU', 'ID', 'IT', 'JA', 'KO', 'LT', 'LV', 'NB', 'NL', 'PL',
+  'PT', 'PT-BR', 'PT-PT', 'RO', 'RU', 'SK', 'SL', 'SV', 'TR', 'UK', 'ZH',
+  'HE', 'VI', 'TH'
+]);
+
+function isDeepLSupported(langCode: string): boolean {
+  const upper = langCode.toUpperCase();
+  if (DEEPL_SUPPORTED_CODES.has(upper)) {
+    return true;
+  }
+  const base = upper.split('-')[0];
+  return DEEPL_SUPPORTED_CODES.has(base);
+}
+
 export class TranslationService {
   private supportedLanguages: Map<string, string> = new Map([
     ['pt-BR', 'Portuguese (Brazil)'],
@@ -27,9 +43,25 @@ export class TranslationService {
     ['ru-RU', 'Russian'],
     ['ko-KR', 'Korean'],
     ['ar-SA', 'Arabic'],
+    ['hi-IN', 'Hindi'],
+    ['tr-TR', 'Turkish'],
+    ['pl-PL', 'Polish'],
+    ['nl-NL', 'Dutch'],
+    ['sv-SE', 'Swedish'],
+    ['da-DK', 'Danish'],
+    ['fi-FI', 'Finnish'],
+    ['nb-NO', 'Norwegian'],
+    ['uk-UA', 'Ukrainian'],
+    ['id-ID', 'Indonesian'],
+    ['ms-MY', 'Malay'],
+    ['th-TH', 'Thai'],
+    ['vi-VN', 'Vietnamese'],
+    ['he-IL', 'Hebrew'],
+    ['cs-CZ', 'Czech'],
+    ['ro-RO', 'Romanian'],
+    ['hu-HU', 'Hungarian'],
+    ['el-GR', 'Greek'],
   ]);
-
-
 
   async translateText(
     text: string,
@@ -40,46 +72,87 @@ export class TranslationService {
       return text;
     }
 
-    try {
-      // O DeepL usa um formato de target_lang ligeiramente diferente
-      // Ele só aceita sub-regiões para PT e EN. Os demais (FR, ES, DE, IT) devem ter apenas 2 letras.
-      const targetLangParts = targetLanguage.split('-');
-      let deeplTargetLang = targetLangParts[0].toUpperCase();
-      const validDeepLRegions = ['PT-BR', 'PT-PT', 'EN-US', 'EN-GB'];
-      const combinedTarget = targetLangParts.length > 1 ? `${deeplTargetLang}-${targetLangParts[1].toUpperCase()}` : deeplTargetLang;
-      
-      if (validDeepLRegions.includes(combinedTarget)) {
-        deeplTargetLang = combinedTarget;
-      }
+    const useDeepL = isDeepLSupported(sourceLanguage) && isDeepLSupported(targetLanguage);
 
-      const sourceLangParts = sourceLanguage.split('-');
-      const deeplSourceLang = sourceLangParts[0].toUpperCase();
-
-      // Verificar se há chave do DeepL
-      if (!process.env.DEEPL_API_KEY) {
-        console.warn('DEEPL_API_KEY não configurada. Usando retorno de fallback.');
-        return `[Trans. Pending] ${text}`;
-      }
-
-      const response = await axios.post(
-        'https://api-free.deepl.com/v2/translate',
-        new URLSearchParams({
-          text: text,
-          source_lang: deeplSourceLang,
-          target_lang: deeplTargetLang,
-        }),
-        {
-          headers: {
-            'Authorization': `DeepL-Auth-Key ${process.env.DEEPL_API_KEY}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
+    if (useDeepL && process.env.DEEPL_API_KEY) {
+      try {
+        const targetLangParts = targetLanguage.split('-');
+        let deeplTargetLang = targetLangParts[0].toUpperCase();
+        const validDeepLRegions = ['PT-BR', 'PT-PT', 'EN-US', 'EN-GB'];
+        const combinedTarget = targetLangParts.length > 1 ? `${deeplTargetLang}-${targetLangParts[1].toUpperCase()}` : deeplTargetLang;
+        
+        if (validDeepLRegions.includes(combinedTarget)) {
+          deeplTargetLang = combinedTarget;
         }
-      );
 
-      return response.data.translations[0].text;
-    } catch (error: any) {
-      console.error('Erro na tradução DeepL:', error.response?.data || error.message);
-      throw new Error('Falha ao traduzir mensagem');
+        const sourceLangParts = sourceLanguage.split('-');
+        const deeplSourceLang = sourceLangParts[0].toUpperCase();
+
+        const response = await axios.post(
+          'https://api-free.deepl.com/v2/translate',
+          new URLSearchParams({
+            text: text,
+            source_lang: deeplSourceLang,
+            target_lang: deeplTargetLang,
+          }),
+          {
+            headers: {
+              'Authorization': `DeepL-Auth-Key ${process.env.DEEPL_API_KEY}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          }
+        );
+
+        return response.data.translations[0].text;
+      } catch (error: any) {
+        console.warn('Erro na tradução DeepL, tentando fallback OpenAI:', error.response?.data || error.message);
+        return this.translateWithOpenAI(text, sourceLanguage, targetLanguage);
+      }
+    } else {
+      // Se não for suportado pelo DeepL ou chave do DeepL não estiver configurada, tenta OpenAI diretamente
+      return this.translateWithOpenAI(text, sourceLanguage, targetLanguage);
+    }
+  }
+
+  async translateWithOpenAI(
+    text: string,
+    sourceLanguage: string,
+    targetLanguage: string
+  ): Promise<string> {
+    try {
+      if (!process.env.OPENAI_API_KEY) {
+        console.warn('OPENAI_API_KEY não configurada. Retornando texto original.');
+        return text;
+      }
+
+      const sourceName = this.supportedLanguages.get(sourceLanguage) || sourceLanguage;
+      const targetName = this.supportedLanguages.get(targetLanguage) || targetLanguage;
+
+      console.log(`[OpenAI Translate] Traduzindo de ${sourceName} para ${targetName}...`);
+
+      const response = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a professional translator for the Atos2 messaging app. Translate the message from "${sourceName}" to "${targetName}". Keep the original formatting, style, punctuation, emojis, and slang. Output ONLY the translated text without quotes or explanations.`,
+          },
+          {
+            role: 'user',
+            content: text,
+          },
+        ],
+        temperature: 0.3,
+      });
+
+      const translated = response.choices[0]?.message?.content?.trim();
+      if (!translated) {
+        throw new Error('Empty response from OpenAI');
+      }
+      return translated;
+    } catch (err: any) {
+      console.error('Erro na tradução OpenAI:', err.message);
+      return text; // fallback final seguro
     }
   }
 

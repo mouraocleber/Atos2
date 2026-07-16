@@ -31,7 +31,7 @@ export class AuthController {
         throw new AppError(400, 'Senha deve ter no mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais', 'WEAK_PASSWORD');
       }
 
-      if (preferredLanguage && !['pt-BR', 'pt-PT', 'en-US', 'en-GB', 'es-ES', 'es-MX', 'fr-FR', 'de-DE', 'it-IT', 'ja-JP', 'zh-CN', 'zh-TW', 'ru-RU', 'ko-KR', 'ar-SA'].includes(preferredLanguage)) {
+      if (preferredLanguage && !['pt-BR', 'pt-PT', 'en-US', 'en-GB', 'es-ES', 'es-MX', 'fr-FR', 'de-DE', 'it-IT', 'ja-JP', 'zh-CN', 'zh-TW', 'ru-RU', 'ko-KR', 'ar-SA', 'hi-IN', 'tr-TR', 'pl-PL', 'nl-NL', 'sv-SE', 'da-DK', 'fi-FI', 'nb-NO', 'uk-UA', 'id-ID', 'ms-MY', 'th-TH', 'vi-VN', 'he-IL', 'cs-CZ', 'ro-RO', 'hu-HU', 'el-GR'].includes(preferredLanguage)) {
         throw new AppError(400, 'Idioma não suportado', 'UNSUPPORTED_LANGUAGE');
       }
 

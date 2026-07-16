@@ -379,6 +379,9 @@ export const getWebRtcHtml = () => {
           video: callType === 'video' ? { facingMode: facingMode } : false
         };
         
+        if (!navigator.mediaDevices) {
+          throw new Error("navigator.mediaDevices is undefined. Origin is not secure (requires HTTPS or localhost baseUrl in WebView).");
+        }
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         log('Acquired local media stream.');
 

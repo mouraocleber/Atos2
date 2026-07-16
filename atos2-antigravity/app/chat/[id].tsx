@@ -1318,7 +1318,7 @@ export default function ChatRoomScreen() {
               <WebView
                 ref={webViewRef}
                 style={{ flex: 1 }}
-                source={{ html: getWebRtcHtml() }}
+                source={{ html: getWebRtcHtml(), baseUrl: 'https://localhost' }}
                 originWhitelist={['*']}
                 allowsInlineMediaPlayback
                 mediaPlaybackRequiresUserAction={false}
