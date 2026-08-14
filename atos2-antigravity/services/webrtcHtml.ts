@@ -195,47 +195,120 @@ export const getWebRtcHtml = () => {
     .btn-hangup:active {
       background: #d63f63;
     }
-    .btn-muted {
-      background: rgba(239, 71, 111, 0.8) !important;
+    .btn-translate {
+      background: linear-gradient(135deg, #FFC857 0%, #E9A825 100%) !important;
+      color: #041527 !important;
+      font-weight: 700;
+      box-shadow: 0 4px 15px rgba(255, 200, 87, 0.4);
     }
-    .btn svg {
-      width: 24px;
-      height: 24px;
-      fill: currentColor;
+    .btn-translate.active {
+      background: linear-gradient(135deg, #06d6a0 0%, #049a73 100%) !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 15px rgba(6, 214, 160, 0.5);
     }
-
-    /* Animations */
-    @keyframes pulse {
-      0% {
-        transform: scale(0.95);
-        opacity: 0.5;
-      }
-      50% {
-        transform: scale(1.1);
-        opacity: 0;
-      }
-      100% {
-        transform: scale(0.95);
-        opacity: 0.5;
-      }
-    }
-
-    /* Logs Overlay (Hidden by default, used for development debugging) */
-    #logs {
+    
+    /* Live Captions Overlay */
+    .captions-container {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      max-height: 120px;
-      overflow-y: auto;
-      background: rgba(0,0,0,0.7);
-      color: #00ff00;
-      font-size: 10px;
-      padding: 5px;
-      font-family: monospace;
-      z-index: 100;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 15;
       pointer-events: none;
-      display: none; /* Set display: block to debug */
+    }
+    .caption-bubble {
+      background: rgba(4, 21, 39, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 200, 87, 0.3);
+      border-radius: 16px;
+      padding: 12px 16px;
+      color: #ffffff;
+      font-size: 14px;
+      line-height: 1.4;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      animation: fadeInCaption 0.3s ease-out;
+    }
+    .caption-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #FFC857;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+    .caption-text-original {
+      font-size: 12px;
+      color: #94A3B8;
+      font-style: italic;
+      margin-bottom: 2px;
+    }
+    .caption-text-translated {
+      font-size: 15px;
+      color: #F8FAFC;
+      font-weight: 600;
+    }
+
+    /* Language Selection Modal */
+    .lang-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(11, 32, 57, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 200, 87, 0.3);
+      border-radius: 24px;
+      padding: 24px;
+      width: 85%;
+      max-width: 340px;
+      z-index: 50;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .lang-modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #FFC857;
+      text-align: center;
+    }
+    .lang-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .lang-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.08);
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      color: #fff;
+      font-size: 15px;
+    }
+    .lang-item:active, .lang-item.selected {
+      border-color: #FFC857;
+      background: rgba(255, 200, 87, 0.15);
+    }
+
+    @keyframes fadeInCaption {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
@@ -267,6 +340,34 @@ export const getWebRtcHtml = () => {
     <div id="headerStatus" class="call-status">Seguro P2P</div>
   </div>
 
+  <!-- Captions Overlay Container -->
+  <div id="captionsContainer" class="captions-container"></div>
+
+  <!-- Language Selection Modal -->
+  <div id="langModal" class="lang-modal">
+    <div class="lang-modal-title">✨ Tradução Simultânea IA</div>
+    <div style="font-size: 12px; color: #94A3B8; text-align: center; margin-top: -10px;">Selecione o seu idioma nativo para ouvir a tradução ao vivo:</div>
+    <div class="lang-list">
+      <div class="lang-item selected" onclick="selectLanguage('pt', 'Português', '🇧🇷')">
+        <span>🇧🇷 Português</span>
+        <span>✓</span>
+      </div>
+      <div class="lang-item" onclick="selectLanguage('en', 'English', '🇺🇸')">
+        <span>🇺🇸 English</span>
+        <span></span>
+      </div>
+      <div class="lang-item" onclick="selectLanguage('es', 'Español', '🇪🇸')">
+        <span>🇪🇸 Español</span>
+        <span></span>
+      </div>
+      <div class="lang-item" onclick="selectLanguage('fr', 'Français', '🇫🇷')">
+        <span>🇫🇷 Français</span>
+        <span></span>
+      </div>
+    </div>
+    <button class="btn" style="width: 100%; border-radius: 12px; background: #FFC857; color: #041527; font-weight: 700;" onclick="closeLangModal()">Confirmar</button>
+  </div>
+
   <!-- Controls overlay -->
   <div class="controls-overlay">
     <!-- Mute mic -->
@@ -275,6 +376,11 @@ export const getWebRtcHtml = () => {
         <!-- Mic Icon -->
         <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
       </svg>
+    </button>
+
+    <!-- AI Live Translation Toggle Button -->
+    <button id="btnTranslate" class="btn btn-translate" onclick="openLangModal()" title="Tradução Simultânea IA">
+      ✨ IA
     </button>
 
     <!-- Toggle Camera (Only for video calls) -->
@@ -315,8 +421,97 @@ export const getWebRtcHtml = () => {
     let durationTimer = null;
     let callDurationSeconds = 0;
     
+    // Live AI Translation state variables
+    let isTranslationActive = false;
+    let selectedLangCode = 'pt';
+    let selectedLangName = 'Português';
+    let selectedLangFlag = '🇧🇷';
+    let remoteAudioElement = null;
+
     // WebRTC connection state variables
     let candidateQueue = [];
+
+    // Translation UI Handlers
+    function openLangModal() {
+      document.getElementById('langModal').style.display = 'flex';
+    }
+
+    function closeLangModal() {
+      document.getElementById('langModal').style.display = 'none';
+    }
+
+    function selectLanguage(code, name, flag) {
+      selectedLangCode = code;
+      selectedLangName = name;
+      selectedLangFlag = flag;
+      isTranslationActive = true;
+
+      // Update UI button state
+      const btn = document.getElementById('btnTranslate');
+      btn.classList.add('active');
+      btn.innerText = flag + ' IA';
+
+      // Update selected item in list
+      const items = document.querySelectorAll('.lang-item');
+      items.forEach(item => {
+        if (item.innerText.includes(name)) {
+          item.classList.add('selected');
+          item.children[1].innerText = '✓';
+        } else {
+          item.classList.remove('selected');
+          item.children[1].innerText = '';
+        }
+      });
+
+      log('Tradução Simultânea ativada para o idioma: ' + name + ' (' + code + ')');
+      
+      // Notify React Native WebView about language preference
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'translation_toggle',
+        enabled: true,
+        language: code,
+        languageName: name
+      }));
+
+      // Display notification caption
+      showLiveCaption('Sistema IA', 'Tradução Simultânea Ativada', 'Você ouvirá e lerá a conversa em ' + name + ' ' + flag);
+
+      closeLangModal();
+    }
+
+    function showLiveCaption(speakerName, originalText, translatedText) {
+      const container = document.getElementById('captionsContainer');
+      const bubble = document.createElement('div');
+      bubble.className = 'caption-bubble';
+      var headerHtml = '<div class="caption-header"><span>✨ ' + speakerName + '</span><span>' + selectedLangFlag + ' ' + selectedLangCode.toUpperCase() + '</span></div>';
+      var transHtml = '<div class="caption-text-translated">' + translatedText + '</div>';
+      bubble.innerHTML = headerHtml + transHtml;
+      
+      container.appendChild(bubble);
+
+      // Keep only last 2 captions
+      while (container.children.length > 2) {
+        container.removeChild(container.firstChild);
+      }
+
+      // Auto remove after 6 seconds
+      setTimeout(() => {
+        if (bubble.parentNode === container) {
+          container.removeChild(bubble);
+        }
+      }, 6000);
+    }
+
+    // Map language code to name & flag
+    function mapLangDetails(langCode) {
+      const code = (langCode || 'pt').toLowerCase().split('-')[0];
+      switch (code) {
+        case 'en': return { code: 'en', name: 'English', flag: '🇺🇸' };
+        case 'es': return { code: 'es', name: 'Español', flag: '🇪🇸' };
+        case 'fr': return { code: 'fr', name: 'Français', flag: '🇫🇷' };
+        default: return { code: 'pt', name: 'Português', flag: '🇧🇷' };
+      }
+    }
 
     // Logger
     function log(msg) {
@@ -343,7 +538,8 @@ export const getWebRtcHtml = () => {
           callType: 'audio',
           targetName: 'Usuário Atos2',
           userId: 'test_a',
-          targetId: 'test_b'
+          targetId: 'test_b',
+          userLanguage: 'pt'
         };
       }
 
@@ -352,6 +548,30 @@ export const getWebRtcHtml = () => {
       isCaller = config.isCaller;
       callType = config.callType;
       targetName = config.targetName;
+
+      // Auto-detect language from user registration profile
+      const userLangInfo = mapLangDetails(config.userLanguage);
+      selectedLangCode = userLangInfo.code;
+      selectedLangName = userLangInfo.name;
+      selectedLangFlag = userLangInfo.flag;
+      isTranslationActive = true;
+
+      // Automatically activate translation button UI
+      const btnTranslate = document.getElementById('btnTranslate');
+      if (btnTranslate) {
+        btnTranslate.classList.add('active');
+        btnTranslate.innerText = selectedLangFlag + ' IA';
+      }
+
+      log('Tradução Simultânea ativada automaticamente no idioma do cadastro: ' + selectedLangName + ' (' + selectedLangCode + ')');
+
+      // Notify React Native backend about automatic translation setup for receiver
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'translation_toggle',
+        enabled: true,
+        language: selectedLangCode,
+        languageName: selectedLangName
+      }));
 
       // Update UI texts
       document.getElementById('headerName').innerText = targetName;
@@ -510,6 +730,21 @@ export const getWebRtcHtml = () => {
           } else {
             // Queue ICE candidate if remote description is not set yet
             candidateQueue.push(cand);
+          }
+        } else if (signal.type === 'translation_caption') {
+          log('Legenda recebida da IA: ' + signal.translatedText);
+          showLiveCaption(signal.speakerName || targetName, signal.originalText, signal.translatedText);
+        } else if (signal.type === 'play_translated_audio') {
+          log('Áudio traduzido recebido para reprodução.');
+          if (signal.audioUrl) {
+            const translatedAudio = new Audio(signal.audioUrl);
+            // Audio ducking on remote stream if playing translated speech
+            const remoteVideo = document.getElementById('remoteVideo');
+            if (remoteVideo) remoteVideo.volume = 0.2;
+            translatedAudio.onended = () => {
+              if (remoteVideo) remoteVideo.volume = 1.0;
+            };
+            translatedAudio.play().catch(e => log('Erro ao tocar áudio traduzido: ' + e.message));
           }
         }
       } catch (err) {

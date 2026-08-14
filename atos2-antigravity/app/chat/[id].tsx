@@ -23,6 +23,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 
 import { getConversation, sendMessage, deleteMessage } from '../../services/chat';
 import api, { SERVER_URL } from '../../services/api';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 // Base da URL do servidor (sem /api) para exibir arquivos de mídia e sockets
 const SERVER_MEDIA_BASE = SERVER_URL;
@@ -109,6 +110,7 @@ export default function ChatRoomScreen() {
   const { id, name, status, autoAcceptCall, profileImage } = useLocalSearchParams();
   const { user } = useAuth();
   const { socket } = useSocket();   // Socket global — conectado desde o login
+  const { language } = useLocalization();
 
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -353,6 +355,32 @@ export default function ChatRoomScreen() {
       }
     };
 
+    const handleWebRtcTranslationCaption = (data: { speakerName?: string, originalText: string, translatedText: string }) => {
+      if (webViewRef.current) {
+        webViewRef.current.postMessage(JSON.stringify({
+          type: 'signal',
+          signal: {
+            type: 'translation_caption',
+            speakerName: data.speakerName,
+            originalText: data.originalText,
+            translatedText: data.translatedText
+          }
+        }));
+      }
+    };
+
+    const handleWebRtcPlayTranslatedAudio = (data: { audioUrl: string }) => {
+      if (webViewRef.current) {
+        webViewRef.current.postMessage(JSON.stringify({
+          type: 'signal',
+          signal: {
+            type: 'play_translated_audio',
+            audioUrl: data.audioUrl
+          }
+        }));
+      }
+    };
+
     const handleMessageDeleted = (data: { messageId: string }) => {
       setMessages(prev => prev.filter(m => m.id !== data.messageId));
     };
@@ -364,6 +392,8 @@ export default function ChatRoomScreen() {
     socket.on('callAccepted', handleCallAccepted);
     socket.on('hangUp', handleHangUp);
     socket.on('webrtcSignal', handleWebRtcSignal);
+    socket.on('webrtcTranslationCaption', handleWebRtcTranslationCaption);
+    socket.on('webrtcPlayTranslatedAudio', handleWebRtcPlayTranslatedAudio);
 
     return () => {
       socket.off('newMessage', handleNewMessage);
@@ -373,6 +403,8 @@ export default function ChatRoomScreen() {
       socket.off('callAccepted', handleCallAccepted);
       socket.off('hangUp', handleHangUp);
       socket.off('webrtcSignal', handleWebRtcSignal);
+      socket.off('webrtcTranslationCaption', handleWebRtcTranslationCaption);
+      socket.off('webrtcPlayTranslatedAudio', handleWebRtcPlayTranslatedAudio);
     };
   }, [loadLiveMessages, user?.id, id, socket]);
 
@@ -1332,7 +1364,8 @@ export default function ChatRoomScreen() {
                     callType: '${callType}',
                     targetName: '${(callDirection === 'incoming' ? callerName : name) || 'Usuário'}',
                     userId: '${user?.id || 'temp_user'}',
-                    targetId: '${id || ''}'
+                    targetId: '${id || ''}',
+                    userLanguage: '${(user as any)?.language || (user as any)?.nativeLanguage || language || 'pt'}'
                   };
                   true;
                 `}
@@ -1348,6 +1381,15 @@ export default function ChatRoomScreen() {
                     } else if (data.type === 'hangup') {
                       // User clicked hang up in WebView
                       handleHangUp();
+                    } else if (data.type === 'translation_toggle') {
+                      console.log('[Translation Toggle]', data);
+                      socketRef.current?.emit('webrtcTranslationToggle', {
+                        to: id,
+                        from: user?.id,
+                        enabled: data.enabled,
+                        language: data.language,
+                        languageName: data.languageName
+                      });
                     } else if (data.type === 'log') {
                       console.log('[WebView Log]', data.message);
                     }
