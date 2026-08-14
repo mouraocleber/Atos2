@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList,
   KeyboardAvoidingView, Platform, Image, Modal, Alert, ActivityIndicator,
@@ -375,15 +375,18 @@ export default function ChatRoomScreen() {
       }
     };
 
-    const handleWebRtcTranslationCaption = (data: { speakerName?: string, originalText: string, translatedText: string }) => {
+    const handleWebRtcTranslationCaption = (data: { speakerName?: string, speakerFlag?: string, speakerLanguage?: string, originalText: string, translatedText: string, roomId?: string }) => {
       if (webViewRef.current) {
         webViewRef.current.postMessage(JSON.stringify({
           type: 'signal',
           signal: {
             type: 'translation_caption',
             speakerName: data.speakerName,
+            speakerFlag: data.speakerFlag,
+            speakerLanguage: data.speakerLanguage,
             originalText: data.originalText,
-            translatedText: data.translatedText
+            translatedText: data.translatedText,
+            roomId: data.roomId
           }
         }));
       }
@@ -428,6 +431,11 @@ export default function ChatRoomScreen() {
     };
   }, [loadLiveMessages, user?.id, id, socket]);
 
+  const currentRoomId = useMemo(() => {
+    if (!user?.id || !id) return '';
+    return `call_room_${[user.id, id as string].sort().join('_')}`;
+  }, [user?.id, id]);
+
   const handleStartCall = async (mode: 'video' | 'audio') => {
     setHeaderMenuVisible(false);
     const granted = await requestCallPermissions(mode);
@@ -440,13 +448,14 @@ export default function ChatRoomScreen() {
     setCallStatus('calling');
     setCallModalVisible(true);
     const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
-    // Enviar sinal de chamada para o outro usuário via socket
+    // Enviar sinal de chamada para o outro usuário via socket (com roomId de sala)
     socketRef.current?.emit('callUser', {
       to: id,
       from: user?.id,
       fromName: user?.name || user?.nickname,
       type: mode,
       callerLanguage: myLang,
+      roomId: currentRoomId,
     });
     // Timeout de chamada não atendida
     setTimeout(() => {
@@ -463,23 +472,23 @@ export default function ChatRoomScreen() {
   const handleAcceptCall = async () => {
     const granted = await requestCallPermissions(callType);
     if (!granted) {
-      socketRef.current?.emit('hangUp', { to: id, from: user?.id });
+      socketRef.current?.emit('hangUp', { to: id, from: user?.id, roomId: currentRoomId });
       return;
     }
     await fetchIceServers();
     const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
-    socketRef.current?.emit('callAccepted', { to: id, from: user?.id, remoteLanguage: myLang });
+    socketRef.current?.emit('callAccepted', { to: id, from: user?.id, remoteLanguage: myLang, roomId: currentRoomId });
     setCallStatus('in-call');
   };
 
   const handleRejectCall = () => {
-    socketRef.current?.emit('hangUp', { to: id, from: user?.id });
+    socketRef.current?.emit('hangUp', { to: id, from: user?.id, roomId: currentRoomId });
     setCallModalVisible(false);
     setCallStatus('ended');
   };
 
   const handleHangUp = () => {
-    socketRef.current?.emit('hangUp', { to: id, from: user?.id });
+    socketRef.current?.emit('hangUp', { to: id, from: user?.id, roomId: currentRoomId });
     setCallModalVisible(false);
     setCallStatus('ended');
   };
@@ -1386,10 +1395,12 @@ export default function ChatRoomScreen() {
                     isCaller: ${callDirection === 'outgoing'},
                     callType: '${callType}',
                     targetName: '${(callDirection === 'incoming' ? callerName : name) || 'Usuário'}',
+                    userName: '${user?.name || user?.nickname || 'Usuário'}',
                     userId: '${user?.id || 'temp_user'}',
                     targetId: '${id || ''}',
                     userLanguage: '${user?.preferredLanguage || (user as any)?.language || language || 'pt-BR'}',
-                    remoteLanguage: '${remoteUserLanguage || ''}'
+                    remoteLanguage: '${remoteUserLanguage || ''}',
+                    roomId: '${currentRoomId}'
                   };
                   true;
                 `}
@@ -1400,6 +1411,7 @@ export default function ChatRoomScreen() {
                       // Send signaling message to peer via sockets
                       socketRef.current?.emit('webrtcSignal', {
                         to: id,
+                        roomId: currentRoomId,
                         signal: data.signal
                       });
                     } else if (data.type === 'hangup') {
@@ -1410,9 +1422,11 @@ export default function ChatRoomScreen() {
                       socketRef.current?.emit('webrtcTranslationToggle', {
                         to: id,
                         from: user?.id,
+                        roomId: currentRoomId,
                         enabled: data.enabled,
                         language: data.language,
-                        languageName: data.languageName
+                        languageName: data.languageName,
+                        rateUsdPerMin: data.rateUsdPerMin || 0.30
                       });
                     } else if (data.type === 'log') {
                       console.log('[WebView Log]', data.message);

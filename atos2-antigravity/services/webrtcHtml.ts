@@ -263,19 +263,20 @@ export const getWebRtcHtml = () => {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(11, 32, 57, 0.95);
+      background: rgba(11, 32, 57, 0.96);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 200, 87, 0.3);
+      border: 1px solid rgba(255, 200, 87, 0.35);
       border-radius: 24px;
-      padding: 24px;
-      width: 85%;
-      max-width: 340px;
+      padding: 20px;
+      width: 88%;
+      max-width: 360px;
+      max-height: 82vh;
       z-index: 50;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.7);
       display: none;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
     }
     .lang-modal-title {
       font-size: 18px;
@@ -283,27 +284,58 @@ export const getWebRtcHtml = () => {
       color: #FFC857;
       text-align: center;
     }
+    .lang-search-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 200, 87, 0.25);
+      border-radius: 12px;
+      padding: 10px 14px;
+      color: #ffffff;
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+      transition: all 0.2s ease;
+    }
+    .lang-search-input::placeholder {
+      color: #64748B;
+    }
+    .lang-search-input:focus {
+      border-color: #FFC857;
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 10px rgba(255, 200, 87, 0.2);
+    }
     .lang-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .lang-list::-webkit-scrollbar {
+      width: 4px;
+    }
+    .lang-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 200, 87, 0.4);
+      border-radius: 4px;
     }
     .lang-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
       background: rgba(255,255,255,0.08);
-      padding: 12px 16px;
+      padding: 10px 14px;
       border-radius: 12px;
       cursor: pointer;
       border: 1px solid transparent;
       transition: all 0.2s ease;
       color: #fff;
-      font-size: 15px;
+      font-size: 14px;
     }
     .lang-item:active, .lang-item.selected {
       border-color: #FFC857;
-      background: rgba(255, 200, 87, 0.15);
+      background: rgba(255, 200, 87, 0.18);
+      font-weight: 600;
     }
 
     @keyframes fadeInCaption {
@@ -334,6 +366,9 @@ export const getWebRtcHtml = () => {
     </div>
   </div>
 
+  <!-- Dedicated Remote Audio Element for VoIP audio playback -->
+  <audio id="remoteAudio" autoplay playsinline style="display: none;"></audio>
+
   <!-- Floating Info Header -->
   <div class="header-overlay">
     <div id="headerName" class="caller-name">Conectando</div>
@@ -343,29 +378,20 @@ export const getWebRtcHtml = () => {
   <!-- Captions Overlay Container -->
   <div id="captionsContainer" class="captions-container"></div>
 
-  <!-- Language Selection Modal -->
-  <div id="langModal" class="lang-modal">
+  <!-- Informativo de Cobrança Modal -->
+  <div id="billingModal" class="lang-modal" style="display: none;">
     <div class="lang-modal-title">✨ Tradução Simultânea IA</div>
-    <div style="font-size: 12px; color: #94A3B8; text-align: center; margin-top: -10px;">Selecione o seu idioma nativo para ouvir a tradução ao vivo:</div>
-    <div class="lang-list">
-      <div class="lang-item selected" onclick="selectLanguage('pt', 'Português', '🇧🇷')">
-        <span>🇧🇷 Português</span>
-        <span>✓</span>
-      </div>
-      <div class="lang-item" onclick="selectLanguage('en', 'English', '🇺🇸')">
-        <span>🇺🇸 English</span>
-        <span></span>
-      </div>
-      <div class="lang-item" onclick="selectLanguage('es', 'Español', '🇪🇸')">
-        <span>🇪🇸 Español</span>
-        <span></span>
-      </div>
-      <div class="lang-item" onclick="selectLanguage('fr', 'Français', '🇫🇷')">
-        <span>🇫🇷 Français</span>
-        <span></span>
-      </div>
+    <div style="font-size: 13px; color: #94A3B8; text-align: center; margin-top: -6px;">Informativo de Tarifa de Chamada:</div>
+    <div style="background: rgba(6, 214, 160, 0.1); border: 1px solid rgba(6, 214, 160, 0.35); border-radius: 16px; padding: 16px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px;">
+      <div style="font-size: 26px; font-weight: 800; color: #06d6a0; letter-spacing: -0.5px;">$ 0.30 USD <span style="font-size: 13px; font-weight: 600; color: #CBD5E1;">/ minuto</span></div>
+      <div style="font-size: 12px; color: #CBD5E1; font-weight: 600;">Cobrança por minuto de ligação traduzida</div>
+      <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">Idioma detectado automaticamente do seu cadastro:</div>
+      <div id="billingLangText" style="font-size: 14px; font-weight: 700; color: #FFC857;">🇧🇷 Português (Brasil)</div>
     </div>
-    <button class="btn" style="width: 100%; border-radius: 12px; background: #FFC857; color: #041527; font-weight: 700;" onclick="closeLangModal()">Confirmar</button>
+    <div style="display: flex; gap: 10px; margin-top: 4px;">
+      <button class="btn" style="flex: 1; border-radius: 12px; background: rgba(255,255,255,0.15); color: #fff; font-size: 13px; font-weight: 600;" onclick="closeBillingModal()">Cancelar</button>
+      <button id="btnConfirmBilling" class="btn" style="flex: 1.4; border-radius: 12px; background: linear-gradient(135deg, #FFC857 0%, #E9A825 100%); color: #041527; font-weight: 700; font-size: 13px;" onclick="confirmBillingToggle()">Ativar ($0.30/min)</button>
+    </div>
   </div>
 
   <!-- Controls overlay -->
@@ -379,7 +405,7 @@ export const getWebRtcHtml = () => {
     </button>
 
     <!-- AI Live Translation Toggle Button -->
-    <button id="btnTranslate" class="btn btn-translate" onclick="openLangModal()" title="Tradução Simultânea IA">
+    <button id="btnTranslate" class="btn btn-translate" onclick="openBillingModal()" title="Informativo de Cobrança Tradução IA ($0.30 USD/minuto)">
       ✨ IA
     </button>
 
@@ -431,60 +457,119 @@ export const getWebRtcHtml = () => {
     // WebRTC connection state variables
     let candidateQueue = [];
 
-    // Translation UI Handlers
-    function openLangModal() {
-      document.getElementById('langModal').style.display = 'flex';
-    }
+    // Complete list of supported translation languages
+    const AVAILABLE_LANGUAGES = [
+      { code: 'pt', name: 'Português (Brasil)', flag: '🇧🇷' },
+      { code: 'en', name: 'English (US)', flag: '🇺🇸' },
+      { code: 'es', name: 'Español', flag: '🇪🇸' },
+      { code: 'fr', name: 'Français', flag: '🇫🇷' },
+      { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+      { code: 'it', name: 'Italiano', flag: '🇮🇹' },
+      { code: 'ru', name: 'Русский', flag: '🇷🇺' },
+      { code: 'zh', name: '中文 (简体)', flag: '🇨🇳' },
+      { code: 'ja', name: '日本語', flag: '🇯🇵' },
+      { code: 'ko', name: '한국어', flag: '🇰🇷' },
+      { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+      { code: 'hi', name: 'हिन्दी', flag: '🇮🇳' },
+      { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
+      { code: 'pl', name: 'Polski', flag: '🇵🇱' },
+      { code: 'nl', name: 'Nederlands', flag: '🇳🇱' },
+      { code: 'sv', name: 'Svenska', flag: '🇸🇪' },
+      { code: 'da', name: 'Dansk', flag: '🇩🇰' },
+      { code: 'fi', name: 'Suomi', flag: '🇫🇮' },
+      { code: 'nb', name: 'Norsk', flag: '🇳🇴' },
+      { code: 'uk', name: 'Українська', flag: '🇺🇦' },
+      { code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩' },
+      { code: 'ms', name: 'Bahasa Melayu', flag: '🇲🇾' },
+      { code: 'th', name: 'ภาษาไทย', flag: '🇹🇭' },
+      { code: 'vi', name: 'Tiếng Việt', flag: '🇻🇳' },
+      { code: 'he', name: 'עברית', flag: '🇮🇱' },
+      { code: 'cs', name: 'Čeština', flag: '🇨🇿' },
+      { code: 'ro', name: 'Română', flag: '🇷🇴' },
+      { code: 'hu', name: 'Magyar', flag: '🇭🇺' },
+      { code: 'el', name: 'Ελληνικά', flag: '🇬🇷' }
+    ];
 
-    function closeLangModal() {
-      document.getElementById('langModal').style.display = 'none';
-    }
+    // Informativo de Cobrança e Alternador de Tradução IA ($0.30 USD)
+    function openBillingModal() {
+      const modal = document.getElementById('billingModal');
+      const langText = document.getElementById('billingLangText');
+      const btnConfirm = document.getElementById('btnConfirmBilling');
 
-    function selectLanguage(code, name, flag) {
-      selectedLangCode = code;
-      selectedLangName = name;
-      selectedLangFlag = flag;
-      isTranslationActive = true;
+      if (langText) {
+        langText.innerText = selectedLangFlag + ' ' + selectedLangName;
+      }
 
-      // Update UI button state
-      const btn = document.getElementById('btnTranslate');
-      btn.classList.add('active');
-      btn.innerText = flag + ' IA';
-
-      // Update selected item in list
-      const items = document.querySelectorAll('.lang-item');
-      items.forEach(item => {
-        if (item.innerText.includes(name)) {
-          item.classList.add('selected');
-          item.children[1].innerText = '✓';
+      if (btnConfirm) {
+        if (isTranslationActive) {
+          btnConfirm.innerText = 'Desativar Tradução';
+          btnConfirm.style.background = 'linear-gradient(135deg, #ef476f 0%, #d63f63 100%)';
+          btnConfirm.style.color = '#ffffff';
         } else {
-          item.classList.remove('selected');
-          item.children[1].innerText = '';
+          btnConfirm.innerText = 'Confirmar ($0.30/min)';
+          btnConfirm.style.background = 'linear-gradient(135deg, #FFC857 0%, #E9A825 100%)';
+          btnConfirm.style.color = '#041527';
         }
-      });
+      }
 
-      log('Tradução Simultânea ativada para o idioma: ' + name + ' (' + code + ')');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+    }
+
+    function closeBillingModal() {
+      const modal = document.getElementById('billingModal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    function confirmBillingToggle() {
+      closeBillingModal();
+      toggleTranslation();
+    }
+
+    function toggleTranslation() {
+      isTranslationActive = !isTranslationActive;
+      const btn = document.getElementById('btnTranslate');
+      if (btn) {
+        if (isTranslationActive) {
+          btn.classList.add('active');
+          btn.innerText = selectedLangFlag + ' IA';
+        } else {
+          btn.classList.remove('active');
+          btn.innerText = '✨ IA';
+        }
+      }
+
+      log('Tradução Simultânea ' + (isTranslationActive ? 'ATIVADA ($0.30 USD/minuto)' : 'DESATIVADA') + ' para o idioma do cadastro: ' + selectedLangName + ' (' + selectedLangCode + ')');
       
-      // Notify React Native WebView about language preference
+      // Notify React Native WebView about language preference & billing rate per minute
       window.ReactNativeWebView.postMessage(JSON.stringify({
         type: 'translation_toggle',
-        enabled: true,
-        language: code,
-        languageName: name
+        enabled: isTranslationActive,
+        language: selectedLangCode,
+        languageName: selectedLangName,
+        rateUsdPerMin: 0.30
       }));
 
-      // Display notification caption
-      showLiveCaption('Sistema IA', 'Tradução Simultânea Ativada', 'Você ouvirá e lerá a conversa em ' + name + ' ' + flag);
-
-      closeLangModal();
+      if (isTranslationActive) {
+        showLiveCaption('Sistema IA', 'Tradução IA Ativada ($0.30 USD/min)', 'Tarifa: $0.30 USD/minuto • Idioma do cadastro: ' + selectedLangName + ' ' + selectedLangFlag);
+      } else {
+        showLiveCaption('Sistema IA', 'Tradução IA Desativada', 'Tradução em tempo real pausada');
+      }
     }
 
-    function showLiveCaption(speakerName, originalText, translatedText) {
+    function showLiveCaption(speakerName, originalText, translatedText, speakerFlag) {
       const container = document.getElementById('captionsContainer');
       const bubble = document.createElement('div');
       bubble.className = 'caption-bubble';
-      var headerHtml = '<div class="caption-header"><span>✨ ' + speakerName + '</span><span>' + selectedLangFlag + ' ' + selectedLangCode.toUpperCase() + '</span></div>';
+      var speakerFlagStr = speakerFlag ? (' ' + speakerFlag) : '';
+      var headerHtml = '<div class="caption-header"><span>✨ ' + speakerName + speakerFlagStr + '</span><span>' + selectedLangFlag + ' ' + selectedLangCode.toUpperCase() + '</span></div>';
       var transHtml = '<div class="caption-text-translated">' + translatedText + '</div>';
+      if (originalText) {
+        transHtml = '<div class="caption-text-original">' + originalText + '</div>' + transHtml;
+      }
       bubble.innerHTML = headerHtml + transHtml;
       
       container.appendChild(bubble);
@@ -504,13 +589,13 @@ export const getWebRtcHtml = () => {
 
     // Map language code to name & flag
     function mapLangDetails(langCode) {
-      const code = (langCode || 'pt').toLowerCase().split('-')[0];
-      switch (code) {
-        case 'en': return { code: 'en', name: 'English', flag: '🇺🇸' };
-        case 'es': return { code: 'es', name: 'Español', flag: '🇪🇸' };
-        case 'fr': return { code: 'fr', name: 'Français', flag: '🇫🇷' };
-        default: return { code: 'pt', name: 'Português', flag: '🇧🇷' };
+      const raw = (langCode || 'pt').toLowerCase();
+      const base = raw.split('-')[0];
+      const match = AVAILABLE_LANGUAGES.find(l => l.code === base || l.code === raw);
+      if (match) {
+        return { code: match.code, name: match.name, flag: match.flag };
       }
+      return { code: 'pt', name: 'Português (Brasil)', flag: '🇧🇷' };
     }
 
     // Logger
@@ -549,7 +634,7 @@ export const getWebRtcHtml = () => {
       callType = config.callType;
       targetName = config.targetName;
 
-      // Auto-detect language from user registration profile
+      // Auto-detect language from user registration profile (Zero manual pickers)
       const userLangInfo = mapLangDetails(config.userLanguage);
       selectedLangCode = userLangInfo.code;
       selectedLangName = userLangInfo.name;
@@ -572,10 +657,11 @@ export const getWebRtcHtml = () => {
           type: 'translation_toggle',
           enabled: true,
           language: selectedLangCode,
-          languageName: selectedLangName
+          languageName: selectedLangName,
+          rateUsdPerMin: 0.30
         }));
 
-        showLiveCaption('Sistema IA', 'Tradução Simultânea Ativada', 'Identificado idioma diferente (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + '). Tradução ativa.');
+        showLiveCaption('Sistema IA', 'Tradução IA Ativada ($0.30 USD/min)', 'Tarifa: $0.30 USD/minuto • Idiomas diferentes no cadastro (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + ').');
       } else {
         isTranslationActive = false;
         const btnTranslate = document.getElementById('btnTranslate');
@@ -663,20 +749,21 @@ export const getWebRtcHtml = () => {
         };
 
         peerConnection.ontrack = (event) => {
-          log('Received remote track.');
+          log('Received remote track: ' + event.track.kind);
+          const stream = event.streams[0];
+          
           if (callType === 'video') {
             const remoteVideo = document.getElementById('remoteVideo');
-            if (remoteVideo.srcObject !== event.streams[0]) {
-              remoteVideo.srcObject = event.streams[0];
-              log('Attached remote video stream.');
+            if (remoteVideo && stream) {
+              remoteVideo.srcObject = stream;
+              remoteVideo.play().catch(e => log('Remote video play error: ' + e.message));
             }
-          } else {
-            // For audio, render an invisible audio or attach to a stream player
-            const remoteAudio = document.createElement('audio');
-            remoteAudio.autoplay = true;
-            remoteAudio.srcObject = event.streams[0];
-            document.body.appendChild(remoteAudio);
-            log('Attached remote audio stream.');
+          }
+          
+          const remoteAudio = document.getElementById('remoteAudio');
+          if (remoteAudio && stream) {
+            remoteAudio.srcObject = stream;
+            remoteAudio.play().catch(e => log('Remote audio play error: ' + e.message));
           }
         };
 
@@ -684,6 +771,9 @@ export const getWebRtcHtml = () => {
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'ready'
         }));
+
+        // Process any queued signals that arrived before startCall completed
+        await processQueuedSignals();
 
         if (isCaller) {
           log('Initiating call, generating SDP Offer...');
@@ -708,13 +798,50 @@ export const getWebRtcHtml = () => {
       }));
     }
 
-    // Received signal from React Native
+    // Queue of signaling messages received before peerConnection is ready
+    let signalQueue = [];
+
+    // Message listener for signals coming from React Native WebView bridge
+    function handleNativeMessage(event) {
+      try {
+        let rawData = event.data;
+        if (!rawData) return;
+        var data = (typeof rawData === 'string') ? JSON.parse(rawData) : rawData;
+        if (data.type === 'signal' && data.signal) {
+          onSignalReceived(data.signal);
+        } else if (data.type === 'hangup') {
+          onHangUpReceived();
+        }
+      } catch (e) {
+        log('Error parsing native message: ' + e.message);
+      }
+    }
+
+    window.addEventListener('message', handleNativeMessage);
+    document.addEventListener('message', handleNativeMessage);
+
     async function onSignalReceived(signal) {
       if (!peerConnection) {
-        log('Received signal but PeerConnection is not ready.');
+        log('PeerConnection not ready yet. Queuing signal: ' + (signal.type || 'unknown'));
+        signalQueue.push(signal);
         return;
       }
+      await processSignal(signal);
+    }
 
+    async function processQueuedSignals() {
+      if (signalQueue.length > 0) {
+        log('Processing ' + signalQueue.length + ' queued signaling messages...');
+        const queue = [...signalQueue];
+        signalQueue = [];
+        for (const sig of queue) {
+          await processSignal(sig);
+        }
+      }
+    }
+
+    // Received signal from React Native
+    async function processSignal(signal) {
       try {
         if (signal.type === 'offer') {
           log('Received SDP Offer, applying to PeerConnection...');
@@ -728,7 +855,7 @@ export const getWebRtcHtml = () => {
           // Apply queued ICE candidates
           log('Applying ' + candidateQueue.length + ' queued ICE candidates...');
           for (const cand of candidateQueue) {
-            await peerConnection.addIceCandidate(cand);
+            await peerConnection.addIceCandidate(cand).catch(e => log('ICE candidate error: ' + e.message));
           }
           candidateQueue = [];
 
@@ -739,17 +866,18 @@ export const getWebRtcHtml = () => {
           // Apply queued ICE candidates
           log('Applying ' + candidateQueue.length + ' queued ICE candidates...');
           for (const cand of candidateQueue) {
-            await peerConnection.addIceCandidate(cand);
+            await peerConnection.addIceCandidate(cand).catch(e => log('ICE candidate error: ' + e.message));
           }
           candidateQueue = [];
 
         } else if (signal.type === 'candidate') {
-          const cand = new RTCIceCandidate(signal.candidate);
-          if (peerConnection.remoteDescription) {
-            await peerConnection.addIceCandidate(cand);
-          } else {
-            // Queue ICE candidate if remote description is not set yet
-            candidateQueue.push(cand);
+          if (signal.candidate) {
+            const cand = new RTCIceCandidate(signal.candidate);
+            if (peerConnection && peerConnection.remoteDescription) {
+              await peerConnection.addIceCandidate(cand).catch(e => log('Error adding ICE candidate: ' + e.message));
+            } else {
+              candidateQueue.push(cand);
+            }
           }
         } else if (signal.type === 'set_remote_language') {
           const remoteLangBase = (signal.remoteLanguage || '').toLowerCase().split('-')[0];
@@ -766,22 +894,24 @@ export const getWebRtcHtml = () => {
               type: 'translation_toggle',
               enabled: true,
               language: selectedLangCode,
-              languageName: selectedLangName
+              languageName: selectedLangName,
+              rateUsdPerMin: 0.30
             }));
-            showLiveCaption('Sistema IA', 'Tradução Simultânea Ativada', 'Identificado idioma diferente (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + '). Tradução ativa.');
+            showLiveCaption('Sistema IA', 'Tradução IA Ativada ($0.30 USD/min)', 'Tarifa: $0.30 USD/minuto • Idiomas diferentes no cadastro (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + ').');
           }
         } else if (signal.type === 'translation_caption') {
-          log('Legenda recebida da IA: ' + signal.translatedText);
-          showLiveCaption(signal.speakerName || targetName, signal.originalText, signal.translatedText);
+          const spkName = signal.speakerName || targetName;
+          const spkFlag = signal.speakerFlag || (signal.speakerLanguage ? mapLangDetails(signal.speakerLanguage).flag : '');
+          log('Legenda recebida de ' + spkName + ' (' + (spkFlag || 'IA') + '): ' + signal.translatedText);
+          showLiveCaption(spkName, signal.originalText, signal.translatedText, spkFlag);
         } else if (signal.type === 'play_translated_audio') {
           log('Áudio traduzido recebido para reprodução.');
           if (signal.audioUrl) {
             const translatedAudio = new Audio(signal.audioUrl);
-            // Audio ducking on remote stream if playing translated speech
-            const remoteVideo = document.getElementById('remoteVideo');
-            if (remoteVideo) remoteVideo.volume = 0.2;
+            const remoteAudioEl = document.getElementById('remoteAudio');
+            if (remoteAudioEl) remoteAudioEl.volume = 0.2;
             translatedAudio.onended = () => {
-              if (remoteVideo) remoteVideo.volume = 1.0;
+              if (remoteAudioEl) remoteAudioEl.volume = 1.0;
             };
             translatedAudio.play().catch(e => log('Erro ao tocar áudio traduzido: ' + e.message));
           }
