@@ -143,6 +143,7 @@ export default function ChatRoomScreen() {
   const [callStatus, setCallStatus] = useState<'calling' | 'in-call' | 'ended'>('calling');
   const [callDirection, setCallDirection] = useState<'outgoing' | 'incoming'>('outgoing');
   const [callerName, setCallerName] = useState<string>('');
+  const [remoteUserLanguage, setRemoteUserLanguage] = useState<string>('');
 
   // Som nativo de RUASH
   const ruashPlayer = useAudioPlayer(require('../../assets/sounds/ruash.wav'));
@@ -278,11 +279,12 @@ export default function ChatRoomScreen() {
       setCallType(typeVal);
       setCallStatus('in-call');
       setCallModalVisible(true);
-      socket.emit('callAccepted', { to: id, from: user?.id });
+      const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
+      socket.emit('callAccepted', { to: id, from: user?.id, remoteLanguage: myLang });
     };
 
     autoAccept();
-  }, [autoAcceptCall, socket, id, user?.id]);
+  }, [autoAcceptCall, socket, id, user?.id, user?.preferredLanguage, language]);
 
   useEffect(() => {
     loadLiveMessages(true);
@@ -323,15 +325,33 @@ export default function ChatRoomScreen() {
       setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, status: data.status } : m));
     };
 
-    const handleCallUser = (data: { from: string, fromName: string, type: 'audio'|'video' }) => {
+    const handleCallUser = (data: { from: string, fromName: string, type: 'audio'|'video', callerLanguage?: string }) => {
       setCallDirection('incoming');
       setCallerName(data.fromName || 'Alguém');
       setCallType(data.type);
+      if (data.callerLanguage) {
+        setRemoteUserLanguage(data.callerLanguage);
+        if (webViewRef.current) {
+          webViewRef.current.postMessage(JSON.stringify({
+            type: 'signal',
+            signal: { type: 'set_remote_language', remoteLanguage: data.callerLanguage }
+          }));
+        }
+      }
       setCallStatus('calling');
       setCallModalVisible(true);
     };
 
-    const handleCallAccepted = async () => {
+    const handleCallAccepted = async (data?: { remoteLanguage?: string }) => {
+      if (data?.remoteLanguage) {
+        setRemoteUserLanguage(data.remoteLanguage);
+        if (webViewRef.current) {
+          webViewRef.current.postMessage(JSON.stringify({
+            type: 'signal',
+            signal: { type: 'set_remote_language', remoteLanguage: data.remoteLanguage }
+          }));
+        }
+      }
       await fetchIceServers();
       setCallStatus('in-call');
     };
@@ -419,12 +439,14 @@ export default function ChatRoomScreen() {
     setCallType(mode);
     setCallStatus('calling');
     setCallModalVisible(true);
+    const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
     // Enviar sinal de chamada para o outro usuário via socket
     socketRef.current?.emit('callUser', {
       to: id,
       from: user?.id,
       fromName: user?.name || user?.nickname,
       type: mode,
+      callerLanguage: myLang,
     });
     // Timeout de chamada não atendida
     setTimeout(() => {
@@ -445,7 +467,8 @@ export default function ChatRoomScreen() {
       return;
     }
     await fetchIceServers();
-    socketRef.current?.emit('callAccepted', { to: id, from: user?.id });
+    const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
+    socketRef.current?.emit('callAccepted', { to: id, from: user?.id, remoteLanguage: myLang });
     setCallStatus('in-call');
   };
 
@@ -1365,7 +1388,8 @@ export default function ChatRoomScreen() {
                     targetName: '${(callDirection === 'incoming' ? callerName : name) || 'Usuário'}',
                     userId: '${user?.id || 'temp_user'}',
                     targetId: '${id || ''}',
-                    userLanguage: '${(user as any)?.language || (user as any)?.nativeLanguage || language || 'pt'}'
+                    userLanguage: '${user?.preferredLanguage || (user as any)?.language || language || 'pt-BR'}',
+                    remoteLanguage: '${remoteUserLanguage || ''}'
                   };
                   true;
                 `}

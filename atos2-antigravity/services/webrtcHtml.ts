@@ -554,24 +554,44 @@ export const getWebRtcHtml = () => {
       selectedLangCode = userLangInfo.code;
       selectedLangName = userLangInfo.name;
       selectedLangFlag = userLangInfo.flag;
-      isTranslationActive = true;
 
-      // Automatically activate translation button UI
-      const btnTranslate = document.getElementById('btnTranslate');
-      if (btnTranslate) {
-        btnTranslate.classList.add('active');
-        btnTranslate.innerText = selectedLangFlag + ' IA';
+      // Comparação inteligente de idioma (Chamador vs Recebedor)
+      const myLangBase = (config.userLanguage || 'pt').toLowerCase().split('-')[0];
+      const remoteLangBase = (config.remoteLanguage || '').toLowerCase().split('-')[0];
+
+      if (remoteLangBase && remoteLangBase !== myLangBase) {
+        isTranslationActive = true;
+        const btnTranslate = document.getElementById('btnTranslate');
+        if (btnTranslate) {
+          btnTranslate.classList.add('active');
+          btnTranslate.innerText = selectedLangFlag + ' IA';
+        }
+
+        log('Idiomas diferentes identificados (' + myLangBase + ' vs ' + remoteLangBase + '). Tradução IA ativada automaticamente!');
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'translation_toggle',
+          enabled: true,
+          language: selectedLangCode,
+          languageName: selectedLangName
+        }));
+
+        showLiveCaption('Sistema IA', 'Tradução Simultânea Ativada', 'Identificado idioma diferente (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + '). Tradução ativa.');
+      } else {
+        isTranslationActive = false;
+        const btnTranslate = document.getElementById('btnTranslate');
+        if (btnTranslate) {
+          btnTranslate.classList.remove('active');
+          btnTranslate.innerText = '✨ IA';
+        }
+
+        log('Mesmo idioma ou idioma não divergente (' + myLangBase + '). Tradutor IA permanece DESATIVADO.');
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'translation_toggle',
+          enabled: false,
+          language: selectedLangCode,
+          languageName: selectedLangName
+        }));
       }
-
-      log('Tradução Simultânea ativada automaticamente no idioma do cadastro: ' + selectedLangName + ' (' + selectedLangCode + ')');
-
-      // Notify React Native backend about automatic translation setup for receiver
-      window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'translation_toggle',
-        enabled: true,
-        language: selectedLangCode,
-        languageName: selectedLangName
-      }));
 
       // Update UI texts
       document.getElementById('headerName').innerText = targetName;
@@ -730,6 +750,25 @@ export const getWebRtcHtml = () => {
           } else {
             // Queue ICE candidate if remote description is not set yet
             candidateQueue.push(cand);
+          }
+        } else if (signal.type === 'set_remote_language') {
+          const remoteLangBase = (signal.remoteLanguage || '').toLowerCase().split('-')[0];
+          const myLangBase = (selectedLangCode || 'pt').toLowerCase().split('-')[0];
+          if (remoteLangBase && remoteLangBase !== myLangBase) {
+            isTranslationActive = true;
+            const btnTranslate = document.getElementById('btnTranslate');
+            if (btnTranslate) {
+              btnTranslate.classList.add('active');
+              btnTranslate.innerText = selectedLangFlag + ' IA';
+            }
+            log('Idioma remoto atualizado (' + remoteLangBase + '). Tradução IA ativada!');
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'translation_toggle',
+              enabled: true,
+              language: selectedLangCode,
+              languageName: selectedLangName
+            }));
+            showLiveCaption('Sistema IA', 'Tradução Simultânea Ativada', 'Identificado idioma diferente (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + '). Tradução ativa.');
           }
         } else if (signal.type === 'translation_caption') {
           log('Legenda recebida da IA: ' + signal.translatedText);
