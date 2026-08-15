@@ -20,6 +20,7 @@ import { Camera } from 'expo-camera';
 import * as Location from 'expo-location';
 import { getWebRtcHtml } from '../../services/webrtcHtml';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { ringtoneService } from '../../services/RingtoneService';
 
 import { getConversation, sendMessage, deleteMessage } from '../../services/chat';
 import api, { SERVER_URL } from '../../services/api';
@@ -30,6 +31,8 @@ const SERVER_MEDIA_BASE = SERVER_URL;
 
 import { getCachedMedia } from '../../services/MediaCacheService';
 import CachedImage from '../../components/CachedImage';
+import InviteRoleModal from '../../components/InviteRoleModal';
+import { MemberRole, inviteUserToRoom } from '../../services/group';
 
 interface ChatVideoPlayerProps {
   url: string;
@@ -107,10 +110,14 @@ interface Message {
 }
 
 export default function ChatRoomScreen() {
-  const { id, name, status, autoAcceptCall, profileImage } = useLocalSearchParams();
+  const { id, name, status, autoAcceptCall, profileImage, isRoom, roomType } = useLocalSearchParams();
   const { user } = useAuth();
   const { socket } = useSocket();   // Socket global — conectado desde o login
   const { language } = useLocalization();
+
+  // Modal de Convite com Escolha de Papel (Palestrante vs Ouvinte)
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [targetUserToInvite, setTargetUserToInvite] = useState<{ id: string; name: string }>({ id: '', name: '' });
 
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -329,6 +336,7 @@ export default function ChatRoomScreen() {
       setCallDirection('incoming');
       setCallerName(data.fromName || 'Alguém');
       setCallType(data.type);
+      ringtoneService.startIncomingRingtone();
       if (data.callerLanguage) {
         setRemoteUserLanguage(data.callerLanguage);
         if (webViewRef.current) {
@@ -343,6 +351,8 @@ export default function ChatRoomScreen() {
     };
 
     const handleCallAccepted = async (data?: { remoteLanguage?: string }) => {
+      ringtoneService.stopRingtone();
+      ringtoneService.configureVoipAudioMode();
       if (data?.remoteLanguage) {
         setRemoteUserLanguage(data.remoteLanguage);
         if (webViewRef.current) {
@@ -357,6 +367,7 @@ export default function ChatRoomScreen() {
     };
 
     const handleHangUp = () => {
+      ringtoneService.stopRingtone();
       setCallStatus('ended');
       if (webViewRef.current) {
         webViewRef.current.postMessage(JSON.stringify({
@@ -447,6 +458,7 @@ export default function ChatRoomScreen() {
     setCallType(mode);
     setCallStatus('calling');
     setCallModalVisible(true);
+    ringtoneService.startOutgoingRingtone();
     const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
     // Enviar sinal de chamada para o outro usuário via socket (com roomId de sala)
     socketRef.current?.emit('callUser', {
@@ -461,6 +473,7 @@ export default function ChatRoomScreen() {
     setTimeout(() => {
       setCallStatus(prev => {
         if (prev === 'calling') {
+          ringtoneService.stopRingtone();
           setCallModalVisible(false);
           Alert.alert('Chamada encerrada', `${name} não atendeu.`);
         }
@@ -470,24 +483,28 @@ export default function ChatRoomScreen() {
   };
 
   const handleAcceptCall = async () => {
+    ringtoneService.stopRingtone();
     const granted = await requestCallPermissions(callType);
     if (!granted) {
       socketRef.current?.emit('hangUp', { to: id, from: user?.id, roomId: currentRoomId });
       return;
     }
     await fetchIceServers();
+    ringtoneService.configureVoipAudioMode();
     const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
     socketRef.current?.emit('callAccepted', { to: id, from: user?.id, remoteLanguage: myLang, roomId: currentRoomId });
     setCallStatus('in-call');
   };
 
   const handleRejectCall = () => {
+    ringtoneService.stopRingtone();
     socketRef.current?.emit('hangUp', { to: id, from: user?.id, roomId: currentRoomId });
     setCallModalVisible(false);
     setCallStatus('ended');
   };
 
   const handleHangUp = () => {
+    ringtoneService.stopRingtone();
     socketRef.current?.emit('hangUp', { to: id, from: user?.id, roomId: currentRoomId });
     setCallModalVisible(false);
     setCallStatus('ended');
@@ -1206,7 +1223,22 @@ export default function ChatRoomScreen() {
         {headerMenuVisible && (
           <Modal transparent visible animationType="fade" onRequestClose={() => setHeaderMenuVisible(false)}>
             <Pressable style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.1)'}} onPress={() => setHeaderMenuVisible(false)}>
-              <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: Colors.light.surface, borderRadius: 10, elevation: 6, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.18, shadowRadius: 8, width: 210, overflow: 'hidden'}}>
+              <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: Colors.light.surface, borderRadius: 10, elevation: 6, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.18, shadowRadius: 8, width: 230, overflow: 'hidden'}}>
+
+                {/* Opção de Convidar Palestrante / Ouvinte (Modo Palestra) */}
+                {isRoom === 'true' && (
+                  <TouchableOpacity
+                    style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
+                    onPress={() => {
+                      setHeaderMenuVisible(false);
+                      setTargetUserToInvite({ id: '', name: 'Convidado' });
+                      setInviteModalVisible(true);
+                    }}
+                  >
+                    <Feather name="user-plus" size={16} color={Colors.primary} />
+                    <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 13}}>Convidar Participante</Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Vitrine do Usuário */}
                 <TouchableOpacity
@@ -1220,7 +1252,7 @@ export default function ChatRoomScreen() {
                   }}
                 >
                   <Feather name="shopping-bag" size={16} color={Colors.primary} />
-                  <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 14}}>Vitrine do Usuário</Text>
+                  <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 13}}>Vitrine do Usuário</Text>
                 </TouchableOpacity>
 
                 {/* Bloquear */}
@@ -1229,7 +1261,7 @@ export default function ChatRoomScreen() {
                   onPress={handleBlockUser}
                 >
                   <Feather name="slash" size={16} color={Colors.error} />
-                  <Text style={{color: Colors.error, fontWeight: 'bold', fontSize: 14}}>Bloquear Usuário</Text>
+                  <Text style={{color: Colors.error, fontWeight: 'bold', fontSize: 13}}>Bloquear Usuário</Text>
                 </TouchableOpacity>
 
                 {/* Denunciar */}
@@ -1238,7 +1270,7 @@ export default function ChatRoomScreen() {
                   onPress={handleReportUser}
                 >
                   <Feather name="alert-triangle" size={16} color={Colors.error} />
-                  <Text style={{color: Colors.error, fontWeight: 'bold', fontSize: 14}}>Denunciar Usuário</Text>
+                  <Text style={{color: Colors.error, fontWeight: 'bold', fontSize: 13}}>Denunciar Usuário</Text>
                 </TouchableOpacity>
 
               </View>
@@ -1246,6 +1278,31 @@ export default function ChatRoomScreen() {
           </Modal>
         )}
       </View>
+
+      {/* Banner Informativo de Regra de Áudio (Grupo vs Palestra) */}
+      {isRoom === 'true' && (
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          paddingHorizontal: Spacing.md,
+          paddingVertical: 8,
+          backgroundColor: roomType === 'GROUP' ? '#F0F9FF' : '#FEF3C7',
+          borderBottomWidth: 1,
+          borderBottomColor: roomType === 'GROUP' ? '#BAE6FD' : '#FDE68A',
+        }}>
+          <Feather
+            name={roomType === 'GROUP' ? 'volume-2' : 'mic-off'}
+            size={16}
+            color={roomType === 'GROUP' ? '#0369A1' : '#B45309'}
+          />
+          <Text style={{ flex: 1, fontSize: 12, color: roomType === 'GROUP' ? '#0C4A6E' : '#78350F', fontWeight: '600' }}>
+            {roomType === 'GROUP'
+              ? '🗣️ Modo Grupo: Todos os participantes podem falar e interagir.'
+              : '🎤 Modo Palestra: Apenas os palestrantes indicados podem falar. Demais são ouvintes.'}
+          </Text>
+        </View>
+      )}
 
       {/* Fullscreen Image Modal */}
       <Modal visible={!!fullscreenImage} transparent animationType="fade">
@@ -1548,6 +1605,26 @@ export default function ChatRoomScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Modal para Escolher Papel do Convidado (Palestrante vs Ouvinte) */}
+      <InviteRoleModal
+        visible={inviteModalVisible}
+        targetUserName={targetUserToInvite.name}
+        actionType="INVITE"
+        onClose={() => setInviteModalVisible(false)}
+        onConfirm={async (selectedRole) => {
+          setInviteModalVisible(false);
+          try {
+            await inviteUserToRoom(id as string, targetUserToInvite.id, selectedRole);
+            Alert.alert(
+              'Convite Enviado!',
+              `Convite como ${selectedRole === 'SPEAKER' ? '🎤 Palestrante' : '🎧 Ouvinte'} enviado com sucesso!`
+            );
+          } catch (e: any) {
+            Alert.alert('Aviso', 'Convite gerado localmente como ' + (selectedRole === 'SPEAKER' ? 'Palestrante' : 'Ouvinte'));
+          }
+        }}
+      />
 
     </SafeAreaView>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl
+  View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Modal, Pressable
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -10,6 +10,8 @@ import { useOnboarding } from '../../contexts/OnboardingContext';
 import CoachMark from '../../components/CoachMark';
 import api, { SERVER_URL } from '../../services/api';
 import CachedImage from '../../components/CachedImage';
+import CreateRoomModal from '../../components/CreateRoomModal';
+import { RoomType, getMyRooms } from '../../services/group';
 
 interface Conversation {
   id: string;
@@ -21,6 +23,8 @@ interface Conversation {
   unreadCount: number;
   status: 'online' | 'offline';
   profileImage?: string;
+  isRoom?: boolean;
+  roomType?: RoomType;
 }
 
 export default function ChatScreen() {
@@ -31,6 +35,11 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [coachVisible, setCoachVisible] = useState(false);
+
+  // Estados para menus e criação de grupo/palestra
+  const [actionMenuVisible, setActionMenuVisible] = useState(false);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [selectedRoomType, setSelectedRoomType] = useState<RoomType>('GROUP');
 
   // Refs dos alvos do coach mark
   const searchRef = useRef<View>(null);
@@ -52,8 +61,24 @@ export default function ChatScreen() {
       const resp = await api.get('/messages/conversations/list');
       const raw: any[] = resp.data.data || [];
 
-      // O backend agora retorna { other_user_id, last_message_at, unread_count, other_user_name, other_user_nickname }
-      const enriched = raw.map((item) => {
+      // Carregar salas (Grupos e Palestras) do usuário
+      const myRooms = await getMyRooms();
+      const mappedRooms: Conversation[] = myRooms.map(r => ({
+        id: r.id,
+        userId: r.id,
+        name: r.name,
+        nickname: r.type === 'GROUP' ? 'Grupo' : 'Palestra',
+        lastMessage: r.description || (r.type === 'GROUP' ? 'Grupo de conversa' : 'Canal de palestra'),
+        lastMessageTime: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+        unreadCount: r.unreadCount || 0,
+        status: 'online',
+        profileImage: r.profileImage,
+        isRoom: true,
+        roomType: r.type,
+      }));
+
+      // O backend retorna { other_user_id, last_message_at, unread_count, other_user_name, other_user_nickname }
+      const enriched: Conversation[] = raw.map((item) => {
         const pImg = item.other_user_profile_image;
         const profileImage = pImg 
           ? (pImg.startsWith('http') ? pImg : `${SERVER_URL}${pImg}`) 
@@ -70,7 +95,8 @@ export default function ChatScreen() {
           profileImage,
         };
       });
-      setConversations(enriched as Conversation[]);
+
+      setConversations([...mappedRooms, ...enriched]);
     } catch {
       setConversations([]);
     } finally {
@@ -92,21 +118,54 @@ export default function ChatScreen() {
     c.nickname.toLowerCase().includes(search.toLowerCase())
   );
 
+  const openCreateModal = (type: RoomType) => {
+    setSelectedRoomType(type);
+    setActionMenuVisible(false);
+    setCreateModalVisible(true);
+  };
+
+  const handleRoomCreated = (roomData: any) => {
+    setCreateModalVisible(false);
+    loadConversations();
+    // Navega diretamente para a sala recém-criada
+    router.push({
+      pathname: '/chat/[id]',
+      params: {
+        id: roomData.id,
+        name: roomData.name,
+        status: 'online',
+        isRoom: 'true',
+        roomType: roomData.type,
+      }
+    });
+  };
+
   const renderConversation = ({ item }: { item: Conversation }) => (
     <TouchableOpacity 
       style={styles.conversationItem} 
       activeOpacity={0.7}
       onPress={() => router.push({
         pathname: '/chat/[id]',
-        params: { id: item.id, name: item.name, status: item.status, profileImage: item.profileImage }
+        params: {
+          id: item.id,
+          name: item.name,
+          status: item.status,
+          profileImage: item.profileImage,
+          isRoom: item.isRoom ? 'true' : 'false',
+          roomType: item.roomType || '',
+        }
       })}
     >
       <View style={styles.avatarContainer}>
-        <View style={styles.avatar}>
+        <View style={[styles.avatar, item.isRoom && { backgroundColor: item.roomType === 'GROUP' ? Colors.primary : Colors.secondaryDark }]}>
           {item.profileImage ? (
             <CachedImage url={item.profileImage} style={{ width: 52, height: 52, borderRadius: 26 }} />
           ) : (
-            <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+            <Feather
+              name={item.isRoom ? (item.roomType === 'GROUP' ? 'users' : 'mic') : 'user'}
+              size={24}
+              color="#fff"
+            />
           )}
         </View>
         {item.status === 'online' && <View style={styles.onlineIndicator} />}
@@ -114,7 +173,22 @@ export default function ChatScreen() {
 
       <View style={styles.conversationInfo}>
         <View style={styles.nameRow}>
-          <Text style={styles.conversationName} numberOfLines={1}>{item.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+            <Text style={styles.conversationName} numberOfLines={1}>{item.name}</Text>
+            {item.isRoom && (
+              <View style={[
+                styles.roomTag,
+                { backgroundColor: item.roomType === 'GROUP' ? Colors.primary + '20' : Colors.secondary + '30' }
+              ]}>
+                <Text style={[
+                  styles.roomTagText,
+                  { color: item.roomType === 'GROUP' ? Colors.primary : Colors.secondaryDark }
+                ]}>
+                  {item.roomType === 'GROUP' ? '👥 Grupo' : '🎤 Palestra'}
+                </Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.time}>{item.lastMessageTime}</Text>
         </View>
         <View style={styles.messageRow}>
@@ -137,7 +211,7 @@ export default function ChatScreen() {
           <Feather name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar conversas..."
+            placeholder="Buscar conversas, grupos ou palestras..."
             placeholderTextColor={Colors.light.textMuted}
             value={search}
             onChangeText={setSearch}
@@ -166,18 +240,98 @@ export default function ChatScreen() {
             <View style={styles.emptyContainer}>
               <Feather name="message-square" size={48} color={Colors.light.textMuted} />
               <Text style={styles.emptyTitle}>Nenhuma conversa</Text>
-              <Text style={styles.emptySubtitle}>Busque usuários para começar a conversar</Text>
+              <Text style={styles.emptySubtitle}>Toque no botão + para iniciar uma conversa, criar um grupo ou palestra</Text>
             </View>
           }
         />
       </View>
 
-      {/* FAB */}
-      <TouchableOpacity ref={fabRef} style={styles.fab} activeOpacity={0.8}
-        onPress={() => router.push('/(tabs)/search')}
+      {/* FAB (Botão de Ação) */}
+      <TouchableOpacity
+        ref={fabRef}
+        style={styles.fab}
+        activeOpacity={0.8}
+        onPress={() => setActionMenuVisible(true)}
       >
-        <Feather name="edit-2" size={24} color="#fff" />
+        <Feather name="plus" size={28} color="#fff" />
       </TouchableOpacity>
+
+      {/* Modal / Action Sheet de Opções do Botão FAB */}
+      <Modal
+        visible={actionMenuVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setActionMenuVisible(false)}
+      >
+        <Pressable style={styles.actionMenuOverlay} onPress={() => setActionMenuVisible(false)}>
+          <View style={styles.actionMenuContainer}>
+            <Text style={styles.actionMenuHeader}>O que você deseja fazer?</Text>
+
+            <TouchableOpacity
+              style={styles.actionMenuItem}
+              activeOpacity={0.7}
+              onPress={() => {
+                setActionMenuVisible(false);
+                router.push('/(tabs)/search');
+              }}
+            >
+              <View style={[styles.actionIconCircle, { backgroundColor: '#E0F2FE' }]}>
+                <Feather name="message-square" size={20} color="#0284C7" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionItemTitle}>Nova Conversa Direta</Text>
+                <Text style={styles.actionItemSub}>Buscar usuários individuais no app</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionMenuItem}
+              activeOpacity={0.7}
+              onPress={() => openCreateModal('GROUP')}
+            >
+              <View style={[styles.actionIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                <Feather name="users" size={20} color="#16A34A" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionItemTitle}>👥 Criar Grupo</Text>
+                <Text style={styles.actionItemSub}>Espaço interativo para bate-papo coletivo</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionMenuItem}
+              activeOpacity={0.7}
+              onPress={() => openCreateModal('LECTURE')}
+            >
+              <View style={[styles.actionIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                <Feather name="mic" size={20} color="#D97706" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionItemTitle}>🎤 Criar Palestra</Text>
+                <Text style={styles.actionItemSub}>Transmissão ao vivo com convidados e ouvintes</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionMenuCancelBtn}
+              onPress={() => setActionMenuVisible(false)}
+            >
+              <Text style={styles.actionMenuCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Modal de Criação de Grupo / Palestra */}
+      <CreateRoomModal
+        visible={createModalVisible}
+        initialType={selectedRoomType}
+        onClose={() => setCreateModalVisible(false)}
+        onSuccess={handleRoomCreated}
+      />
 
       {/* Coach Marks */}
       <CoachMark
@@ -368,4 +522,68 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabIcon: { fontSize: 24 },
+  roomTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  roomTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  actionMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  actionMenuContainer: {
+    backgroundColor: Colors.light.surface,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  actionMenuHeader: {
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: Spacing.xs,
+  },
+  actionMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.light.surfaceLight,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  actionIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionItemTitle: {
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  actionItemSub: {
+    fontSize: FontSize.xs,
+    color: Colors.light.textMuted,
+    marginTop: 2,
+  },
+  actionMenuCancelBtn: {
+    marginTop: Spacing.xs,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  actionMenuCancelText: {
+    color: Colors.light.textMuted,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+  },
 });

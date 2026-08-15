@@ -367,7 +367,7 @@ export const getWebRtcHtml = () => {
   </div>
 
   <!-- Dedicated Remote Audio Element for VoIP audio playback -->
-  <audio id="remoteAudio" autoplay playsinline style="display: none;"></audio>
+  <audio id="remoteAudio" autoplay playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; top: -100px; left: -100px;"></audio>
 
   <!-- Floating Info Header -->
   <div class="header-overlay">
@@ -736,34 +736,52 @@ export const getWebRtcHtml = () => {
           }
         };
 
-        peerConnection.onconnectionstatechange = () => {
-          log('Connection state: ' + peerConnection.connectionState);
-          if (peerConnection.connectionState === 'connected') {
+        function checkConnectedAndStartTimer() {
+          const connState = peerConnection ? peerConnection.connectionState : '';
+          const iceState = peerConnection ? peerConnection.iceConnectionState : '';
+          log('Connection state check - conn: ' + connState + ', ice: ' + iceState);
+          if (connState === 'connected' || iceState === 'connected' || iceState === 'completed') {
             document.getElementById('headerStatus').innerText = 'Chamada em andamento';
             document.getElementById('headerStatus').style.color = '#06d6a0';
             startTimer();
-          } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+          } else if (connState === 'disconnected' || connState === 'failed' || iceState === 'disconnected' || iceState === 'failed') {
             document.getElementById('headerStatus').innerText = 'Conexão interrompida';
             document.getElementById('headerStatus').style.color = '#ef476f';
           }
+        }
+
+        peerConnection.onconnectionstatechange = () => {
+          checkConnectedAndStartTimer();
+        };
+
+        peerConnection.oniceconnectionstatechange = () => {
+          checkConnectedAndStartTimer();
         };
 
         peerConnection.ontrack = (event) => {
           log('Received remote track: ' + event.track.kind);
-          const stream = event.streams[0];
+          const stream = (event.streams && event.streams.length > 0) ? event.streams[0] : new MediaStream([event.track]);
           
-          if (callType === 'video') {
+          if (callType === 'video' && event.track.kind === 'video') {
             const remoteVideo = document.getElementById('remoteVideo');
-            if (remoteVideo && stream) {
+            if (remoteVideo) {
               remoteVideo.srcObject = stream;
               remoteVideo.play().catch(e => log('Remote video play error: ' + e.message));
             }
           }
           
           const remoteAudio = document.getElementById('remoteAudio');
-          if (remoteAudio && stream) {
+          if (remoteAudio) {
             remoteAudio.srcObject = stream;
-            remoteAudio.play().catch(e => log('Remote audio play error: ' + e.message));
+            remoteAudio.volume = 1.0;
+            remoteAudio.play().then(() => {
+              log('Remote audio playback started successfully.');
+              checkConnectedAndStartTimer();
+              startTimer();
+            }).catch(e => {
+              log('Remote audio play error: ' + e.message + '. Retrying after user interaction...');
+              startTimer();
+            });
           }
         };
 

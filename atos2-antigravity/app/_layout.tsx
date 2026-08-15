@@ -9,7 +9,9 @@ import { OnboardingProvider, useOnboarding } from '../contexts/OnboardingContext
 import WelcomeShowcase from '../components/WelcomeShowcase';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus, Alert } from 'react-native';
+import { AppState, AppStateStatus, Alert, Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { ringtoneService } from '../services/RingtoneService';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { Colors } from '../constants/theme';
@@ -66,19 +68,17 @@ function AppStateWatcher() {
   return null;
 }
 
+interface IncomingCallData {
+  from: string;
+  fromName: string;
+  type: 'audio' | 'video';
+  callerLanguage?: string;
+  roomId?: string;
+}
+
 /**
  * Escuta chamadas entrantes globalmente.
- * Se o usuário NÃO está na tela do chat com o chamador, mostra um Alert.
- * 
- * ⚠️ NOTA DE PRODUÇÃO (CHAMADAS EM SEGUNDO PLANO / APP MINIMIZADO):
- * Quando o aplicativo está minimizado ou em segundo plano, os sistemas operacionais (iOS/Android) 
- * suspendem o loop do JavaScript, o que desconecta ou silencia este WebSocket.
- * Para que as chamadas sejam recebidas em segundo plano:
- * 1. Deve-se integrar o Firebase Cloud Messaging (FCM) para Android e APNs (VoIP) para iOS no backend.
- * 2. O backend envia um Push Notification do tipo "data" de alta prioridade contendo o payload da chamada.
- * 3. No React Native, utilize bibliotecas como `@react-native-firebase/messaging` ou `expo-notifications`
- *    junto com `react-native-callkeep` para interceptar a notificação em segundo plano, acordar o dispositivo
- *    e renderizar a tela nativa de recebimento de chamada.
+ * Se o usuário NÃO está na tela do chat com o chamador, exibe Modal global com foto, nome, som de toque e vibração.
  */
 function GlobalCallHandler() {
   const { socket } = useSocket();
@@ -87,6 +87,8 @@ function GlobalCallHandler() {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
 
+  const [incomingCall, setIncomingCall] = useState<IncomingCallData | null>(null);
+
   useEffect(() => {
     pathnameRef.current = pathname;
   }, [pathname]);
@@ -94,49 +96,162 @@ function GlobalCallHandler() {
   useEffect(() => {
     if (!socket) return;
 
-    const handleCallUser = (data: { from: string; fromName: string; type: 'audio' | 'video' }) => {
+    const handleCallUser = (data: IncomingCallData) => {
       // Se já está na tela do chat com o chamador, o [id].tsx trata o evento
       if (pathnameRef.current === `/chat/${data.from}`) return;
 
-      const callTypeLabel = data.type === 'video' ? '📹 Chamada de Vídeo' : '📞 Chamada de Áudio';
-      Alert.alert(
-        callTypeLabel,
-        `${data.fromName || 'Alguém'} está te chamando`,
-        [
-          {
-            text: '❌ Rejeitar',
-            style: 'destructive',
-            onPress: () => {
-              socket.emit('hangUp', { to: data.from, from: user?.id });
-            },
-          },
-          {
-            text: '✅ Atender',
-            onPress: () => {
-              router.push({
-                pathname: '/chat/[id]',
-                params: {
-                  id: data.from,
-                  name: data.fromName || 'Usuário',
-                  status: 'online',
-                  autoAcceptCall: data.type,
-                },
-              });
-            },
-          },
-        ],
-        { cancelable: false }
-      );
+      setIncomingCall(data);
+      ringtoneService.startIncomingRingtone();
+    };
+
+    const handleHangUp = () => {
+      ringtoneService.stopRingtone();
+      setIncomingCall(null);
     };
 
     socket.on('callUser', handleCallUser);
+    socket.on('hangUp', handleHangUp);
+
     return () => {
       socket.off('callUser', handleCallUser);
+      socket.off('hangUp', handleHangUp);
     };
-  }, [socket, user?.id, router]);
+  }, [socket]);
 
-  return null;
+  const handleAccept = () => {
+    if (!incomingCall) return;
+    const callData = incomingCall;
+    ringtoneService.stopRingtone();
+    setIncomingCall(null);
+
+    router.push({
+      pathname: '/chat/[id]',
+      params: {
+        id: callData.from,
+        name: callData.fromName || 'Usuário',
+        status: 'online',
+        autoAcceptCall: callData.type,
+      },
+    });
+  };
+
+  const handleReject = () => {
+    if (!incomingCall) return;
+    socket?.emit('hangUp', { to: incomingCall.from, from: user?.id, roomId: incomingCall.roomId });
+    ringtoneService.stopRingtone();
+    setIncomingCall(null);
+  };
+
+  if (!incomingCall) return null;
+
+  return (
+    <Modal visible={!!incomingCall} animationType="slide" transparent statusBarTranslucent>
+      <View style={globalCallStyles.modalOverlay}>
+        <View style={globalCallStyles.modalContainer}>
+          <View style={globalCallStyles.avatarCircle}>
+            <Text style={globalCallStyles.avatarText}>
+              {incomingCall.fromName?.charAt(0)?.toUpperCase() || '?'}
+            </Text>
+          </View>
+          
+          <Text style={globalCallStyles.callerName}>{incomingCall.fromName || 'Usuário'}</Text>
+          <Text style={globalCallStyles.callTypeLabel}>
+            {incomingCall.type === 'video' ? '📹 Chamada de Vídeo Entrante' : '📞 Chamada de Áudio Entrante'}
+          </Text>
+          <Text style={globalCallStyles.secLabel}>Atos2 • Chamada Privada P2P</Text>
+
+          <View style={globalCallStyles.actionsContainer}>
+            <TouchableOpacity style={[globalCallStyles.btnAction, globalCallStyles.btnReject]} onPress={handleReject}>
+              <Feather name="phone-off" size={28} color="#fff" />
+              <Text style={globalCallStyles.btnText}>Rejeitar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[globalCallStyles.btnAction, globalCallStyles.btnAccept]} onPress={handleAccept}>
+              <Feather name="phone" size={28} color="#fff" />
+              <Text style={globalCallStyles.btnText}>Atender</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 }
+
+const globalCallStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#041527',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 16,
+  },
+  avatarCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: 'rgba(255, 200, 87, 0.4)',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  avatarText: {
+    color: '#ffffff',
+    fontSize: 54,
+    fontWeight: '800',
+  },
+  callerName: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  callTypeLabel: {
+    color: '#FFC857',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secLabel: {
+    color: '#94a3b8',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: 40,
+    marginTop: 48,
+    alignItems: 'center',
+  },
+  btnAction: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  btnReject: {
+    backgroundColor: '#ef4444',
+  },
+  btnAccept: {
+    backgroundColor: '#22c55e',
+  },
+  btnText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+});
 
 /**
  * Exibe o WelcomeShowcase uma vez, após o login.
