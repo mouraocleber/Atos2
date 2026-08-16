@@ -89,7 +89,7 @@ export default function CreateRoomModal({
           ]
         );
       } else {
-        Alert.alert('Erro', res.message || 'Não foi possível concluir a criação.');
+        Alert.alert('Erro', (res as any).message || 'Não foi possível concluir a criação.');
       }
     } catch (err: any) {
       Alert.alert('Erro', err?.response?.data?.message || 'Falha ao criar. Tente novamente.');

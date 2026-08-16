@@ -32,6 +32,7 @@ const SERVER_MEDIA_BASE = SERVER_URL;
 import { getCachedMedia } from '../../services/MediaCacheService';
 import CachedImage from '../../components/CachedImage';
 import InviteRoleModal from '../../components/InviteRoleModal';
+import RoomInviteModal from '../../components/RoomInviteModal';
 import { MemberRole, inviteUserToRoom } from '../../services/group';
 
 interface ChatVideoPlayerProps {
@@ -115,7 +116,8 @@ export default function ChatRoomScreen() {
   const { socket } = useSocket();   // Socket global — conectado desde o login
   const { language } = useLocalization();
 
-  // Modal de Convite com Escolha de Papel (Palestrante vs Ouvinte)
+  // Modal de Convite de Contatos para Grupo/Palestra
+  const [roomInviteModalVisible, setRoomInviteModalVisible] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [targetUserToInvite, setTargetUserToInvite] = useState<{ id: string; name: string }>({ id: '', name: '' });
 
@@ -1213,6 +1215,29 @@ export default function ChatRoomScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
+          {isRoom === 'true' && (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                backgroundColor: roomType === 'LECTURE' ? '#FEF3C7' : '#E0F2FE',
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: roomType === 'LECTURE' ? '#F59E0B' : '#0284C7',
+                marginRight: 4,
+              }}
+              onPress={() => setRoomInviteModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Feather name="user-plus" size={14} color={roomType === 'LECTURE' ? '#B45309' : '#0369A1'} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: roomType === 'LECTURE' ? '#92400E' : '#0369A1' }}>
+                Convidar
+              </Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.headerActionBtn} onPress={() => handleStartCall('audio')}><Feather name="phone" size={20} color={Colors.primary} /></TouchableOpacity>
           <TouchableOpacity style={styles.headerActionBtn} onPress={() => handleStartCall('video')}><Feather name="video" size={20} color={Colors.primary} /></TouchableOpacity>
           <TouchableOpacity style={styles.headerActionBtn} onPress={() => setHeaderMenuVisible(true)}>
@@ -1225,18 +1250,19 @@ export default function ChatRoomScreen() {
             <Pressable style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.1)'}} onPress={() => setHeaderMenuVisible(false)}>
               <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: Colors.light.surface, borderRadius: 10, elevation: 6, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.18, shadowRadius: 8, width: 230, overflow: 'hidden'}}>
 
-                {/* Opção de Convidar Palestrante / Ouvinte (Modo Palestra) */}
+                {/* Opção de Convidar Participantes para o Grupo / Palestra */}
                 {isRoom === 'true' && (
                   <TouchableOpacity
                     style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
                     onPress={() => {
                       setHeaderMenuVisible(false);
-                      setTargetUserToInvite({ id: '', name: 'Convidado' });
-                      setInviteModalVisible(true);
+                      setRoomInviteModalVisible(true);
                     }}
                   >
                     <Feather name="user-plus" size={16} color={Colors.primary} />
-                    <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 13}}>Convidar Participante</Text>
+                    <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 13}}>
+                      {roomType === 'LECTURE' ? 'Convidar Palestrante / Ouvinte' : 'Convidar Participante'}
+                    </Text>
                   </TouchableOpacity>
                 )}
 
@@ -1605,6 +1631,15 @@ export default function ChatRoomScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Modal para Convidar Contatos para Grupo/Palestra */}
+      <RoomInviteModal
+        visible={roomInviteModalVisible}
+        roomId={id as string}
+        roomName={(name as string) || 'Sala'}
+        roomType={(roomType as string) || 'GROUP'}
+        onClose={() => setRoomInviteModalVisible(false)}
+      />
 
       {/* Modal para Escolher Papel do Convidado (Palestrante vs Ouvinte) */}
       <InviteRoleModal
