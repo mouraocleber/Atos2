@@ -3,6 +3,7 @@ import {
   Modal, View, Text, StyleSheet, TextInput, TouchableOpacity,
   ScrollView, ActivityIndicator, Alert, Pressable
 } from 'react-native';
+import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import { RoomType, AccessPolicy, createRoom } from '../services/group';
@@ -46,6 +47,12 @@ export default function CreateRoomModal({
   };
 
   const handleCreate = async () => {
+    if (type === 'LISTENING') {
+      handleClose();
+      router.push('/(tabs)/listening');
+      return;
+    }
+
     if (!name.trim()) {
       Alert.alert('Atenção', 'Informe o nome do grupo ou palestra.');
       return;
@@ -105,13 +112,13 @@ export default function CreateRoomModal({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={styles.iconCircle}>
                 <Feather
-                  name={type === 'GROUP' ? 'users' : 'mic'}
+                  name={type === 'GROUP' ? 'users' : type === 'LECTURE' ? 'mic' : 'headphones'}
                   size={22}
                   color={Colors.secondaryDark}
                 />
               </View>
               <Text style={styles.headerTitle}>
-                {type === 'GROUP' ? 'Criar Novo Grupo' : 'Criar Nova Palestra'}
+                {type === 'GROUP' ? 'Criar Novo Grupo' : type === 'LECTURE' ? 'Criar Nova Palestra' : 'Modo Escuta'}
               </Text>
             </View>
             <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
@@ -120,8 +127,8 @@ export default function CreateRoomModal({
           </View>
 
           <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Seletor de Modo: Grupo ou Palestra */}
-            <Text style={styles.label}>Tipo de Sala</Text>
+            {/* Seletor de Modo: Grupo, Palestra ou Modo Escuta */}
+            <Text style={styles.label}>Tipo de Modo / Sala</Text>
             <View style={styles.typeSelector}>
               <TouchableOpacity
                 style={[styles.typeOption, type === 'GROUP' && styles.typeOptionActive]}
@@ -130,7 +137,7 @@ export default function CreateRoomModal({
               >
                 <Feather
                   name="users"
-                  size={18}
+                  size={16}
                   color={type === 'GROUP' ? '#fff' : Colors.light.textMuted}
                 />
                 <Text style={[styles.typeText, type === 'GROUP' && styles.typeTextActive]}>
@@ -145,137 +152,158 @@ export default function CreateRoomModal({
               >
                 <Feather
                   name="mic"
-                  size={18}
+                  size={16}
                   color={type === 'LECTURE' ? '#fff' : Colors.light.textMuted}
                 />
                 <Text style={[styles.typeText, type === 'LECTURE' && styles.typeTextActive]}>
                   🎤 Palestra
                 </Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.typeOption, type === 'LISTENING' && styles.typeOptionActive]}
+                onPress={() => setType('LISTENING')}
+                activeOpacity={0.8}
+              >
+                <Feather
+                  name="headphones"
+                  size={16}
+                  color={type === 'LISTENING' ? '#fff' : Colors.light.textMuted}
+                />
+                <Text style={[styles.typeText, type === 'LISTENING' && styles.typeTextActive]}>
+                  🎧 Escuta
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Descritivo dos Modos (REQUISITO SOLICITADO) */}
+            {/* Descritivo dos Modos */}
             <View style={[
               styles.modeInfoBox,
               {
-                backgroundColor: type === 'GROUP' ? '#F0F9FF' : '#FEF3C7',
-                borderColor: type === 'GROUP' ? '#0284C7' : '#F59E0B',
+                backgroundColor: type === 'GROUP' ? '#F0F9FF' : type === 'LECTURE' ? '#FEF3C7' : '#F3E8FF',
+                borderColor: type === 'GROUP' ? '#0284C7' : type === 'LECTURE' ? '#F59E0B' : '#9333EA',
               }
             ]}>
               <Feather
-                name={type === 'GROUP' ? 'volume-2' : 'mic-off'}
+                name={type === 'GROUP' ? 'volume-2' : type === 'LECTURE' ? 'mic-off' : 'headphones'}
                 size={18}
-                color={type === 'GROUP' ? '#0369A1' : '#B45309'}
+                color={type === 'GROUP' ? '#0369A1' : type === 'LECTURE' ? '#B45309' : '#7E22CE'}
                 style={{ marginTop: 2 }}
               />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.modeInfoTitle, { color: type === 'GROUP' ? '#0369A1' : '#92400E' }]}>
-                  {type === 'GROUP' ? '🗣️ Todos Podem Falar:' : '🎤 Regra da Palestra:'}
+                <Text style={[styles.modeInfoTitle, { color: type === 'GROUP' ? '#0369A1' : type === 'LECTURE' ? '#92400E' : '#6B21A8' }]}>
+                  {type === 'GROUP' ? '🗣️ Todos Podem Falar:' : type === 'LECTURE' ? '🎤 Regra da Palestra:' : '🎧 Modo Escuta Ativo:'}
                 </Text>
-                <Text style={[styles.modeInfoBody, { color: type === 'GROUP' ? '#0C4A6E' : '#78350F' }]}>
+                <Text style={[styles.modeInfoBody, { color: type === 'GROUP' ? '#0C4A6E' : type === 'LECTURE' ? '#78350F' : '#581C87' }]}>
                   {type === 'GROUP'
                     ? 'No modo GRUPO, TODOS os participantes possuem autorização para falar, interagir e enviar áudios.'
-                    : 'No modo PALESTRA, APENAS as pessoas indicadas/autorizadas pelo criador podem falar. Todos os demais entram estritamente como OUVINTES.'}
+                    : type === 'LECTURE'
+                    ? 'No modo PALESTRA, APENAS as pessoas indicadas/autorizadas pelo criador podem falar. Todos os demais entram estritamente como OUVINTES.'
+                    : 'No MODO ESCUTA, o app capta o áudio do ambiente (na rua) via microfone, detecta o idioma automaticamente e traduz direto no seu fone de ouvido.'}
                 </Text>
               </View>
             </View>
 
-            {/* Nome */}
-            <Text style={styles.label}>
-              Nome {type === 'GROUP' ? 'do Grupo' : 'da Palestra'} *
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder={type === 'GROUP' ? 'Ex: Grupo de Estudos Atos2' : 'Ex: Palestra sobre Inovação'}
-              placeholderTextColor={Colors.light.textMuted}
-              value={name}
-              onChangeText={setName}
-            />
-
-            {/* Descrição */}
-            <Text style={styles.label}>Descrição / Assunto (opcional)</Text>
-            <TextInput
-              style={[styles.input, { height: 70, textAlignVertical: 'top' }]}
-              placeholder="Descreva o propósito da sala..."
-              placeholderTextColor={Colors.light.textMuted}
-              value={description}
-              onChangeText={setDescription}
-              multiline={true}
-            />
-
-            {/* Regras de Entrada e Privacidade (As 3 Opções Solicitadas) */}
-            <Text style={styles.label}>Regra de Entrada e Privacidade</Text>
-
-            <TouchableOpacity
-              style={[styles.policyCard, accessPolicy === 'PUBLIC' && styles.policyCardSelected]}
-              onPress={() => setAccessPolicy('PUBLIC')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.radioCircle}>
-                {accessPolicy === 'PUBLIC' && <View style={styles.radioInner} />}
-              </View>
-              <View style={styles.policyContent}>
-                <Text style={styles.policyTitle}>1ª Qualquer um pode entrar</Text>
-                <Text style={styles.policySub}>
-                  Acesso livre. Qualquer usuário pode encontrar e entrar no {type === 'GROUP' ? 'grupo' : 'palestra'}.
+            {type !== 'LISTENING' && (
+              <>
+                {/* Nome */}
+                <Text style={styles.label}>
+                  Nome {type === 'GROUP' ? 'do Grupo' : 'da Palestra'} *
                 </Text>
-              </View>
-            </TouchableOpacity>
+                <TextInput
+                  style={styles.input}
+                  placeholder={type === 'GROUP' ? 'Ex: Grupo de Estudos Atos2' : 'Ex: Palestra sobre Inovação'}
+                  placeholderTextColor={Colors.light.textMuted}
+                  value={name}
+                  onChangeText={setName}
+                />
 
-            <TouchableOpacity
-              style={[styles.policyCard, accessPolicy === 'APPROVAL' && styles.policyCardSelected]}
-              onPress={() => setAccessPolicy('APPROVAL')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.radioCircle}>
-                {accessPolicy === 'APPROVAL' && <View style={styles.radioInner} />}
-              </View>
-              <View style={styles.policyContent}>
-                <Text style={styles.policyTitle}>2ª Só entra mediante ACEITE do dono</Text>
-                <Text style={styles.policySub}>
-                  O interessado envia solicitação e você (dono do {type === 'GROUP' ? 'grupo' : 'palestra'}) aprova ou recusa.
-                </Text>
-              </View>
-            </TouchableOpacity>
+                {/* Descrição */}
+                <Text style={styles.label}>Descrição / Assunto (opcional)</Text>
+                <TextInput
+                  style={[styles.input, { height: 70, textAlignVertical: 'top' }]}
+                  placeholder="Descreva o propósito da sala..."
+                  placeholderTextColor={Colors.light.textMuted}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline={true}
+                />
 
-            <TouchableOpacity
-              style={[styles.policyCard, accessPolicy === 'INVITE_ONLY' && styles.policyCardSelected]}
-              onPress={() => setAccessPolicy('INVITE_ONLY')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.radioCircle}>
-                {accessPolicy === 'INVITE_ONLY' && <View style={styles.radioInner} />}
-              </View>
-              <View style={styles.policyContent}>
-                <Text style={styles.policyTitle}>3ª Só entra com ACEITE DE CONVITE enviado pelo dono</Text>
-                <Text style={styles.policySub}>
-                  Sala privada. Apenas usuários diretamente convidados por você poderão participar.
-                </Text>
-              </View>
-            </TouchableOpacity>
+                {/* Regras de Entrada e Privacidade */}
+                <Text style={styles.label}>Regra de Entrada e Privacidade</Text>
 
-            {/* Card de Aviso sobre Tradução (REQUISITO CRÍTICO) */}
-            <View style={styles.warningCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Feather name="alert-triangle" size={20} color="#D97706" />
-                <Text style={styles.warningTitle}>AVISO IMPORTANTE SOBRE TRADUÇÃO</Text>
-              </View>
-              <Text style={styles.warningBody}>
-                Caso haja utilização do recurso de <Text style={{ fontWeight: '800', color: Colors.primary }}>TRADUÇÃO SIMULTÂNEA</Text> no {type === 'GROUP' ? 'grupo' : 'palestra'}, <Text style={{ fontWeight: '800', color: '#B45309' }}>O VALOR SERÁ COBRADO POR MINUTO DE USO DA TRADUÇÃO</Text>.
-              </Text>
+                <TouchableOpacity
+                  style={[styles.policyCard, accessPolicy === 'PUBLIC' && styles.policyCardSelected]}
+                  onPress={() => setAccessPolicy('PUBLIC')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioCircle}>
+                    {accessPolicy === 'PUBLIC' && <View style={styles.radioInner} />}
+                  </View>
+                  <View style={styles.policyContent}>
+                    <Text style={styles.policyTitle}>1ª Qualquer um pode entrar</Text>
+                    <Text style={styles.policySub}>
+                      Acesso livre. Qualquer usuário pode encontrar e entrar no {type === 'GROUP' ? 'grupo' : 'palestra'}.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
 
-              <Pressable
-                style={styles.checkboxRow}
-                onPress={() => setTranslationConfirmed(!translationConfirmed)}
-              >
-                <View style={[styles.checkbox, translationConfirmed && styles.checkboxChecked]}>
-                  {translationConfirmed && <Feather name="check" size={14} color="#fff" />}
+                <TouchableOpacity
+                  style={[styles.policyCard, accessPolicy === 'APPROVAL' && styles.policyCardSelected]}
+                  onPress={() => setAccessPolicy('APPROVAL')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioCircle}>
+                    {accessPolicy === 'APPROVAL' && <View style={styles.radioInner} />}
+                  </View>
+                  <View style={styles.policyContent}>
+                    <Text style={styles.policyTitle}>2ª Só entra mediante ACEITE do dono</Text>
+                    <Text style={styles.policySub}>
+                      O interessado envia solicitação e você (dono do {type === 'GROUP' ? 'grupo' : 'palestra'}) aprova ou recusa.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.policyCard, accessPolicy === 'INVITE_ONLY' && styles.policyCardSelected]}
+                  onPress={() => setAccessPolicy('INVITE_ONLY')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioCircle}>
+                    {accessPolicy === 'INVITE_ONLY' && <View style={styles.radioInner} />}
+                  </View>
+                  <View style={styles.policyContent}>
+                    <Text style={styles.policyTitle}>3ª Só entra com ACEITE DE CONVITE enviado pelo dono</Text>
+                    <Text style={styles.policySub}>
+                      Sala privada. Apenas usuários diretamente convidados por você poderão participar.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Card de Aviso sobre Tradução */}
+                <View style={styles.warningCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Feather name="alert-triangle" size={20} color="#D97706" />
+                    <Text style={styles.warningTitle}>AVISO IMPORTANTE SOBRE TRADUÇÃO</Text>
+                  </View>
+                  <Text style={styles.warningBody}>
+                    Caso haja utilização do recurso de <Text style={{ fontWeight: '800', color: Colors.primary }}>TRADUÇÃO SIMULTÂNEA</Text> no {type === 'GROUP' ? 'grupo' : 'palestra'}, <Text style={{ fontWeight: '800', color: '#B45309' }}>O VALOR SERÁ COBRADO POR MINUTO DE USO DA TRADUÇÃO</Text>.
+                  </Text>
+
+                  <Pressable
+                    style={styles.checkboxRow}
+                    onPress={() => setTranslationConfirmed(!translationConfirmed)}
+                  >
+                    <View style={[styles.checkbox, translationConfirmed && styles.checkboxChecked]}>
+                      {translationConfirmed && <Feather name="check" size={14} color="#fff" />}
+                    </View>
+                    <Text style={styles.checkboxLabel}>
+                      Estou ciente da cobrança por minuto em caso de uso de tradução.
+                    </Text>
+                  </Pressable>
                 </View>
-                <Text style={styles.checkboxLabel}>
-                  Estou ciente da cobrança por minuto em caso de uso de tradução.
-                </Text>
-              </Pressable>
-            </View>
+              </>
+            )}
           </ScrollView>
 
           {/* Buttons Footer */}
@@ -291,19 +319,20 @@ export default function CreateRoomModal({
             <TouchableOpacity
               style={[
                 styles.submitBtn,
-                (!name.trim() || !translationConfirmed || loading) && styles.submitBtnDisabled,
+                type !== 'LISTENING' && (!name.trim() || !translationConfirmed || loading) && styles.submitBtnDisabled,
+                type === 'LISTENING' && { backgroundColor: '#9333EA' },
               ]}
               onPress={handleCreate}
-              disabled={!name.trim() || !translationConfirmed || loading}
+              disabled={type !== 'LISTENING' && (!name.trim() || !translationConfirmed || loading)}
               activeOpacity={0.8}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Feather name="check-circle" size={18} color="#fff" />
+                  <Feather name={type === 'LISTENING' ? 'headphones' : 'check-circle'} size={18} color="#fff" />
                   <Text style={styles.submitBtnText}>
-                    {type === 'GROUP' ? 'Criar Grupo' : 'Criar Palestra'}
+                    {type === 'GROUP' ? 'Criar Grupo' : type === 'LECTURE' ? 'Criar Palestra' : 'Abrir Modo Escuta'}
                   </Text>
                 </>
               )}

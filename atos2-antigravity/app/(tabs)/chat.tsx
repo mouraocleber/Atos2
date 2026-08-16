@@ -316,6 +316,24 @@ export default function ChatScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={styles.actionMenuItem}
+              activeOpacity={0.7}
+              onPress={() => {
+                setActionMenuVisible(false);
+                router.push('/(tabs)/listening');
+              }}
+            >
+              <View style={[styles.actionIconCircle, { backgroundColor: '#F3E8FF' }]}>
+                <Feather name="headphones" size={20} color="#9333EA" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionItemTitle}>🎧 Modo Escuta</Text>
+                <Text style={styles.actionItemSub}>Tradução de áudio da rua direto no seu fone</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.actionMenuCancelBtn}
               onPress={() => setActionMenuVisible(false)}
             >

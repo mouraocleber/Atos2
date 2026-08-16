@@ -11,7 +11,7 @@ type TranslationMap = {
   login_subtitle: string; connect_with_world: string; register_here: string;
   create_account: string; cpf: string; cep: string;
   // Tabs (optional — fallback to pt-BR if not provided)
-  tab_contacts?: string; tab_store?: string; tab_wallet?: string; tab_search?: string; tab_settings?: string;
+  tab_contacts?: string; tab_store?: string; tab_wallet?: string; tab_search?: string; tab_listening?: string; tab_settings?: string;
   header_contacts?: string; header_store?: string; header_wallet?: string; header_search?: string; header_settings?: string;
   // Settings sections (optional)
   section_account?: string; section_security?: string; section_plan?: string;
@@ -38,7 +38,7 @@ export const translations: Record<string, TranslationMap> = {
     login: 'Entrar', login_subtitle: 'Conecte-se com o mundo',
     connect_with_world: 'Conecte-se com o mundo', register_here: 'Cadastre-se aqui',
     create_account: 'Criar conta', cpf: 'Documento / CPF', cep: 'Código Postal / CEP',
-    tab_contacts: 'Contatos', tab_store: 'Vitrine', tab_wallet: 'Carteira', tab_search: 'Buscar', tab_settings: 'Config',
+    tab_contacts: 'Contatos', tab_store: 'Vitrine', tab_wallet: 'Carteira', tab_search: 'Buscar', tab_listening: 'Escuta', tab_settings: 'Config',
     header_contacts: 'Contatos', header_store: 'Loja e Vitrine', header_wallet: 'Carteira', header_search: 'Buscar Usuários', header_settings: 'Configurações',
     section_account: 'Conta', section_security: 'Segurança', section_plan: 'Meu Plano e Privacidade',
     section_connections: 'Conexões Rápidas', section_app: 'Aplicativo', section_about: 'Sobre',

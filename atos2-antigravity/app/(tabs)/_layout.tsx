@@ -82,6 +82,18 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="listening"
+        options={{
+          title: t('tab_listening') || 'Escuta',
+          headerTitle: 'Modo Escuta • Tradução ao Vivo',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
+              <Feather name="headphones" size={focused ? 22 : 24} color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: t('tab_settings') || 'Config',

@@ -1,6 +1,6 @@
 import api from './api';
 
-export type RoomType = 'GROUP' | 'LECTURE';
+export type RoomType = 'GROUP' | 'LECTURE' | 'LISTENING';
 export type AccessPolicy = 'PUBLIC' | 'APPROVAL' | 'INVITE_ONLY';
 
 export interface CreateRoomPayload {

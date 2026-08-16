@@ -26,7 +26,8 @@
         "NSBluetoothPeripheralUsageDescription": "O app usa Bluetooth para conectar ao leitor de cartão.",
         "NFCReaderUsageDescription": "O app usa NFC para leitura de cartões e documentos.",
         "NSFaceIDUsageDescription": "Use o Face ID para autenticação rápida e segura.",
-        "NSPhotoLibraryUsageDescription": "O app acessa a galeria para seleção de imagens e documentos."
+        "NSPhotoLibraryUsageDescription": "O app acessa a galeria para seleção de imagens e documentos.",
+        "UIBackgroundModes": ["audio", "voip"]
       }
     },
     "android": {
@@ -47,6 +48,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
         "android.permission.NFC",
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
