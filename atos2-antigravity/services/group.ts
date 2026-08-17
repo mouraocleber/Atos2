@@ -155,3 +155,15 @@ export const changeMemberRole = async (roomId: string, targetUserId: string, new
     return { success: true, message: 'Papel do participante alterado com sucesso' };
   }
 };
+
+export const getRoomDetails = async (roomId: string) => {
+  const localRooms = await getLocalRooms();
+  const foundLocal = localRooms.find(r => r.id === roomId);
+
+  try {
+    const response = await api.get(`/groups/${roomId}`);
+    return response.data?.data || response.data || foundLocal;
+  } catch (e) {
+    return foundLocal || null;
+  }
+};

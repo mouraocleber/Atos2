@@ -1,5 +1,7 @@
-import { AudioModule, createAudioPlayer } from 'expo-audio';
+import { AudioModule, createAudioPlayer, RecordingPresets } from 'expo-audio';
 import api from './api';
+
+const DEEPGRAM_API_KEY = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
 
 export type TranslationState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
@@ -33,71 +35,19 @@ const LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Árabe',
   pt: 'Português',
   'pt-BR': 'Português (Brasil)',
+  'en-US': 'Inglês (EUA)',
+  'es-ES': 'Espanhol (Espanha)',
 };
-
-// Frases de demonstração para simulação de escuta ambiente contínua na rua
-const DEMO_AMBIENT_PHRASES = [
-  {
-    langCode: 'en',
-    langName: 'Inglês',
-    original: 'Excuse me, do you know what time the train station opens today?',
-    translations: {
-      'pt-BR': 'Com licença, você sabe a que horas a estação de trem abre hoje?',
-      'es-ES': 'Disculpe, ¿sabe a qué hora abre la estación de tren hoy?',
-      'en-US': 'Excuse me, do you know what time the train station opens today?',
-    },
-  },
-  {
-    langCode: 'es',
-    langName: 'Espanhol',
-    original: '¡Hola! ¿Me puedes indicar dónde está el supermercado más cercano?',
-    translations: {
-      'pt-BR': 'Olá! Você pode me indicar onde fica o supermercado mais próximo?',
-      'es-ES': '¡Hola! ¿Me puedes indicar dónde está el supermercado más cercano?',
-      'en-US': 'Hello! Can you tell me where the nearest supermarket is?',
-    },
-  },
-  {
-    langCode: 'fr',
-    langName: 'Francês',
-    original: 'Bonjour, est-ce que vous savez où se trouve la pharmacie du centre-ville?',
-    translations: {
-      'pt-BR': 'Olá, você sabe onde fica a farmácia do centro da cidade?',
-      'es-ES': 'Hola, ¿sabe dónde está la farmacia del centro de la ciudad?',
-      'en-US': 'Hello, do you know where the downtown pharmacy is?',
-    },
-  },
-  {
-    langCode: 'it',
-    langName: 'Italiano',
-    original: 'Ciao, vorrei un caffè e una bottiglia d\'acqua per favore.',
-    translations: {
-      'pt-BR': 'Olá, eu gostaria de um café e uma garrafa de água por favor.',
-      'es-ES': 'Hola, quisiera un café y una botella de agua por favor.',
-      'en-US': 'Hello, I would like a coffee and a bottle of water please.',
-    },
-  },
-  {
-    langCode: 'de',
-    langName: 'Alemão',
-    original: 'Guten Tag, wo ist die nächste Bushaltestelle bitte?',
-    translations: {
-      'pt-BR': 'Bom dia, onde fica o ponto de ônibus mais próximo, por favor?',
-      'es-ES': 'Buenos días, ¿dónde está la parada de autobús más cercana, por favor?',
-      'en-US': 'Good day, where is the nearest bus stop please?',
-    },
-  },
-];
 
 class LiveTranslationService {
   private currentState: TranslationState = 'idle';
   private callbacks: LiveTranslationCallbacks = {};
   private targetLanguage: string = 'pt-BR';
   private player: any = null;
+  private recorder: any = null;
   private audioLevelInterval: NodeJS.Timeout | null = null;
-  private continuousListeningInterval: NodeJS.Timeout | null = null;
   private isLiveModeActive: boolean = false;
-  private demoIndex: number = 0;
+  private isProcessingChunk: boolean = false;
 
   public setCallbacks(callbacks: LiveTranslationCallbacks) {
     this.callbacks = callbacks;
@@ -143,7 +93,7 @@ class LiveTranslationService {
   }
 
   /**
-   * Inicia o ciclo contínuo de escuta ambiente
+   * Inicia o ciclo contínuo de escuta ambiente real
    */
   public async startListening(targetUserLanguage: string): Promise<boolean> {
     if (this.isLiveModeActive) return true;
@@ -155,9 +105,12 @@ class LiveTranslationService {
     this.isLiveModeActive = true;
     this.setState('listening');
     this.startAudioVisualizerSimulation();
-    this.startContinuousListeningLoop();
 
-    console.log(`[LiveTranslationService] Escuta ativa. Idioma de destino do usuário: ${this.targetLanguage}`);
+    console.log(`[LiveTranslationService] Escuta ativa real. Idioma de destino: ${this.targetLanguage}`);
+
+    // Inicia a gravação contínua em loop de chunks de áudio
+    this.runContinuousListeningLoop();
+
     return true;
   }
 
@@ -167,7 +120,13 @@ class LiveTranslationService {
   public async stopListening() {
     this.isLiveModeActive = false;
     this.stopAudioVisualizerSimulation();
-    this.stopContinuousListeningLoop();
+
+    if (this.recorder) {
+      try {
+        await this.recorder.stop();
+      } catch (e) {}
+      this.recorder = null;
+    }
 
     if (this.player) {
       try {
@@ -182,59 +141,175 @@ class LiveTranslationService {
   }
 
   /**
-   * Processa o áudio captado ou dispara simulação com síntese de voz (TTS)
+   * Loop contínuo de gravação de áudio do microfone e envio ao Deepgram
    */
-  public async processAudioChunk(audioUriOrBase64?: string): Promise<TranslationResult | null> {
-    if (!this.isLiveModeActive && this.currentState !== 'idle') return null;
+  private async runContinuousListeningLoop() {
+    while (this.isLiveModeActive) {
+      if (this.currentState === 'speaking') {
+        // Aguarda a reprodução de áudio terminar antes de abrir o microfone novamente
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+
+      await this.recordAndProcessChunk();
+
+      // Pequena pausa entre capturas (300ms)
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+
+  /**
+   * Grava um bloco de 4 segundos e envia para a API do Deepgram (STT)
+   */
+  private async recordAndProcessChunk() {
+    if (!this.isLiveModeActive || this.isProcessingChunk) return;
+    this.isProcessingChunk = true;
+
+    let currentRecorder: any = null;
+    try {
+      this.setState('listening');
+
+      // Instancia gravador real usando expo-audio
+      const options = RecordingPresets.HIGH_QUALITY || {
+        extension: '.m4a',
+        sampleRate: 16000,
+        numberOfChannels: 1,
+        bitRate: 64000,
+      };
+
+      currentRecorder = new AudioModule.AudioRecorder(options);
+      this.recorder = currentRecorder;
+
+      await currentRecorder.prepareToRecordAsync();
+      currentRecorder.record();
+
+      // Grava áudio do ambiente por 4 segundos
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+
+      if (!this.isLiveModeActive) {
+        try { await currentRecorder.stop(); } catch (e) {}
+        this.isProcessingChunk = false;
+        return;
+      }
+
+      await currentRecorder.stop();
+      const recordedUri = currentRecorder.uri;
+      this.recorder = null;
+
+      if (recordedUri) {
+        await this.processAudioChunk(recordedUri);
+      }
+    } catch (e: any) {
+      console.warn('[LiveTranslationService] Erro durante gravação do bloco de áudio:', e);
+      if (currentRecorder) {
+        try { await currentRecorder.stop(); } catch (err) {}
+      }
+    } finally {
+      this.isProcessingChunk = false;
+    }
+  }
+
+  /**
+   * Processa um arquivo de áudio gravado enviando ao Deepgram para transcrição e idioma auto-detectado
+   */
+  public async processAudioChunk(audioUri: string): Promise<TranslationResult | null> {
+    if (!audioUri) return null;
 
     try {
       this.setState('processing');
 
-      let result: TranslationResult;
+      let detectedLangCode = 'en';
+      let originalTranscript = '';
 
-      if (audioUriOrBase64 && audioUriOrBase64 !== 'simulated_audio_uri') {
-        // Tenta enviar áudio real para o backend Atos2
-        try {
-          const formData = new FormData();
-          // @ts-ignore
-          formData.append('file', {
-            uri: audioUriOrBase64,
-            type: 'audio/m4a',
-            name: 'ambient_audio.m4a',
-          });
-          formData.append('targetLanguage', this.targetLanguage);
-
-          const response = await api.post('/translation/live', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            timeout: 8000,
-          });
-
-          const data = response.data?.data || response.data;
-          const langCode = data.detectedLanguage || 'en';
-          result = {
-            detectedLanguage: langCode,
-            detectedLanguageName: LANGUAGE_NAMES[langCode] || langCode.toUpperCase(),
-            originalText: data.originalText || '',
-            translatedText: data.translatedText || '',
-            audioUrl: data.audioUrl,
-            audioBase64: data.audioBase64,
-          };
-        } catch (apiErr) {
-          console.warn('[LiveTranslationService] Backend offline, utilizando pipeline inteligente local com síntese sonora:', apiErr);
-          result = this.generateDemoTranslation();
-        }
+      if (audioUri === 'simulated_audio_uri') {
+        // Disparo manual para testes rápidos de interface
+        originalTranscript = 'Hello, how can I help you find the nearest train station?';
+        detectedLangCode = 'en';
       } else {
-        // Pipeline de demonstração local com frases em múltiplos idiomas falados na rua
-        result = this.generateDemoTranslation();
+        // 1. Envia o áudio gravado para o Deepgram STT API
+        try {
+          const fileResp = await fetch(audioUri);
+          const audioBlob = await fileResp.blob();
+
+          const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
+          const dgResponse = await fetch(dgUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+              'Content-Type': audioBlob.type || 'audio/m4a',
+            },
+            body: audioBlob,
+          });
+
+          if (dgResponse.ok) {
+            const dgData = await dgResponse.json();
+            const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
+            originalTranscript = alternative?.transcript?.trim() || '';
+            detectedLangCode = dgData.results?.channels?.[0]?.detected_language || 'en';
+            console.log(`[Deepgram STT] Sucesso. Idioma: ${detectedLangCode}, Transcrição: "${originalTranscript}"`);
+          } else {
+            const errText = await dgResponse.text();
+            console.warn('[Deepgram STT] Status de erro:', dgResponse.status, errText);
+          }
+        } catch (dgErr) {
+          console.warn('[LiveTranslationService] Erro ao conectar com a API Deepgram:', dgErr);
+        }
       }
 
-      // Gera a URL do áudio sintetizado (TTS) no idioma de destino do usuário se não veio do backend
-      if (!result.audioUrl && !result.audioBase64 && result.translatedText) {
-        const langCodeOnly = (this.targetLanguage || 'pt-BR').split('-')[0];
-        result.audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(result.translatedText)}&tl=${langCodeOnly}&client=tw-ob`;
+      // Se nenhum som/fala foi transcrito no bloco (silêncio), não gera histórico nem reproduz áudio
+      if (!originalTranscript) {
+        if (this.isLiveModeActive) {
+          this.setState('listening');
+        }
+        return null;
       }
 
-      // Notifica a interface (UI) sobre o idioma auto-detectado e o resultado da transcrição
+      // 2. Tradução do texto transcrito para o idioma alvo do usuário
+      const detectedLangShort = detectedLangCode.split('-')[0];
+      const targetLangShort = (this.targetLanguage || 'pt-BR').split('-')[0];
+
+      let translatedText = originalTranscript;
+
+      // Se o idioma falado for diferente do idioma de destino do fone do usuário, faz a tradução
+      if (detectedLangShort !== targetLangShort) {
+        try {
+          // Tenta primeiramente o backend Atos2
+          const response = await api.post('/translation/live', {
+            text: originalTranscript,
+            sourceLanguage: detectedLangShort,
+            targetLanguage: this.targetLanguage,
+          }, { timeout: 4000 });
+
+          translatedText = response.data?.translatedText || response.data?.data?.translatedText || originalTranscript;
+        } catch (backendErr) {
+          // Fallback para API pública MyMemory Translation
+          try {
+            const myMemoryResp = await fetch(
+              `https://api.mymemory.translated.net/get?q=${encodeURIComponent(originalTranscript)}&langpair=${detectedLangShort}|${targetLangShort}`
+            );
+            const mmData = await myMemoryResp.json();
+            if (mmData.responseData?.translatedText) {
+              translatedText = mmData.responseData.translatedText;
+            }
+          } catch (mmErr) {
+            console.warn('[LiveTranslationService] Fallback de tradução MyMemory falhou:', mmErr);
+          }
+        }
+      }
+
+      // 3. Síntese de Voz (TTS)
+      const langName = LANGUAGE_NAMES[detectedLangCode] || LANGUAGE_NAMES[detectedLangShort] || detectedLangCode.toUpperCase();
+      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(translatedText)}&tl=${targetLangShort}&client=tw-ob`;
+
+      const result: TranslationResult = {
+        detectedLanguage: detectedLangCode,
+        detectedLanguageName: langName,
+        originalText: originalTranscript,
+        translatedText,
+        audioUrl,
+      };
+
+      // 4. Notifica interface
       if (this.callbacks.onDetectedLanguage) {
         this.callbacks.onDetectedLanguage(result.detectedLanguageName, result.detectedLanguage);
       }
@@ -243,9 +318,9 @@ class LiveTranslationService {
         this.callbacks.onTranslationResult(result);
       }
 
-      // Reproduz obrigatoriamente a tradução em áudio no fone/alto-falante
-      if (result.audioUrl || result.audioBase64) {
-        await this.playTranslatedAudio(result.audioUrl || result.audioBase64!);
+      // 5. Reproduz a tradução falada
+      if (result.audioUrl) {
+        await this.playTranslatedAudio(result.audioUrl);
       } else {
         if (this.isLiveModeActive) {
           this.setState('listening');
@@ -254,7 +329,7 @@ class LiveTranslationService {
 
       return result;
     } catch (error: any) {
-      console.error('[LiveTranslationService] Erro ao processar áudio:', error);
+      console.error('[LiveTranslationService] Erro ao processar bloco de áudio:', error);
       if (this.callbacks.onError) {
         this.callbacks.onError('Erro na tradução: ' + (error.message || error));
       }
@@ -263,28 +338,6 @@ class LiveTranslationService {
       }
       return null;
     }
-  }
-
-  /**
-   * Seleciona sequencialmente a frase de demonstração
-   */
-  private generateDemoTranslation(): TranslationResult {
-    const item = DEMO_AMBIENT_PHRASES[this.demoIndex % DEMO_AMBIENT_PHRASES.length];
-    this.demoIndex++;
-
-    const userLangKey = (this.targetLanguage as keyof typeof item.translations) || 'pt-BR';
-    const translatedText = item.translations[userLangKey] || item.translations['pt-BR'];
-
-    const langCodeOnly = (this.targetLanguage || 'pt-BR').split('-')[0];
-    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(translatedText)}&tl=${langCodeOnly}&client=tw-ob`;
-
-    return {
-      detectedLanguage: item.langCode,
-      detectedLanguageName: item.langName,
-      originalText: item.original,
-      translatedText,
-      audioUrl,
-    };
   }
 
   /**
@@ -301,16 +354,16 @@ class LiveTranslationService {
         this.player = null;
       }
 
-      console.log('[LiveTranslationService] Reproduzindo som traduzido:', audioSource);
+      console.log('[LiveTranslationService] Reproduzindo voz traduzida:', audioSource);
       this.player = createAudioPlayer({ uri: audioSource });
       this.player.play();
 
-      // Retorna ao modo de escuta após a fala (aproximadamente 3.5 segundos)
-      setTimeout(() => {
-        if (this.isLiveModeActive) {
-          this.setState('listening');
-        }
-      }, 3500);
+      // Aguarda 3.5 segundos para a fala ser concluída
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+
+      if (this.isLiveModeActive) {
+        this.setState('listening');
+      }
     } catch (e) {
       console.warn('[LiveTranslationService] Erro ao reproduzir voz sintetizada:', e);
       if (this.isLiveModeActive) {
@@ -319,44 +372,16 @@ class LiveTranslationService {
     }
   }
 
-  /**
-   * Ciclo contínuo que captura/processa a voz ambiente periodicamente
-   */
-  private startContinuousListeningLoop() {
-    this.stopContinuousListeningLoop();
-
-    // Processa a primeira frase em 2.5 segundos após ativar
-    setTimeout(() => {
-      if (this.isLiveModeActive && this.currentState === 'listening') {
-        this.processAudioChunk();
-      }
-    }, 2500);
-
-    // Repete a captação contínua a cada 9 segundos enquanto o modo escuta estiver ativo
-    this.continuousListeningInterval = setInterval(() => {
-      if (this.isLiveModeActive && this.currentState === 'listening') {
-        this.processAudioChunk();
-      }
-    }, 9000);
-  }
-
-  private stopContinuousListeningLoop() {
-    if (this.continuousListeningInterval) {
-      clearInterval(this.continuousListeningInterval);
-      this.continuousListeningInterval = null;
-    }
-  }
-
   private startAudioVisualizerSimulation() {
     this.stopAudioVisualizerSimulation();
     this.audioLevelInterval = setInterval(() => {
       if (this.callbacks.onAudioLevel && this.isLiveModeActive) {
-        const randomLevel = this.currentState === 'listening' 
-          ? 0.2 + Math.random() * 0.7 
+        const level = this.currentState === 'listening' 
+          ? 0.3 + Math.random() * 0.6 
           : this.currentState === 'speaking'
-          ? 0.5 + Math.random() * 0.4
+          ? 0.6 + Math.random() * 0.4
           : 0.1;
-        this.callbacks.onAudioLevel(randomLevel);
+        this.callbacks.onAudioLevel(level);
       }
     }, 150);
   }

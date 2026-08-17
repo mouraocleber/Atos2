@@ -33,7 +33,7 @@ import { getCachedMedia } from '../../services/MediaCacheService';
 import CachedImage from '../../components/CachedImage';
 import InviteRoleModal from '../../components/InviteRoleModal';
 import RoomInviteModal from '../../components/RoomInviteModal';
-import { MemberRole, inviteUserToRoom } from '../../services/group';
+import { MemberRole, inviteUserToRoom, getRoomDetails } from '../../services/group';
 
 interface ChatVideoPlayerProps {
   url: string;
@@ -161,7 +161,49 @@ export default function ChatRoomScreen() {
   const flatListRef = useRef<FlatList>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const webViewRef = useRef<WebView>(null);
+  const signalQueueRef = useRef<string[]>([]);
+  const isWebViewReadyRef = useRef<boolean>(false);
   const [iceServers, setIceServers] = useState<any[]>([]);
+
+  // Estado do Papel do Usuário no Grupo / Palestra (SPEAKER vs LISTENER)
+  const [myRole, setMyRole] = useState<MemberRole>('SPEAKER');
+  const [roomOwnerId, setRoomOwnerId] = useState<string>('');
+
+  const isRoomBool = isRoom === 'true';
+
+  // Buscar detalhes da sala e carregar o papel do usuário (Palestrante vs Ouvinte)
+  useEffect(() => {
+    if (isRoomBool && id) {
+      getRoomDetails(id as string).then(room => {
+        if (room) {
+          setRoomOwnerId(room.ownerId || '');
+          const isOwner = room.ownerId === user?.id || room.ownerId === 'me';
+          if (roomType === 'LECTURE') {
+            if (isOwner) {
+              setMyRole('SPEAKER');
+            } else {
+              const members: any[] = room.members || [];
+              const myMember = members.find((m: any) => m.userId === user?.id || m.id === user?.id);
+              setMyRole(myMember?.role === 'SPEAKER' ? 'SPEAKER' : 'LISTENER');
+            }
+          } else {
+            setMyRole('SPEAKER');
+          }
+        }
+      });
+    }
+  }, [isRoomBool, id, user?.id, roomType]);
+
+  // Entrada e saída na sala Socket para receber mensagens e tradução coletiva em tempo real
+  useEffect(() => {
+    if (isRoomBool && socket && id) {
+      console.log(`[Group/Lecture Socket] Entrando na sala: room_${id}`);
+      socket.emit('joinRoom', `room_${id}`);
+      return () => {
+        socket.emit('leaveRoom', `room_${id}`);
+      };
+    }
+  }, [isRoomBool, socket, id]);
 
   const requestCallPermissions = async (type: 'audio' | 'video') => {
     try {
@@ -380,40 +422,50 @@ export default function ChatRoomScreen() {
     };
 
     const handleWebRtcSignal = (data: { from: string, signal: any }) => {
-      if (webViewRef.current) {
-        webViewRef.current.postMessage(JSON.stringify({
-          type: 'signal',
-          signal: data.signal
-        }));
+      const msg = JSON.stringify({
+        type: 'signal',
+        signal: data.signal
+      });
+      if (isWebViewReadyRef.current && webViewRef.current) {
+        webViewRef.current.postMessage(msg);
+      } else {
+        console.log('[VoIP Signal Queue] Armazenando sinal recebido antes do WebView estar pronto:', data.signal?.type);
+        signalQueueRef.current.push(msg);
       }
     };
 
     const handleWebRtcTranslationCaption = (data: { speakerName?: string, speakerFlag?: string, speakerLanguage?: string, originalText: string, translatedText: string, roomId?: string }) => {
-      if (webViewRef.current) {
-        webViewRef.current.postMessage(JSON.stringify({
-          type: 'signal',
-          signal: {
-            type: 'translation_caption',
-            speakerName: data.speakerName,
-            speakerFlag: data.speakerFlag,
-            speakerLanguage: data.speakerLanguage,
-            originalText: data.originalText,
-            translatedText: data.translatedText,
-            roomId: data.roomId
-          }
-        }));
+      const msg = JSON.stringify({
+        type: 'signal',
+        signal: {
+          type: 'translation_caption',
+          speakerName: data.speakerName,
+          speakerFlag: data.speakerFlag,
+          speakerLanguage: data.speakerLanguage,
+          originalText: data.originalText,
+          translatedText: data.translatedText,
+          roomId: data.roomId
+        }
+      });
+      if (isWebViewReadyRef.current && webViewRef.current) {
+        webViewRef.current.postMessage(msg);
+      } else {
+        signalQueueRef.current.push(msg);
       }
     };
 
     const handleWebRtcPlayTranslatedAudio = (data: { audioUrl: string }) => {
-      if (webViewRef.current) {
-        webViewRef.current.postMessage(JSON.stringify({
-          type: 'signal',
-          signal: {
-            type: 'play_translated_audio',
-            audioUrl: data.audioUrl
-          }
-        }));
+      const msg = JSON.stringify({
+        type: 'signal',
+        signal: {
+          type: 'play_translated_audio',
+          audioUrl: data.audioUrl
+        }
+      });
+      if (isWebViewReadyRef.current && webViewRef.current) {
+        webViewRef.current.postMessage(msg);
+      } else {
+        signalQueueRef.current.push(msg);
       }
     };
 
@@ -443,6 +495,20 @@ export default function ChatRoomScreen() {
       socket.off('webrtcPlayTranslatedAudio', handleWebRtcPlayTranslatedAudio);
     };
   }, [loadLiveMessages, user?.id, id, socket]);
+
+  // Atendimento automático de chamada quando aberto via notificação com param autoAcceptCall
+  useEffect(() => {
+    if (autoAcceptCall) {
+      setCallDirection('incoming');
+      setCallType((autoAcceptCall as 'video' | 'audio') || 'audio');
+      setCallStatus('calling');
+      setCallModalVisible(true);
+      const timer = setTimeout(() => {
+        handleAcceptCall();
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [autoAcceptCall]);
 
   const currentRoomId = useMemo(() => {
     if (!user?.id || !id) return '';
@@ -499,6 +565,8 @@ export default function ChatRoomScreen() {
   };
 
   const handleRejectCall = () => {
+    isWebViewReadyRef.current = false;
+    signalQueueRef.current = [];
     ringtoneService.stopRingtone();
     socketRef.current?.emit('hangUp', { to: id, from: user?.id, roomId: currentRoomId });
     setCallModalVisible(false);
@@ -506,10 +574,52 @@ export default function ChatRoomScreen() {
   };
 
   const handleHangUp = () => {
+    isWebViewReadyRef.current = false;
+    signalQueueRef.current = [];
     ringtoneService.stopRingtone();
     socketRef.current?.emit('hangUp', { to: id, from: user?.id, roomId: currentRoomId });
     setCallModalVisible(false);
     setCallStatus('ended');
+  };
+
+  const handleLocalSpeechRecognized = async (data: { text: string; language?: string; speakerName?: string; speakerFlag?: string }) => {
+    if (!data.text || !data.text.trim()) return;
+
+    const sourceLang = (data.language || user?.preferredLanguage || language || 'pt').split('-')[0];
+    const targetLang = (remoteUserLanguage || 'pt').split('-')[0];
+
+    let translatedText = data.text;
+    if (sourceLang !== targetLang) {
+      try {
+        const resp = await fetch(
+          `https://api.mymemory.translated.net/get?q=${encodeURIComponent(data.text)}&langpair=${sourceLang}|${targetLang}`
+        );
+        const mmData = await resp.json();
+        if (mmData.responseData?.translatedText) {
+          translatedText = mmData.responseData.translatedText;
+        }
+      } catch (e) {
+        console.warn('[VoIP Translation] Error translating spoken text:', e);
+      }
+    }
+
+    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(translatedText)}&tl=${targetLang}&client=tw-ob`;
+
+    socketRef.current?.emit('webrtcTranslationCaption', {
+      to: id,
+      roomId: currentRoomId,
+      speakerName: data.speakerName || user?.name || user?.nickname || 'Usuário',
+      speakerFlag: data.speakerFlag || '🇧🇷',
+      speakerLanguage: sourceLang,
+      originalText: data.text,
+      translatedText: translatedText,
+    });
+
+    socketRef.current?.emit('webrtcPlayTranslatedAudio', {
+      to: id,
+      roomId: currentRoomId,
+      audioUrl: audioUrl,
+    });
   };
   
   const handleBlockUser = async () => {
@@ -817,6 +927,18 @@ export default function ChatRoomScreen() {
     }
   };
 
+  const playTranslatedAudioTts = async (text: string, lang: string) => {
+    try {
+      const langOnly = (lang || 'pt').split('-')[0];
+      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langOnly}&client=tw-ob`;
+      const { createAudioPlayer } = await import('expo-audio');
+      const player = createAudioPlayer({ uri: ttsUrl });
+      player.play();
+    } catch (e) {
+      console.warn('[Chat] Erro ao reproduzir TTS da tradução do áudio:', e);
+    }
+  };
+
   const stopRecordingAndSend = async () => {
     if (!isRecording) return;
     setIsRecording(false);
@@ -825,7 +947,68 @@ export default function ChatRoomScreen() {
       const uri = audioRecorder.uri;
       if (uri) {
         setIsSending(true);
-        await sendMessage({ recipientId: id as string, type: 'AUDIO', content: '' }, uri);
+
+        let transcribedText = '';
+        let detectedLang = 'pt';
+
+        // 1. Transcrição com Deepgram STT
+        try {
+          const fileResp = await fetch(uri);
+          const audioBlob = await fileResp.blob();
+
+          const dgKey = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
+          const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
+          const dgResponse = await fetch(dgUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Token ${dgKey}`,
+              'Content-Type': audioBlob.type || 'audio/m4a',
+            },
+            body: audioBlob,
+          });
+
+          if (dgResponse.ok) {
+            const dgData = await dgResponse.json();
+            const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
+            transcribedText = alternative?.transcript?.trim() || '';
+            detectedLang = dgData.results?.channels?.[0]?.detected_language || 'pt';
+            console.log(`[Audio STT Deepgram] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
+          } else {
+            console.warn('[Audio STT Deepgram] Status de erro:', dgResponse.status);
+          }
+        } catch (sttErr) {
+          console.warn('[Chat] Erro na transcrição Deepgram do áudio:', sttErr);
+        }
+
+        // 2. Tradução para o idioma do destinatário
+        let translatedText = '';
+        const targetLang = (remoteUserLanguage || (user?.preferredLanguage || language || 'pt-BR')).split('-')[0];
+        const sourceLangShort = detectedLang.split('-')[0];
+
+        if (transcribedText && sourceLangShort !== targetLang) {
+          try {
+            const myMemoryResp = await fetch(
+              `https://api.mymemory.translated.net/get?q=${encodeURIComponent(transcribedText)}&langpair=${sourceLangShort}|${targetLang}`
+            );
+            const mmData = await myMemoryResp.json();
+            if (mmData.responseData?.translatedText) {
+              translatedText = mmData.responseData.translatedText;
+            }
+          } catch (transErr) {
+            console.warn('[Chat] Erro na tradução do áudio:', transErr);
+          }
+        }
+
+        const contentToSend = transcribedText || '[Áudio]';
+
+        await sendMessage({
+          recipientId: id as string,
+          type: 'AUDIO',
+          content: contentToSend,
+          translatedContent: translatedText || undefined,
+          translatedLanguage: targetLang,
+        } as any, uri);
+
         loadLiveMessages(true);
       }
     } catch (e: any) {
@@ -963,25 +1146,65 @@ export default function ChatRoomScreen() {
 
             {/* AUDIO */}
             {item.type === 'AUDIO' && (
-              <TouchableOpacity
-                style={styles.audioBubble}
-                onPress={() => playAudio(item.id, rawMediaUrl || '')}
-              >
-                <View style={[styles.audioIconCircle, playingAudioId === item.id && styles.audioIconCirclePlaying]}>
-                  <Feather name={playingAudioId === item.id ? 'pause' : 'play'} size={18} color="#fff" />
-                </View>
-                <View style={styles.audioWaveform}>
-                  {[4, 7, 12, 9, 14, 8, 5, 11, 7, 4, 9, 6].map((h, i) => (
-                    <View
-                      key={i}
-                      style={[styles.audioBar, { height: h * 2, backgroundColor: isMe ? 'rgba(255,255,255,0.7)' : Colors.primary }]}
-                    />
-                  ))}
-                </View>
-                <Text style={[styles.audioLabel, isMe ? styles.messageTextMe : styles.messageTextOther]}>
-                  {item.content && item.content !== '[Áudio]' ? item.content : 'Áudio'}
-                </Text>
-              </TouchableOpacity>
+              <View style={{ gap: 6, width: 220 }}>
+                <TouchableOpacity
+                  style={styles.audioBubble}
+                  onPress={() => playAudio(item.id, rawMediaUrl || '')}
+                >
+                  <View style={[styles.audioIconCircle, playingAudioId === item.id && styles.audioIconCirclePlaying]}>
+                    <Feather name={playingAudioId === item.id ? 'pause' : 'play'} size={18} color="#fff" />
+                  </View>
+                  <View style={styles.audioWaveform}>
+                    {[4, 7, 12, 9, 14, 8, 5, 11, 7, 4, 9, 6].map((h, i) => (
+                      <View
+                        key={i}
+                        style={[styles.audioBar, { height: h * 2, backgroundColor: isMe ? 'rgba(255,255,255,0.7)' : Colors.primary }]}
+                      />
+                    ))}
+                  </View>
+                  <Text style={[styles.audioLabel, isMe ? styles.messageTextMe : styles.messageTextOther]}>
+                    {item.content && item.content !== '[Áudio]' ? item.content : 'Áudio'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Transcrição em texto original do áudio */}
+                {item.content && item.content !== '[Áudio]' && item.content !== 'Áudio' && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 2 }}>
+                    <Feather name="file-text" size={11} color={isMe ? 'rgba(255,255,255,0.7)' : Colors.light.textMuted} />
+                    <Text style={[{ fontSize: 11, fontStyle: 'italic', flex: 1 }, isMe ? { color: 'rgba(255,255,255,0.85)' } : { color: Colors.light.textSecondary }]} numberOfLines={2}>
+                      "{item.content}"
+                    </Text>
+                  </View>
+                )}
+
+                {/* Tradução simultânea do texto do áudio */}
+                {transContent && transContent !== item.content && (
+                  <View style={{
+                    marginTop: 4,
+                    padding: 8,
+                    borderRadius: 8,
+                    backgroundColor: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(34, 197, 94, 0.12)',
+                    borderLeftWidth: 3,
+                    borderLeftColor: isMe ? '#fff' : '#22c55e',
+                    gap: 4
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Feather name="globe" size={12} color={isMe ? '#fff' : '#22c55e'} />
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: isMe ? '#fff' : '#22c55e', textTransform: 'uppercase' }}>
+                          Tradução IA ({transLanguage || 'PT'})
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => playTranslatedAudioTts(transContent, transLanguage || 'pt')}>
+                        <Feather name="volume-2" size={14} color={isMe ? '#fff' : '#22c55e'} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[{ fontSize: 13, fontWeight: '600' }, isMe ? styles.messageTextMe : styles.messageTextOther]}>
+                      {transContent}
+                    </Text>
+                  </View>
+                )}
+              </View>
             )}
 
             {/* FILE */}
@@ -1410,44 +1633,53 @@ export default function ChatRoomScreen() {
           onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
         />
 
-        {/* Input Bar */}
-        <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.inputAction} onPress={() => setShowMediaMenu(true)}>
-            <Feather name="paperclip" size={24} color={showMediaMenu ? Colors.primary : Colors.light.textSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.inputAction} onPress={() => setScheduleModalVisible(true)}>
-            <Feather name="clock" size={24} color={(scheduleDateObj) ? Colors.secondaryDark : Colors.light.textSecondary} />
-          </TouchableOpacity>
-
-          <TextInput
-            style={styles.textInput}
-            value={inputValue}
-            onChangeText={setInputValue}
-            placeholder="Digite uma mensagem..."
-            placeholderTextColor={Colors.light.textMuted}
-            multiline
-          />
-
-          {isSending ? (
-            <View style={styles.sendButton}>
-              <ActivityIndicator size="small" color="#fff" />
-            </View>
-          ) : inputValue.trim() ? (
-            <TouchableOpacity style={styles.sendButton} onPress={handleSendText}>
-              <Feather name="send" size={20} color="#fff" style={{ marginLeft: -2, marginTop: 2 }} />
+        {/* Input Bar com bloqueio para Ouvintes na Palestra */}
+        {roomType === 'LECTURE' && myRole === 'LISTENER' && user?.id !== roomOwnerId ? (
+          <View style={styles.listenerInputBlockedContainer}>
+            <Feather name="headphones" size={20} color="#0284C7" />
+            <Text style={styles.listenerInputBlockedText}>
+              🎧 Modo Ouvinte: Apenas palestrantes autorizados podem falar e enviar mensagens nesta palestra.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.inputContainer}>
+            <TouchableOpacity style={styles.inputAction} onPress={() => setShowMediaMenu(true)}>
+              <Feather name="paperclip" size={24} color={showMediaMenu ? Colors.primary : Colors.light.textSecondary} />
             </TouchableOpacity>
-          ) : (
-            <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnim : 1 }] }}>
-              <TouchableOpacity
-                style={[styles.sendButton, isRecording && styles.sendButtonRecording]}
-                onPress={isRecording ? stopRecordingAndSend : startRecording}
-              >
-                <Feather name="mic" size={20} color="#fff" />
+
+            <TouchableOpacity style={styles.inputAction} onPress={() => setScheduleModalVisible(true)}>
+              <Feather name="clock" size={24} color={(scheduleDateObj) ? Colors.secondaryDark : Colors.light.textSecondary} />
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.textInput}
+              value={inputValue}
+              onChangeText={setInputValue}
+              placeholder="Digite uma mensagem..."
+              placeholderTextColor={Colors.light.textMuted}
+              multiline
+            />
+
+            {isSending ? (
+              <View style={styles.sendButton}>
+                <ActivityIndicator size="small" color="#fff" />
+              </View>
+            ) : inputValue.trim() ? (
+              <TouchableOpacity style={styles.sendButton} onPress={handleSendText}>
+                <Feather name="send" size={20} color="#fff" style={{ marginLeft: -2, marginTop: 2 }} />
               </TouchableOpacity>
-            </Animated.View>
-          )}
-        </View>
+            ) : (
+              <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnim : 1 }] }}>
+                <TouchableOpacity
+                  style={[styles.sendButton, isRecording && styles.sendButtonRecording]}
+                  onPress={isRecording ? stopRecordingAndSend : startRecording}
+                >
+                  <Feather name="mic" size={20} color="#fff" />
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+          </View>
+        )}
 
         {isRecording && (
           <View style={styles.recordingBanner}>
@@ -1490,13 +1722,26 @@ export default function ChatRoomScreen() {
                 onMessage={(event) => {
                   try {
                     const data = JSON.parse(event.nativeEvent.data);
-                    if (data.type === 'signal') {
+                    if (data.type === 'ready') {
+                      isWebViewReadyRef.current = true;
+                      if (signalQueueRef.current.length > 0) {
+                        console.log(`[VoIP Signal Queue] Descarregando ${signalQueueRef.current.length} sinais acumulados na WebView...`);
+                        const queue = [...signalQueueRef.current];
+                        signalQueueRef.current = [];
+                        for (const msg of queue) {
+                          webViewRef.current?.postMessage(msg);
+                        }
+                      }
+                    } else if (data.type === 'signal') {
                       // Send signaling message to peer via sockets
                       socketRef.current?.emit('webrtcSignal', {
                         to: id,
                         roomId: currentRoomId,
                         signal: data.signal
                       });
+                    } else if (data.type === 'speech_recognized') {
+                      // Traduz a fala captada durante a chamada e envia legenda/áudio ao destinatário
+                      handleLocalSpeechRecognized(data);
                     } else if (data.type === 'hangup') {
                       // User clicked hang up in WebView
                       handleHangUp();
@@ -1923,5 +2168,23 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: '#ef4444',
     justifyContent: 'center', alignItems: 'center',
+  },
+  listenerInputBlockedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#E0F2FE',
+    borderWidth: 1,
+    borderColor: '#7DD3FC',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    margin: Spacing.md,
+  },
+  listenerInputBlockedText: {
+    flex: 1,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    color: '#0369A1',
+    lineHeight: 18,
   },
 });

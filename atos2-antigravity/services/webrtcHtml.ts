@@ -529,6 +529,63 @@ export const getWebRtcHtml = () => {
       toggleTranslation();
     }
 
+    let speechRecognitionInstance = null;
+
+    function initSpeechRecognition() {
+      if (speechRecognitionInstance) return;
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          speechRecognitionInstance = new SpeechRecognition();
+          speechRecognitionInstance.continuous = true;
+          speechRecognitionInstance.interimResults = false;
+          speechRecognitionInstance.lang = selectedLangCode || 'pt-BR';
+
+          speechRecognitionInstance.onresult = (event) => {
+            if (!isTranslationActive) return;
+            const lastIndex = event.results.length - 1;
+            const transcript = event.results[lastIndex][0].transcript.trim();
+            if (transcript) {
+              log('Voz reconhecida localmente: "' + transcript + '"');
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'speech_recognized',
+                text: transcript,
+                language: selectedLangCode,
+                speakerName: window.webRtcConfig?.userName || targetName || 'Usuário',
+                speakerFlag: selectedLangFlag
+              }));
+            }
+          };
+
+          speechRecognitionInstance.onerror = (e) => {
+            log('SpeechRecognition error: ' + (e.error || e.message));
+          };
+
+          speechRecognitionInstance.onend = () => {
+            speechRecognitionInstance = null;
+            if (isTranslationActive) {
+              setTimeout(initSpeechRecognition, 800);
+            }
+          };
+
+          speechRecognitionInstance.start();
+          log('Speech Recognition ativado com sucesso para tradução simultânea.');
+        } catch (e) {
+          log('Erro ao inicializar SpeechRecognition: ' + e.message);
+          speechRecognitionInstance = null;
+        }
+      } else {
+        log('Web Speech API não disponível nativamente no WebView.');
+      }
+    }
+
+    function stopSpeechRecognition() {
+      if (speechRecognitionInstance) {
+        try { speechRecognitionInstance.stop(); } catch (e) {}
+        speechRecognitionInstance = null;
+      }
+    }
+
     function toggleTranslation() {
       isTranslationActive = !isTranslationActive;
       const btn = document.getElementById('btnTranslate');
@@ -544,6 +601,12 @@ export const getWebRtcHtml = () => {
 
       log('Tradução Simultânea ' + (isTranslationActive ? 'ATIVADA ($0.30 USD/minuto)' : 'DESATIVADA') + ' para o idioma do cadastro: ' + selectedLangName + ' (' + selectedLangCode + ')');
       
+      if (isTranslationActive) {
+        initSpeechRecognition();
+      } else {
+        stopSpeechRecognition();
+      }
+
       // Notify React Native WebView about language preference & billing rate per minute
       window.ReactNativeWebView.postMessage(JSON.stringify({
         type: 'translation_toggle',
