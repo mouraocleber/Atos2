@@ -292,6 +292,7 @@ export default function RegisterScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                returnKeyType="next"
               />
 
               <TextInput
@@ -301,6 +302,8 @@ export default function RegisterScreen() {
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
+                returnKeyType="done"
+                onSubmitEditing={handleNextStep}
               />
 
               <TouchableOpacity style={styles.btnSubmit} onPress={handleNextStep}>
@@ -370,6 +373,8 @@ export default function RegisterScreen() {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
+                  returnKeyType="done"
+                  onSubmitEditing={handleRegister}
                 />
                 <TouchableOpacity
                   style={{ position: 'absolute', right: Spacing.md, top: 0, bottom: 0, justifyContent: 'center' }}

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { SERVER_URL } from '../services/api';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { setSecureItem, getSecureItem, deleteSecureItem } from '../utils/secureStorage';
 
 // Normaliza URLs relativas de foto de perfil para URL completa
 function normalizeProfileImage(user: any): any {
@@ -72,10 +73,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadStoredData() {
     try {
-      const [storedToken, storedUser] = await AsyncStorage.multiGet(['token', 'user']);
-      if (storedToken[1] && storedUser[1]) {
-        setToken(storedToken[1]);
-        const parsedUser = JSON.parse(storedUser[1]);
+      const storedToken = await getSecureItem('token');
+      const storedUser = await AsyncStorage.getItem('user');
+      if (storedToken && storedUser) {
+        setToken(storedToken);
+        const parsedUser = JSON.parse(storedUser);
         // Normaliza a URL da foto caso tenha sido salva com path relativo
         const normalizedUser = normalizeProfileImage(parsedUser);
         setUser(normalizedUser);
@@ -99,11 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { token: newToken, refreshToken, user: rawUserData } = response.data.data;
       const userData = normalizeProfileImage(rawUserData);
 
-      await AsyncStorage.multiSet([
-        ['token', newToken],
-        ['refreshToken', refreshToken || ''],
-        ['user', JSON.stringify(userData)],
-      ]);
+      await setSecureItem('token', newToken);
+      if (refreshToken) {
+        await setSecureItem('refreshToken', refreshToken);
+      }
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
 
       setToken(newToken);
       setUser(userData);
@@ -138,10 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { token: newToken, user: rawUserData } = response.data.data;
       const userData = normalizeProfileImage(rawUserData);
 
-      await AsyncStorage.multiSet([
-        ['token', newToken],
-        ['user', JSON.stringify(userData)],
-      ]);
+      await setSecureItem('token', newToken);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
 
       setToken(newToken);
       setUser(userData);
@@ -170,11 +170,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { token: newToken, refreshToken, user: rawUserData } = response.data.data;
       const userData = normalizeProfileImage(rawUserData);
 
-      await AsyncStorage.multiSet([
-        ['token', newToken],
-        ['refreshToken', refreshToken || ''],
-        ['user', JSON.stringify(userData)],
-      ]);
+      await setSecureItem('token', newToken);
+      if (refreshToken) {
+        await setSecureItem('refreshToken', refreshToken);
+      }
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
 
       setToken(newToken);
       setUser(userData);
@@ -194,7 +194,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    await AsyncStorage.multiRemove(['token', 'refreshToken', 'user']);
+    await deleteSecureItem('token');
+    await deleteSecureItem('refreshToken');
+    await AsyncStorage.removeItem('user');
     setToken(null);
     setUser(null);
   }

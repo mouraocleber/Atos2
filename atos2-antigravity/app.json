@@ -27,7 +27,10 @@
         "NFCReaderUsageDescription": "O app usa NFC para leitura de cartões e documentos.",
         "NSFaceIDUsageDescription": "Use o Face ID para autenticação rápida e segura.",
         "NSPhotoLibraryUsageDescription": "O app acessa a galeria para seleção de imagens e documentos.",
-        "UIBackgroundModes": ["audio", "voip"]
+        "UIBackgroundModes": [
+          "audio",
+          "voip"
+        ]
       }
     },
     "android": {
@@ -89,7 +92,8 @@
       "@react-native-community/datetimepicker",
       "@react-native-google-signin/google-signin",
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store"
     ],
     "updates": {
       "url": "https://u.expo.dev/a9bd4606-9485-45af-b237-f7dff175bfc6",
@@ -101,7 +105,7 @@
       "policy": "appVersion"
     },
     "extra": {
-      "apiUrl": "http://142.93.59.54:3001/api",
+      "apiUrl": "https://api.atos2.online/api",
       "router": {},
       "eas": {
         "projectId": "a9bd4606-9485-45af-b237-f7dff175bfc6"

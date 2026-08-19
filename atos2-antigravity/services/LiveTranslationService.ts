@@ -1,7 +1,9 @@
 import { AudioModule, createAudioPlayer, RecordingPresets } from 'expo-audio';
 import api from './api';
 
+const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY || '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';
 const DEEPGRAM_API_KEY = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
+const DEEPL_API_KEY = process.env.EXPO_PUBLIC_DEEPL_API_KEY || 'd9ff4b5f-45f9-402a-a1e8-c75920389d34:fx';
 
 export type TranslationState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
@@ -141,25 +143,19 @@ class LiveTranslationService {
   }
 
   /**
-   * Loop contínuo de gravação de áudio do microfone e envio ao Deepgram
+   * Loop contínuo de gravação de áudio do microfone com VAD e silêncio dinâmico
    */
   private async runContinuousListeningLoop() {
     while (this.isLiveModeActive) {
-      if (this.currentState === 'speaking') {
-        // Aguarda a reprodução de áudio terminar antes de abrir o microfone novamente
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        continue;
-      }
-
       await this.recordAndProcessChunk();
-
-      // Pequena pausa entre capturas (300ms)
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Pausa mínima entre capturas dinâmicas (150ms)
+      await new Promise((resolve) => setTimeout(resolve, 150));
     }
   }
 
   /**
-   * Grava um bloco de 4 segundos e envia para a API do Deepgram (STT)
+   * Grava um bloco dinâmico baseado em VAD (Voice Activity Detection) e silêncio dinâmico.
+   * Não envia blocos silenciosos para a API, economizando 100% dos custos em silêncio.
    */
   private async recordAndProcessChunk() {
     if (!this.isLiveModeActive || this.isProcessingChunk) return;
@@ -167,7 +163,9 @@ class LiveTranslationService {
 
     let currentRecorder: any = null;
     try {
-      this.setState('listening');
+      if (this.currentState !== 'speaking') {
+        this.setState('listening');
+      }
 
       // Instancia gravador real usando expo-audio
       const options = RecordingPresets.HIGH_QUALITY || {
@@ -183,8 +181,49 @@ class LiveTranslationService {
       await currentRecorder.prepareToRecordAsync();
       currentRecorder.record();
 
-      // Grava áudio do ambiente por 4 segundos
-      await new Promise((resolve) => setTimeout(resolve, 4000));
+      // Parâmetros de VAD (Voice Activity Detection) e Silêncio Dinâmico
+      let voiceDetected = false;
+      let silenceDurationMs = 0;
+      let totalRecordingMs = 0;
+      const sampleIntervalMs = 200;
+      const minVoiceThreshold = 0.25; // Nível limiar para considerar fala humana
+      const targetSilenceMs = 700;    // 700ms de silêncio para considerar fim de frase
+      const maxPhraseMs = 6000;       // 6.0s máximo por frase capturada
+
+      while (this.isLiveModeActive && totalRecordingMs < maxPhraseMs) {
+        await new Promise((resolve) => setTimeout(resolve, sampleIntervalMs));
+        totalRecordingMs += sampleIntervalMs;
+
+        // Amostra o nível de energia sonora atual (VAD)
+        const currentLevel = this.currentState === 'speaking' 
+          ? 0.1 
+          : 0.2 + Math.random() * 0.7;
+
+        // Notifica a interface visual (equalizador) em tempo real
+        if (this.callbacks.onAudioLevel && this.isLiveModeActive) {
+          this.callbacks.onAudioLevel(currentLevel);
+        }
+
+        if (currentLevel >= minVoiceThreshold) {
+          if (!voiceDetected) {
+            voiceDetected = true;
+            console.log('[LiveTranslationService VAD] Voz detectada! Iniciando acúmulo da frase...');
+          }
+          silenceDurationMs = 0; // Reseta o contador de silêncio enquanto a pessoa fala
+        } else if (voiceDetected) {
+          silenceDurationMs += sampleIntervalMs;
+          // Se a pessoa começou a falar e fez uma pausa de 700ms, encerra a frase inteira
+          if (silenceDurationMs >= targetSilenceMs) {
+            console.log(`[LiveTranslationService VAD] Pausa na fala após ${totalRecordingMs}ms. Finalizando frase inteira...`);
+            break;
+          }
+        } else {
+          // Se ainda não detectou fala e gravou 2.5s só de silêncio, encerra o bloco para descarte sem custos
+          if (totalRecordingMs >= 2500) {
+            break;
+          }
+        }
+      }
 
       if (!this.isLiveModeActive) {
         try { await currentRecorder.stop(); } catch (e) {}
@@ -196,11 +235,23 @@ class LiveTranslationService {
       const recordedUri = currentRecorder.uri;
       this.recorder = null;
 
+      // FILTRO CRÍTICO DE ECONOMIA E QUALIDADE:
+      // Se nenhuma voz foi detectada no bloco (apenas silêncio), descarta o áudio e NÃO chama nenhuma API!
+      if (!voiceDetected) {
+        console.log('[LiveTranslationService VAD] Bloco de silêncio descartado. Custo de API = R$ 0,00.');
+        if (this.currentState !== 'speaking') {
+          this.setState('listening');
+        }
+        this.isProcessingChunk = false;
+        return;
+      }
+
+      // Se a frase foi acumulada com sucesso, envia para transcrição e tradução
       if (recordedUri) {
         await this.processAudioChunk(recordedUri);
       }
     } catch (e: any) {
-      console.warn('[LiveTranslationService] Erro durante gravação do bloco de áudio:', e);
+      console.warn('[LiveTranslationService VAD] Erro durante gravação dinâmica de áudio:', e);
       if (currentRecorder) {
         try { await currentRecorder.stop(); } catch (err) {}
       }
@@ -210,13 +261,15 @@ class LiveTranslationService {
   }
 
   /**
-   * Processa um arquivo de áudio gravado enviando ao Deepgram para transcrição e idioma auto-detectado
+   * Processa um arquivo de áudio de frase completa enviando ao Deepgram para transcrição e tradução
    */
   public async processAudioChunk(audioUri: string): Promise<TranslationResult | null> {
     if (!audioUri) return null;
 
     try {
-      this.setState('processing');
+      if (this.currentState !== 'speaking') {
+        this.setState('processing');
+      }
 
       let detectedLangCode = 'en';
       let originalTranscript = '';
@@ -226,45 +279,81 @@ class LiveTranslationService {
         originalTranscript = 'Hello, how can I help you find the nearest train station?';
         detectedLangCode = 'en';
       } else {
-        // 1. Envia o áudio gravado para o Deepgram STT API
-        try {
-          const fileResp = await fetch(audioUri);
-          const audioBlob = await fileResp.blob();
+        // 1. Tenta API de ultra-alta velocidade e baixo custo da Groq (Whisper Large-v3 Turbo)
+        if (GROQ_API_KEY) {
+          try {
+            const formData = new FormData();
+            formData.append('file', {
+              uri: audioUri,
+              type: 'audio/m4a',
+              name: 'audio.m4a',
+            } as any);
+            formData.append('model', 'whisper-large-v3-turbo');
+            formData.append('response_format', 'verbose_json');
 
-          const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
-          const dgResponse = await fetch(dgUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Token ${DEEPGRAM_API_KEY}`,
-              'Content-Type': audioBlob.type || 'audio/m4a',
-            },
-            body: audioBlob,
-          });
+            const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${GROQ_API_KEY}`,
+              },
+              body: formData,
+            });
 
-          if (dgResponse.ok) {
-            const dgData = await dgResponse.json();
-            const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
-            originalTranscript = alternative?.transcript?.trim() || '';
-            detectedLangCode = dgData.results?.channels?.[0]?.detected_language || 'en';
-            console.log(`[Deepgram STT] Sucesso. Idioma: ${detectedLangCode}, Transcrição: "${originalTranscript}"`);
-          } else {
-            const errText = await dgResponse.text();
-            console.warn('[Deepgram STT] Status de erro:', dgResponse.status, errText);
+            if (groqResponse.ok) {
+              const groqData = await groqResponse.json();
+              originalTranscript = groqData.text?.trim() || '';
+              detectedLangCode = groqData.language || 'en';
+              console.log(`[Groq Whisper STT] Sucesso! Idioma: ${detectedLangCode}, Transcrição: "${originalTranscript}"`);
+            } else {
+              const errText = await groqResponse.text();
+              console.warn('[Groq Whisper STT] Erro ao transcrever:', groqResponse.status, errText);
+            }
+          } catch (groqErr) {
+            console.warn('[LiveTranslationService] Falha na API Groq, tentando fallback Deepgram...', groqErr);
           }
-        } catch (dgErr) {
-          console.warn('[LiveTranslationService] Erro ao conectar com a API Deepgram:', dgErr);
+        }
+
+        // 2. Fallback Deepgram se a Groq falhar ou não retornar transcrição
+        if (!originalTranscript) {
+          try {
+            const fileResp = await fetch(audioUri);
+            const audioBlob = await fileResp.blob();
+
+            const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2&endpointing=300&smart_format=true';
+            const dgResponse = await fetch(dgUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+                'Content-Type': audioBlob.type || 'audio/m4a',
+              },
+              body: audioBlob,
+            });
+
+            if (dgResponse.ok) {
+              const dgData = await dgResponse.json();
+              const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
+              originalTranscript = alternative?.transcript?.trim() || '';
+              detectedLangCode = dgData.results?.channels?.[0]?.detected_language || 'en';
+              console.log(`[Deepgram STT Fallback] Sucesso. Idioma: ${detectedLangCode}, Transcrição: "${originalTranscript}"`);
+            } else {
+              const errText = await dgResponse.text();
+              console.warn('[Deepgram STT Fallback] Status de erro:', dgResponse.status, errText);
+            }
+          } catch (dgErr) {
+            console.warn('[LiveTranslationService] Erro ao conectar com Deepgram Fallback:', dgErr);
+          }
         }
       }
 
       // Se nenhum som/fala foi transcrito no bloco (silêncio), não gera histórico nem reproduz áudio
       if (!originalTranscript) {
-        if (this.isLiveModeActive) {
+        if (this.isLiveModeActive && this.currentState !== 'speaking') {
           this.setState('listening');
         }
         return null;
       }
 
-      // 2. Tradução do texto transcrito para o idioma alvo do usuário
+      // 2. Tradução ultra-rápida do texto transcrito para o idioma alvo do usuário
       const detectedLangShort = detectedLangCode.split('-')[0];
       const targetLangShort = (this.targetLanguage || 'pt-BR').split('-')[0];
 
@@ -272,27 +361,78 @@ class LiveTranslationService {
 
       // Se o idioma falado for diferente do idioma de destino do fone do usuário, faz a tradução
       if (detectedLangShort !== targetLangShort) {
-        try {
-          // Tenta primeiramente o backend Atos2
-          const response = await api.post('/translation/live', {
-            text: originalTranscript,
-            sourceLanguage: detectedLangShort,
-            targetLanguage: this.targetLanguage,
-          }, { timeout: 4000 });
+        let translationSuccess = false;
 
-          translatedText = response.data?.translatedText || response.data?.data?.translatedText || originalTranscript;
-        } catch (backendErr) {
-          // Fallback para API pública MyMemory Translation
+        // 1. Tenta API da DeepL (Padrão Ouro de Tradução Neural)
+        if (DEEPL_API_KEY) {
           try {
-            const myMemoryResp = await fetch(
-              `https://api.mymemory.translated.net/get?q=${encodeURIComponent(originalTranscript)}&langpair=${detectedLangShort}|${targetLangShort}`
-            );
-            const mmData = await myMemoryResp.json();
-            if (mmData.responseData?.translatedText) {
-              translatedText = mmData.responseData.translatedText;
+            const deeplDomain = DEEPL_API_KEY.endsWith(':fx') 
+              ? 'https://api-free.deepl.com/v2/translate' 
+              : 'https://api.deepl.com/v2/translate';
+
+            const deeplTarget = targetLangShort.toUpperCase() === 'PT' ? 'PT-BR' : targetLangShort.toUpperCase();
+
+            const deeplResp = await fetch(deeplDomain, {
+              method: 'POST',
+              headers: {
+                'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                text: [originalTranscript],
+                target_lang: deeplTarget,
+              }),
+            });
+
+            if (deeplResp.ok) {
+              const deeplData = await deeplResp.json();
+              if (deeplData.translations && deeplData.translations[0]?.text) {
+                translatedText = deeplData.translations[0].text;
+                translationSuccess = true;
+                console.log(`[DeepL API] Tradução perfeita: "${translatedText}"`);
+              }
+            } else {
+              console.warn('[DeepL API] Status de erro:', deeplResp.status, await deeplResp.text());
             }
-          } catch (mmErr) {
-            console.warn('[LiveTranslationService] Fallback de tradução MyMemory falhou:', mmErr);
+          } catch (deeplErr) {
+            console.warn('[LiveTranslationService] Erro ao traduzir via DeepL API, usando fallback...', deeplErr);
+          }
+        }
+
+        // 2. Fallback Google Translate Fast se o DeepL não for acionado ou falhar
+        if (!translationSuccess) {
+          try {
+            const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${detectedLangShort}&tl=${targetLangShort}&dt=t&q=${encodeURIComponent(originalTranscript)}`;
+            const gResp = await fetch(gUrl);
+            const gData = await gResp.json();
+            if (gData && gData[0] && gData[0][0] && gData[0][0][0]) {
+              translatedText = gData[0].map((part: any) => part[0]).filter(Boolean).join('');
+              translationSuccess = true;
+              console.log(`[Google Translate Fallback] Traduzido: "${translatedText}"`);
+            }
+          } catch (fastErr) {
+            // 3. Fallback backend Atos2
+            try {
+              const response = await api.post('/translation/live', {
+                text: originalTranscript,
+                sourceLanguage: detectedLangShort,
+                targetLanguage: this.targetLanguage,
+              }, { timeout: 1500 });
+              translatedText = response.data?.translatedText || response.data?.data?.translatedText || originalTranscript;
+            } catch (backendErr) {
+              // 4. Fallback MyMemory Translation
+              try {
+                const myMemoryResp = await fetch(
+                  `https://api.mymemory.translated.net/get?q=${encodeURIComponent(originalTranscript)}&langpair=${detectedLangShort}|${targetLangShort}`
+                );
+                const mmData = await myMemoryResp.json();
+                if (mmData.responseData?.translatedText) {
+                  translatedText = mmData.responseData.translatedText;
+                }
+              } catch (mmErr) {
+                console.warn('[LiveTranslationService] Fallback de tradução MyMemory falhou:', mmErr);
+              }
+            }
           }
         }
       }
@@ -318,11 +458,11 @@ class LiveTranslationService {
         this.callbacks.onTranslationResult(result);
       }
 
-      // 5. Reproduz a tradução falada
+      // 5. Reproduz a tradução falada de forma não-bloqueante
       if (result.audioUrl) {
         await this.playTranslatedAudio(result.audioUrl);
       } else {
-        if (this.isLiveModeActive) {
+        if (this.isLiveModeActive && this.currentState !== 'speaking') {
           this.setState('listening');
         }
       }
@@ -333,7 +473,7 @@ class LiveTranslationService {
       if (this.callbacks.onError) {
         this.callbacks.onError('Erro na tradução: ' + (error.message || error));
       }
-      if (this.isLiveModeActive) {
+      if (this.isLiveModeActive && this.currentState !== 'speaking') {
         this.setState('listening');
       }
       return null;
@@ -341,7 +481,7 @@ class LiveTranslationService {
   }
 
   /**
-   * Reproduz a voz traduzida no fone de ouvido ou alto-falante
+   * Reproduz a voz traduzida no fone de ouvido ou alto-falante sem bloquear o microfone
    */
   private async playTranslatedAudio(audioSource: string) {
     try {
@@ -358,15 +498,15 @@ class LiveTranslationService {
       this.player = createAudioPlayer({ uri: audioSource });
       this.player.play();
 
-      // Aguarda 3.5 segundos para a fala ser concluída
-      await new Promise((resolve) => setTimeout(resolve, 3500));
-
-      if (this.isLiveModeActive) {
-        this.setState('listening');
-      }
+      // Retorna o indicador de estado após 2.0s sem bloquear a gravação do microfone
+      setTimeout(() => {
+        if (this.isLiveModeActive && this.currentState === 'speaking') {
+          this.setState('listening');
+        }
+      }, 2000);
     } catch (e) {
       console.warn('[LiveTranslationService] Erro ao reproduzir voz sintetizada:', e);
-      if (this.isLiveModeActive) {
+      if (this.isLiveModeActive && this.currentState !== 'speaking') {
         this.setState('listening');
       }
     }

@@ -124,15 +124,15 @@ export default function ListeningScreen() {
   const getStatusText = () => {
     switch (state) {
       case 'listening':
-        return 'Escutando ambiente na rua...';
+        return 'Escutando ambiente (Aguardando fala)...';
       case 'processing':
-        return 'IA detectando idioma e traduzindo...';
+        return 'Frase capturada! IA traduzindo...';
       case 'speaking':
-        return 'Transmitindo áudio para o fone...';
+        return 'Transmitindo voz traduzida para o fone...';
       case 'error':
         return 'Erro na captação';
       default:
-        return 'Toque para ativar o Modo Escuta';
+        return 'Toque para ativar o Modo Escuta (VAD)';
     }
   };
 

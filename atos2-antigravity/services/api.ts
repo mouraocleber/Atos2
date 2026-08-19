@@ -1,9 +1,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { getSecureItem, deleteSecureItem } from '../utils/secureStorage';
 
-// Backend hospedado no DigitalOcean (IP fixo — sem dependência do computador local)
-export const SERVER_URL = 'http://142.93.59.54:3001';
+// Backend hospedado no DigitalOcean com HTTPS/SSL
+export const SERVER_URL = 'https://api.atos2.online';
 const BASE_URL = `${SERVER_URL}/api`;
 
 const api = axios.create({
@@ -16,7 +17,8 @@ const api = axios.create({
 
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('token');
+    // Busca token seguro criptografado via hardware
+    const token = await getSecureItem('token');
     const appLang = await AsyncStorage.getItem('appLanguage');
     
     if (token) {
@@ -32,12 +34,13 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor para tratar erros de autenticação
+// Interceptor para tratar erros de autenticação e limpar tokens com segurança
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      await AsyncStorage.multiRemove(['token', 'user']);
+      await deleteSecureItem('token');
+      await AsyncStorage.removeItem('user');
     }
     return Promise.reject(error);
   }

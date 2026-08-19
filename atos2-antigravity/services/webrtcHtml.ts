@@ -512,9 +512,15 @@ export const getWebRtcHtml = () => {
         }
       }
 
-      if (modal) {
-        modal.style.display = 'flex';
-      }
+    // Utility function to escape HTML special characters and prevent DOM XSS vulnerabilities
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     function closeBillingModal() {
