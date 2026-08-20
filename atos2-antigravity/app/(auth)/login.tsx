@@ -26,8 +26,15 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      await signIn(email.trim(), password);
-      router.replace('/(tabs)/chat');
+      const res = await signIn(email.trim(), password);
+      if (res?.requires2FA) {
+        router.push({
+          pathname: '/(auth)/verify-otp',
+          params: { mode: 'new_device', email: email.trim() },
+        });
+      } else {
+        router.replace('/(tabs)/chat');
+      }
     } catch (error: any) {
       Alert.alert(t('error'), error.message || t('login_failed'));
     } finally {
@@ -38,8 +45,15 @@ export default function LoginScreen() {
   async function handleGoogleLogin() {
     setGoogleLoading(true);
     try {
-      await signInWithGoogle();
-      router.replace('/(tabs)/chat');
+      const res = await signInWithGoogle();
+      if (res?.requires2FA) {
+        router.push({
+          pathname: '/(auth)/verify-otp',
+          params: { mode: 'new_device' },
+        });
+      } else {
+        router.replace('/(tabs)/chat');
+      }
     } catch (error: any) {
       if (error.message !== 'Login cancelado') {
         Alert.alert('Erro', error.message || 'Não foi possível entrar com Google.');

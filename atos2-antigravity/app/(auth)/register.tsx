@@ -115,7 +115,7 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      await signUp({
+      const res = await signUp({
         email: email.trim(),
         phone: phone.trim(),
         nickname: nickname.trim(),
@@ -126,7 +126,14 @@ export default function RegisterScreen() {
         password,
         preferredLanguage: language,
       });
-      router.replace('/(tabs)/chat');
+      if (res?.requiresVerification) {
+        router.push({
+          pathname: '/(auth)/verify-otp',
+          params: { mode: 'register_verification', email: email.trim(), phone: phone.trim() },
+        });
+      } else {
+        router.replace('/(tabs)/chat');
+      }
     } catch (error: any) {
       Alert.alert('Erro', error.message || 'Falha ao criar conta');
     } finally {
