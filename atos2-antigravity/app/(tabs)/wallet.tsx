@@ -6,7 +6,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBiometric } from '../../contexts/BiometricContext';
@@ -17,7 +17,10 @@ import api, { SERVER_URL } from '../../services/api';
 import CachedImage from '../../components/CachedImage';
 import { ATOS2_FEES } from '../../constants/fees';
 import * as Linking from 'expo-linking';
-import { getBinanceQuote, createBinanceBuyOrder } from '../../services/binance';
+import { getBinanceQuote, createBinanceBuyOrder, checkBinanceOrderStatus } from '../../services/binance';
+import { getVirtualCard, issueVirtualCard, toggleCardLock, requestPhysicalCard, getCardTokenForWallet, PomeloCard } from '../../services/pomelo';
+import { QuickChargeModal } from '../../components/QuickChargeModal';
+
 
 interface Transaction {
   id: string;
@@ -106,6 +109,16 @@ export default function WalletScreen() {
   const [binanceOrder, setBinanceOrder] = useState<any>(null);
   const [binanceStep, setBinanceStep] = useState<'input' | 'checkout'>('input');
   const [fetchingQuote, setFetchingQuote] = useState(false);
+  const [checkingBinanceStatus, setCheckingBinanceStatus] = useState(false);
+
+  // Pomelo Card BaaS State
+  const [pomeloCard, setPomeloCard] = useState<PomeloCard | null>(null);
+  const [pomeloLoading, setPomeloLoading] = useState(false);
+  const [showCardDetails, setShowCardDetails] = useState(false);
+
+  // Quick Charge (Cobrança Rápida / Concierge) State
+  const [quickChargeModalVisible, setQuickChargeModalVisible] = useState(false);
+
 
   useFocusEffect(
     React.useCallback(() => {
@@ -301,15 +314,98 @@ export default function WalletScreen() {
 
   const loadData = async () => {
     try {
-      const [bal, hist] = await Promise.all([getBalance(), getTransactionHistory()]);
-      setBalanceData(bal);
-      setTransactions(Array.isArray(hist) ? hist : (hist as any).data || []);
+      const [balRes, histRes, cardRes] = await Promise.allSettled([
+        getBalance(),
+        getTransactionHistory(),
+        getVirtualCard(),
+      ]);
+
+      if (balRes.status === 'fulfilled') {
+        setBalanceData(balRes.value);
+      }
+      if (histRes.status === 'fulfilled') {
+        const hist = histRes.value;
+        setTransactions(Array.isArray(hist) ? hist : (hist as any).data || []);
+      }
+      if (cardRes.status === 'fulfilled' && cardRes.value?.data) {
+        setPomeloCard(cardRes.value.data);
+      }
     } catch (e: any) {
       console.error(e);
-      Alert.alert('Erro', e?.response?.data?.error || 'Não foi possível carregar a carteira');
+      Alert.alert('Erro', e?.response?.data?.error || 'Não foi possível carregar os dados da carteira');
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  // Pomelo BaaS: Emissão de Cartão Virtual
+  const handleIssuePomeloCard = async () => {
+    setPomeloLoading(true);
+    try {
+      const res = await issueVirtualCard();
+      if (res.data) {
+        setPomeloCard(res.data);
+        Alert.alert('Sucesso 🎉', 'Seu Cartão Virtual Atos2 (Pomelo BaaS) foi emitido com sucesso!');
+      }
+    } catch (e: any) {
+      Alert.alert('Erro', e?.response?.data?.message || 'Não foi possível emitir o cartão virtual agora.');
+    } finally {
+      setPomeloLoading(false);
+    }
+  };
+
+  // Pomelo BaaS: Bloqueio / Desbloqueio de Cartão
+  const handleTogglePomeloLock = async () => {
+    if (!pomeloCard) return;
+    const willLock = pomeloCard.status === 'ACTIVE';
+    setPomeloLoading(true);
+    try {
+      const res = await toggleCardLock(pomeloCard.id, willLock);
+      setPomeloCard((prev) => prev ? { ...prev, status: res.status } : null);
+      Alert.alert('Cartão Atualizado', `Cartão ${willLock ? 'bloqueado' : 'desbloqueado'} com sucesso.`);
+    } catch (e: any) {
+      Alert.alert('Erro', e?.response?.data?.message || 'Não foi possível alterar o status do cartão.');
+    } finally {
+      setPomeloLoading(false);
+    }
+  };
+
+  // Pomelo BaaS: Tokenização Apple Pay / Google Pay
+  const handleProvisionWalletToken = async (walletType: 'APPLE_PAY' | 'GOOGLE_PAY') => {
+    if (!pomeloCard) return;
+    try {
+      const res = await getCardTokenForWallet(pomeloCard.id, walletType);
+      if (res.data?.provisioningToken) {
+        Alert.alert(
+          `${walletType === 'APPLE_PAY' ? 'Apple Pay' : 'Google Pay'} 🎉`,
+          `Token de provisionamento gerado com sucesso para o cartão •••• ${res.data.lastFourDigits}. Adicione diretamente na sua carteira nativa!`
+        );
+      }
+    } catch (e: any) {
+      Alert.alert('Tokenização', e?.response?.data?.message || 'Em breve: Provisionamento direto via Apple/Google Wallet SDK.');
+    }
+  };
+
+  // Binance Pay: Verificação de Status do Pedido
+  const handleCheckBinanceStatus = async () => {
+    if (!binanceOrder?.orderId) return;
+    setCheckingBinanceStatus(true);
+    try {
+      const res = await checkBinanceOrderStatus(binanceOrder.orderId);
+      if (res?.status === 'COMPLETED') {
+        Alert.alert('Pagamento Confirmado! 🎉', 'Seu depósito via Binance Pay foi recebido e creditado.');
+        setBinanceModalVisible(false);
+        loadData();
+      } else if (res?.status === 'FAILED') {
+        Alert.alert('Pagamento Não Concluído', 'O pagamento via Binance Pay falhou ou foi cancelado.');
+      } else {
+        Alert.alert('Aguardando Pagamento', 'O pedido ainda está pendente de confirmação na Binance.');
+      }
+    } catch (e: any) {
+      Alert.alert('Binance Status', e?.response?.data?.message || 'Não foi possível verificar o status no momento.');
+    } finally {
+      setCheckingBinanceStatus(false);
     }
   };
 
@@ -449,19 +545,52 @@ export default function WalletScreen() {
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     setScannerVisible(false);
-    if (data.startsWith('atos2://pay?targetId=')) {
-      // QR interno Atos2 → transferir entre usuários
-      const targetId = data.split('targetId=')[1].split('&')[0];
+    if (!data) return;
+
+    // 1. QR Code de Checkout de Mesa / Pagamento Multilíngue (https://atos2.online/checkout/... ou atos2://checkout...)
+    if (data.includes('/checkout') || data.includes('checkout')) {
+      try {
+        let amount = '';
+        let table = '01';
+
+        if (data.includes('amount=')) {
+          amount = data.split('amount=')[1].split('&')[0];
+        }
+        if (data.includes('table=')) {
+          table = data.split('table=')[1].split('&')[0];
+        }
+
+        router.push({
+          pathname: '/checkout',
+          params: { amount: amount || '100.00', table: table || '01' },
+        });
+        return;
+      } catch (e) {
+        console.warn('Erro ao processar QR Code de checkout:', e);
+        router.push('/checkout');
+        return;
+      }
+    }
+
+    // 2. QR Code de Contato / Transferência (atos2://connect?user=... ou https://atos2.online/connect?user=...)
+    if (data.includes('user=') || data.includes('targetId=')) {
+      let targetId = '';
+      if (data.includes('targetId=')) {
+        targetId = data.split('targetId=')[1].split('&')[0];
+      } else if (data.includes('user=')) {
+        targetId = data.split('user=')[1].split('&')[0];
+      }
       if (targetId) {
         setTxTarget(targetId);
         setModalVisible(true);
+        return;
       }
-    } else {
-      // QR externo → pagar PIX (chave pix, copia e cola, etc)
-      setPixPayTarget(data);
-      setPixPayAmount('');
-      setPixPayModalVisible(true);
     }
+
+    // 3. QR externo (Chave PIX / Pix Copia e Cola)
+    setPixPayTarget(data);
+    setPixPayAmount('');
+    setPixPayModalVisible(true);
   };
 
   const handleTransaction = async () => {
@@ -557,24 +686,10 @@ export default function WalletScreen() {
               </Text>
             </View>
 
-            {/* Card 2: Saldo Original / G */}
-            <View style={styles.balanceCardSlider}>
-              <View style={styles.balanceHeaderRow}>
-                <Text style={styles.balanceLabel}>Atos2 Tokens</Text>
-                <View style={styles.currencyBadge}><Text style={styles.currencyBadgeText}>💎 G</Text></View>
-              </View>
-              <Text style={styles.balanceValue}>
-                G {formatCurrency(balanceData?.global?.balance, 4)}
-              </Text>
-              <Text style={styles.balanceCurrency}>
-                Original: {balanceData?.original?.currency} {formatCurrency(balanceData?.original?.balance)}
-              </Text>
-            </View>
-
-            {/* Card 3: Saldo Global USDC */}
+            {/* Card 2: Saldo Dólar Digital USDC */}
             <View style={[styles.balanceCardSlider, { backgroundColor: '#1A1C29' }]}>
               <View style={styles.balanceHeaderRow}>
-                <Text style={[styles.balanceLabel, { color: '#8892B0' }]}>Dólar Digital (Global)</Text>
+                <Text style={[styles.balanceLabel, { color: '#8892B0' }]}>Dólar Digital (USDC)</Text>
                 <View style={[styles.currencyBadge, { backgroundColor: '#2B4A8E' }]}><Text style={[styles.currencyBadgeText, { color: '#fff' }]}>🇺🇸 USDC</Text></View>
               </View>
               {balanceData?.usdc?.activated ? (
@@ -584,7 +699,7 @@ export default function WalletScreen() {
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 4 }}>
                     <Feather name="check-circle" size={12} color={Colors.success} />
-                    <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '600' }}>Conta Global Ativa</Text>
+                    <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '600' }}>Carteira USDC Ativa</Text>
                   </View>
                 </>
               ) : (
@@ -600,7 +715,7 @@ export default function WalletScreen() {
                     {activatingGlobal ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <Text style={styles.btnSmallGhostText}>+ Ativar Conta Global</Text>
+                      <Text style={styles.btnSmallGhostText}>+ Ativar Carteira USDC</Text>
                     )}
                   </TouchableOpacity>
                 </>
@@ -658,10 +773,21 @@ export default function WalletScreen() {
 
           <TouchableOpacity
             style={styles.actionGridItem}
+            onPress={() => setQuickChargeModalVisible(true)}
+          >
+            <View style={[styles.actionGridIcon, { backgroundColor: Colors.primary + '20' }]}>
+              <Feather name="maximize" size={24} color={Colors.primary} />
+            </View>
+            <Text style={styles.actionGridText}>Cobrar Mesa</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionGridItem}
             onPress={() => {
               (historyListRef.current as any)?.scrollIntoView?.() || Alert.alert('Extrato', 'Deslize para baixo para ver seu histórico.');
             }}
           >
+
             <View style={styles.actionGridIcon}><Feather name="list" size={24} color={Colors.primary} /></View>
             <Text style={styles.actionGridText}>Extrato</Text>
           </TouchableOpacity>
@@ -675,28 +801,84 @@ export default function WalletScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Meu Cartão Atos2 Widget */}
+        {/* Meu Cartão Atos2 (Pomelo BaaS) Widget */}
         <View style={styles.cardWidgetContainer}>
           <View style={styles.cardWidgetHeader}>
-            <Text style={styles.cardWidgetTitle}>Meu Cartão Atos2</Text>
-            <Feather name="more-horizontal" size={20} color={Colors.light.textMuted} />
+            <Text style={styles.cardWidgetTitle}>Meu Cartão Atos2 (Pomelo BaaS)</Text>
+            {pomeloCard && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity onPress={handleTogglePomeloLock} disabled={pomeloLoading}>
+                  <Feather
+                    name={pomeloCard.status === 'ACTIVE' ? 'unlock' : 'lock'}
+                    size={18}
+                    color={pomeloCard.status === 'ACTIVE' ? Colors.success : Colors.error}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
+
           <View style={styles.cardWidgetBody}>
-            <View style={styles.virtualCardGraphic}>
-              <View style={styles.virtualCardChip} />
-              <View style={styles.virtualCardNetwork}><Text style={{ color: '#fff', fontWeight: '900', fontStyle: 'italic', fontSize: 16 }}>VISA</Text></View>
-              <Text style={styles.virtualCardNumber}>•••• •••• •••• 4092</Text>
-            </View>
-            <View style={styles.cardWidgetActions}>
-              <TouchableOpacity style={styles.cardActionBtn} onPress={() => Alert.alert('Apple Pay', 'Em breve: Integração nativa de tokenização.')}>
-                <Feather name="smartphone" size={18} color={Colors.primary} />
-                <Text style={styles.cardActionBtnText}>Carteira Apple/Google</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cardActionBtn}>
-                <Feather name="eye" size={18} color={Colors.primary} />
-                <Text style={styles.cardActionBtnText}>Cartão Virtual</Text>
-              </TouchableOpacity>
-            </View>
+            {pomeloCard ? (
+              <>
+                <View style={[styles.virtualCardGraphic, pomeloCard.status === 'BLOCKED' && { opacity: 0.6 }]}>
+                  <View style={styles.virtualCardChip} />
+                  <View style={styles.virtualCardNetwork}>
+                    <Text style={{ color: '#fff', fontWeight: '900', fontStyle: 'italic', fontSize: 16 }}>
+                      {pomeloCard.brand || 'VISA'}
+                    </Text>
+                  </View>
+                  <Text style={styles.virtualCardNumber}>
+                    {showCardDetails
+                      ? pomeloCard.cardNumber || pomeloCard.maskedCardNumber
+                      : pomeloCard.maskedCardNumber || '•••• •••• •••• 4092'}
+                  </Text>
+                  {showCardDetails && pomeloCard.expirationDate && (
+                    <Text style={{ color: '#fff', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
+                      EXP: {pomeloCard.expirationDate} {pomeloCard.cvv ? `• CVV: ${pomeloCard.cvv}` : ''}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={styles.cardWidgetActions}>
+                  <TouchableOpacity
+                    style={styles.cardActionBtn}
+                    onPress={() => handleProvisionWalletToken(Platform.OS === 'ios' ? 'APPLE_PAY' : 'GOOGLE_PAY')}
+                  >
+                    <Feather name="smartphone" size={18} color={Colors.primary} />
+                    <Text style={styles.cardActionBtnText}>Apple / Google Wallet</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cardActionBtn}
+                    onPress={() => setShowCardDetails(!showCardDetails)}
+                  >
+                    <Feather name={showCardDetails ? 'eye-off' : 'eye'} size={18} color={Colors.primary} />
+                    <Text style={styles.cardActionBtnText}>
+                      {showCardDetails ? 'Ocultar Dados' : 'Ver Dados'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={{ alignItems: 'center', paddingVertical: 16, gap: 12 }}>
+                <Feather name="credit-card" size={36} color={Colors.light.textMuted} />
+                <Text style={{ color: Colors.light.textSecondary, fontSize: 13, textAlign: 'center' }}>
+                  Você ainda não possui um cartão ativo. Emita seu cartão virtual instantâneo na rede Pomelo.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.modalBtnSubmit, { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }]}
+                  onPress={handleIssuePomeloCard}
+                  disabled={pomeloLoading}
+                >
+                  {pomeloLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalBtnSubmitText}>+ Emitir Cartão Virtual Pomelo</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
 
@@ -992,6 +1174,21 @@ export default function WalletScreen() {
                 >
                   <Feather name="external-link" size={16} color="#fff" />
                   <Text style={styles.modalBtnSubmitText}>Ir para o Checkout</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalBtnSubmit, { backgroundColor: Colors.success, width: '100%', paddingVertical: 12, borderRadius: 10, marginBottom: 8, flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center' }]}
+                  onPress={handleCheckBinanceStatus}
+                  disabled={checkingBinanceStatus}
+                >
+                  {checkingBinanceStatus ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Feather name="refresh-cw" size={16} color="#fff" />
+                      <Text style={styles.modalBtnSubmitText}>Verificar Status no Binance Pay</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1331,7 +1528,7 @@ export default function WalletScreen() {
           {
             targetRef: balanceCardRef,
             title: 'Seu Saldo Atos2',
-            description: 'Acompanhe seu saldo em moeda local (R$), a moeda original da sua carteira e a moeda global (GLB) para transações internacionais.',
+            description: 'Acompanhe seu saldo em Moeda Local (R$) e em Dólar Digital (USDC) para pagamentos e transações.',
             tooltipPosition: 'bottom',
           },
           {
@@ -1342,8 +1539,8 @@ export default function WalletScreen() {
           },
           {
             targetRef: transferBtnRef,
-            title: 'Transferir GLBs',
-            description: 'Envie saldo para qualquer usuário do Atos2 instantaneamente usando seu nome de usuário ou e-mail.',
+            title: 'Enviar e Transferir',
+            description: 'Envie saldo em Moeda Local ou USDC para qualquer usuário do Atos2 instantaneamente.',
             tooltipPosition: 'bottom',
           },
           {
@@ -1355,9 +1552,19 @@ export default function WalletScreen() {
         ]}
       />
 
+      {/* Quick Charge Modal (Cobrança de Mesa / Atendente) */}
+      <QuickChargeModal
+        visible={quickChargeModalVisible}
+        onClose={() => setQuickChargeModalVisible(false)}
+        waiterName={user?.name || 'Atendente'}
+        tableNumber="01"
+      />
+
+
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },

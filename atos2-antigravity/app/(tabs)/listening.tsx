@@ -195,7 +195,21 @@ export default function ListeningScreen() {
         </View>
 
         {/* Botão Pulsante Principal */}
-        <TouchableOpacity activeOpacity={0.8} onPress={toggleListening} style={styles.buttonWrapper}>
+        <TouchableOpacity 
+          activeOpacity={0.8} 
+          onPress={toggleListening} 
+          onPressIn={async () => {
+            if (state === 'idle') {
+              await liveTranslationService.startPushToTalk(userTargetLanguage);
+            }
+          }}
+          onPressOut={async () => {
+            if (state === 'listening') {
+              await liveTranslationService.stopPushToTalkAndProcess();
+            }
+          }}
+          style={styles.buttonWrapper}
+        >
           <Animated.View
             style={[
               styles.pulseRing,
@@ -216,12 +230,16 @@ export default function ListeningScreen() {
         </TouchableOpacity>
 
         <Text style={styles.statusText}>{getStatusText()}</Text>
+        <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+          💡 Dica: Segure o botão para o modo Push-to-Talk (Fone de Ouvido)
+        </Text>
 
         {/* Botão de teste rápido de áudio */}
         <TouchableOpacity style={styles.testBtn} onPress={handleTestTrigger}>
           <Feather name="play-circle" size={16} color={Colors.primary} />
           <Text style={styles.testBtnText}>Simular Captação de Voz</Text>
         </TouchableOpacity>
+
       </View>
 
       {/* Histórico das Falas Traduzidas em Tempo Real */}

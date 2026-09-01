@@ -492,7 +492,7 @@ function MarketplaceScreenInner() {
       await api.post(`/products/${selectedProduct?.id}/reserve`, {
         reservationDate: resDate, reservationTime: resTime, observation: resObs
       });
-      Alert.alert('Sucesso 🎉', 'Reserva realizada! GLBs deduzidos de sua carteira.');
+      Alert.alert('Sucesso 🎉', 'Reserva realizada! Valor debitado de sua carteira.');
       setReserveModal(false);
       setProductModal(false);
       loadMarketplace();
@@ -834,7 +834,7 @@ function MarketplaceScreenInner() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Concretizar Reserva</Text>
             <Text style={{ marginBottom: 16, color: Colors.light.textSecondary, textAlign: 'center', fontSize: 13 }}>
-              A corretagem descontará 1.03x G de sua carteira e o vendedor receberá 0.97x rendimento líquido (GLB) na conclusão.
+              A reserva utilizará o saldo de sua carteira (Moeda Local ou USDC) para confirmação imediata.
             </Text>
             <TextInput style={styles.inputModal} placeholder="Data (DD/MM/AAAA) *" placeholderTextColor={Colors.light.textMuted} value={resDate} onChangeText={setResDate} />
             <TextInput style={styles.inputModal} placeholder="Horário (HH:MM) *" placeholderTextColor={Colors.light.textMuted} value={resTime} onChangeText={setResTime} />

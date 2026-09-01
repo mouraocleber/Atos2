@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justify: 'center',
+    justifyContent: 'center',
     padding: Spacing.lg,
   },
   header: {

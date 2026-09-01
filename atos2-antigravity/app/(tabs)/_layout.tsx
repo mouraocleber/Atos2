@@ -48,8 +48,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="products"
         options={{
-          title: t('tab_store') || 'Vitrine',
-          headerTitle: t('header_store') || 'Loja e Vitrine',
+          title: t('tab_store') || 'Produtos',
+          headerTitle: t('header_store') || 'Produtos e Serviços',
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
               <Feather name="shopping-bag" size={focused ? 22 : 24} color={color} />

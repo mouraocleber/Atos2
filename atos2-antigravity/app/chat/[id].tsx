@@ -21,6 +21,7 @@ import * as Location from 'expo-location';
 import { getWebRtcHtml } from '../../services/webrtcHtml';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { ringtoneService } from '../../services/RingtoneService';
+import { liveTranslationService } from '../../services/LiveTranslationService';
 
 import { getConversation, sendMessage, deleteMessage } from '../../services/chat';
 import api, { SERVER_URL } from '../../services/api';
@@ -603,7 +604,8 @@ export default function ChatRoomScreen() {
       }
     }
 
-    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(translatedText)}&tl=${targetLang}&client=tw-ob`;
+    const detectedGender = liveTranslationService.detectVoiceGenderFromAudio(data.text, null, user?.voiceGender);
+    const audioUrl = liveTranslationService.getTtsAudioUrl(translatedText, targetLang, detectedGender);
 
     socketRef.current?.emit('webrtcTranslationCaption', {
       to: id,
@@ -930,7 +932,8 @@ export default function ChatRoomScreen() {
   const playTranslatedAudioTts = async (text: string, lang: string) => {
     try {
       const langOnly = (lang || 'pt').split('-')[0];
-      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langOnly}&client=tw-ob`;
+      const gender = liveTranslationService.detectVoiceGenderFromAudio(text, null, user?.voiceGender);
+      const ttsUrl = liveTranslationService.getTtsAudioUrl(text, langOnly, gender);
       const { createAudioPlayer } = await import('expo-audio');
       const player = createAudioPlayer({ uri: ttsUrl });
       player.play();

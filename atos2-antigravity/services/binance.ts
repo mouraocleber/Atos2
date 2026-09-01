@@ -41,3 +41,11 @@ export const createBinanceBuyOrder = async (amountBrl: number, asset: string): P
   });
   return response.data;
 };
+
+/**
+ * Check status of a Binance Pay order
+ */
+export const checkBinanceOrderStatus = async (orderId: string): Promise<{ success: boolean; status: 'PENDING' | 'COMPLETED' | 'FAILED' }> => {
+  const response = await api.get(`/payments/binance/order-status/${orderId}`);
+  return response.data.data;
+};

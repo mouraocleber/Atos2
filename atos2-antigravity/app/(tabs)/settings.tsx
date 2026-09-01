@@ -15,6 +15,7 @@ import CoachMark from '../../components/CoachMark';
 import api from '../../services/api';
 import CachedImage from '../../components/CachedImage';
 import QRCode from 'react-native-qrcode-svg';
+import * as Clipboard from 'expo-clipboard';
 import { clearMediaCache, getMediaCacheSize } from '../../services/MediaCacheService';
 import { LANGUAGES } from '../../constants/translations';
 
@@ -204,26 +205,27 @@ export default function SettingsScreen() {
     }
   }
 
-  async function handleUpgradePlan(planType: 'PRO' | 'BUSINESS') {
+  async function handleUpgradePlan(planType: 'PRO' | 'BUSINESS' | 'ENTERPRISE') {
     const prices = {
-      PRO:      { m: 2.00,  a: 20.00 },
-      BUSINESS: { m: 5.00, a: 50.00 }
+      PRO:        { m: 99.90,  a: 999.00,  usdM: 19.99, usdA: 199.90 },
+      BUSINESS:   { m: 299.90, a: 2999.00, usdM: 59.99, usdA: 599.90 },
+      ENTERPRISE: { m: 499.90, a: 4999.00, usdM: 99.99, usdA: 999.90 },
     };
-    const { m, a } = prices[planType];
+    const { m, a, usdM, usdA } = prices[planType];
     const isCurrentPlan = user?.plan === planType;
 
     Alert.alert(
       isCurrentPlan ? `Renovar Plano ${planType}` : `Assinar Plano ${planType}`,
-      `Plano atual: ${user?.plan || 'FREE'}\n\nMensal: $ ${m.toFixed(2).replace('.', ',')} USDC/mês\nAnual: $ ${a.toFixed(2).replace('.', ',')} USDC/ano (20% Off)\n\n${user?.plan === 'FREE' ? '⭐ 90 dias grátis para novos assinantes!' : ''}`,
+      `Plano atual: ${user?.plan || 'FREE'}\n\nMensal: R$ ${m.toFixed(2).replace('.', ',')} ($ ${usdM.toFixed(2)} USD)/mês\nAnual: R$ ${a.toFixed(2).replace('.', ',')} ($ ${usdA.toFixed(2)} USD)/ano (2 meses grátis)\n\n${user?.plan === 'FREE' ? '⭐ 90 dias grátis sem cobrança para novos assinantes!' : ''}`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: `Mensal ($ ${m.toFixed(2).replace('.', ',')} USDC)`, onPress: () => confirmUpgrade(planType, 'MONTHLY') },
-        { text: `Anual ($ ${a.toFixed(2).replace('.', ',')} USDC) ⭐`, onPress: () => confirmUpgrade(planType, 'ANNUAL') }
+        { text: `Mensal (R$ ${m.toFixed(2).replace('.', ',')})`, onPress: () => confirmUpgrade(planType, 'MONTHLY') },
+        { text: `Anual (R$ ${a.toFixed(2).replace('.', ',')}) ⭐`, onPress: () => confirmUpgrade(planType, 'ANNUAL') }
       ]
     );
   }
 
-  async function confirmUpgrade(planType: 'PRO' | 'BUSINESS', billingCycle: 'MONTHLY' | 'ANNUAL') {
+  async function confirmUpgrade(planType: 'PRO' | 'BUSINESS' | 'ENTERPRISE', billingCycle: 'MONTHLY' | 'ANNUAL') {
     setPlanUpgrading(true);
     try {
       const res = await api.post('/auth/upgrade-plan', { plan: planType, billingCycle });
@@ -556,16 +558,37 @@ export default function SettingsScreen() {
           <View style={[styles.modalContent, {alignItems: 'center'}]}>
             <Text style={styles.modalTitle}>Meu QR Code de Contato</Text>
             <Text style={styles.modalSubtitle}>Mostre este código para outro usuário escanear e iniciar uma conversa.</Text>
-            <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 10, marginVertical: 20}}>
+            <View style={{padding: 20, backgroundColor: '#fff', borderRadius: 10, marginVertical: 16}}>
               {user?.id ? (
-                <QRCode value={`atos2://connect?user=${user.id}`} size={200} />
+                <QRCode value={`https://atos2.online/connect?user=${user.id}`} size={200} />
               ) : (
                 <ActivityIndicator color={Colors.primary} />
               )}
             </View>
-            <TouchableOpacity style={[styles.modalBtnCancel, { width: '80%' }]} onPress={() => setQrModalVisible(false)}>
-              <Text style={[styles.modalBtnText, {textAlign: 'center'}]}>Fechar</Text>
-            </TouchableOpacity>
+            {user?.id && (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: Colors.primary + '15',
+                  paddingVertical: 10,
+                  paddingHorizontal: 16,
+                  borderRadius: 10,
+                  marginBottom: 16,
+                }}
+                onPress={() => {
+                  const webUrl = `https://atos2.online/connect?user=${user.id}`;
+                  Clipboard.setStringAsync(webUrl);
+                  Alert.alert('Link Copiado!', 'Link do App Desk Web copiado para a área de transferência.');
+                }}
+              >
+                <Feather name="copy" size={16} color={Colors.primary} />
+                <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 13 }}>
+                  Copiar Link App Desk Web
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -667,7 +690,7 @@ export default function SettingsScreen() {
                   </View>
                 </View>
                 <Text style={styles.planFeature}>✓  Mensagens ilimitadas</Text>
-                <Text style={styles.planFeature}>✓  Carteira GLB</Text>
+                <Text style={styles.planFeature}>✓  Carteira Multi-Moeda (Moeda Local & USDC)</Text>
                 <Text style={styles.planFeature}>✗  Sem acesso à Vitrine</Text>
                 <Text style={styles.planFeature}>✗  Sem palavras-chave</Text>
                 {user?.plan === 'FREE' && (
@@ -681,17 +704,17 @@ export default function SettingsScreen() {
               <View style={[styles.planCard, { borderColor: Colors.secondary }, user?.plan === 'PRO' && styles.planCardActivePro]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <View>
-                    <Text style={[styles.planName, { color: Colors.secondaryDark }]}>PRO</Text>
-                    <Text style={styles.planPrice}>$ 2,00 USDC/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou $ 20,00 USDC/ano</Text></Text>
+                    <Text style={[styles.planName, { color: Colors.secondaryDark }]}>PRO (1 Usuário)</Text>
+                    <Text style={styles.planPrice}>R$ 99,90/mês ($19.99 USD) <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 999,00/ano</Text></Text>
                   </View>
                   <View style={[styles.planBadge, { backgroundColor: Colors.secondary + '20' }]}>
                     <Text style={[styles.planBadgeText, { color: Colors.secondaryDark }]}>Popular</Text>
                   </View>
                 </View>
-                <Text style={styles.planFeature}>✓  Tudo do FREE</Text>
-                <Text style={styles.planFeature}>✓  Palavras-Chave de Destaque</Text>
-                <Text style={styles.planFeature}>✓  Perfil em destaque na busca</Text>
-                <Text style={[styles.planFeature, { color: Colors.secondary }]}>⭐ 90 dias grátis para novos!</Text>
+                <Text style={styles.planFeature}>✓  1 Licença de Usuário / Atendente</Text>
+                <Text style={styles.planFeature}>✓  Tradução em Tempo Real no Balcão/Ponto</Text>
+                <Text style={styles.planFeature}>✓  Modo Escuta & Push-to-Talk</Text>
+                <Text style={[styles.planFeature, { color: Colors.secondary, fontWeight: '700' }]}>⭐ 90 dias grátis para novos assinantes!</Text>
                 {user?.plan === 'PRO' ? (
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
                     <View style={[styles.planCurrentBadge, { flex: 1, backgroundColor: Colors.secondary + '20' }]}>
@@ -712,9 +735,7 @@ export default function SettingsScreen() {
                     disabled={planUpgrading}
                   >
                     {planUpgrading ? <ActivityIndicator color="#fff" size="small" /> : (
-                      <Text style={styles.planBtnText}>
-                        {user?.plan === 'BUSINESS' ? 'Mudar para PRO' : 'Assinar PRO'}
-                      </Text>
+                      <Text style={styles.planBtnText}>Assinar PRO</Text>
                     )}
                   </TouchableOpacity>
                 )}
@@ -724,18 +745,18 @@ export default function SettingsScreen() {
               <View style={[styles.planCard, { borderColor: Colors.primary }, user?.plan === 'BUSINESS' && styles.planCardActiveB]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <View>
-                    <Text style={[styles.planName, { color: Colors.primary }]}>BUSINESS</Text>
-                    <Text style={styles.planPrice}>$ 5,00 USDC/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou $ 50,00 USDC/ano</Text></Text>
+                    <Text style={[styles.planName, { color: Colors.primary }]}>BUSINESS (5 Usuários)</Text>
+                    <Text style={styles.planPrice}>R$ 299,90/mês ($59.99 USD) <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 2.999,00/ano</Text></Text>
                   </View>
                   <View style={[styles.planBadge, { backgroundColor: Colors.primary + '20' }]}>
-                    <Text style={[styles.planBadgeText, { color: Colors.primary }]}>Premium</Text>
+                    <Text style={[styles.planBadgeText, { color: Colors.primary }]}>Recomendado</Text>
                   </View>
                 </View>
-                <Text style={styles.planFeature}>✓  Tudo do PRO</Text>
-                <Text style={styles.planFeature}>✓  Acesso à Vitrine Pública</Text>
-                <Text style={styles.planFeature}>✓  Publicar produtos / serviços</Text>
-                <Text style={styles.planFeature}>✓  Reservas com pagamento GLB</Text>
-                <Text style={[styles.planFeature, { color: Colors.primary }]}>⭐ 90 dias grátis para novos!</Text>
+                <Text style={styles.planFeature}>✓  5 Licenças de Usuários / Atendentes</Text>
+                <Text style={styles.planFeature}>✓  QR Code de Cobrança / Ponto de Venda</Text>
+                <Text style={styles.planFeature}>✓  Bloqueio de Carteira Master no Caixa</Text>
+                <Text style={styles.planFeature}>✓  Publicar ofertas e produtos na Vitrine</Text>
+                <Text style={[styles.planFeature, { color: Colors.primary, fontWeight: '700' }]}>⭐ 90 dias grátis para novos assinantes!</Text>
                 {user?.plan === 'BUSINESS' ? (
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
                     <View style={[styles.planCurrentBadge, { flex: 1, backgroundColor: Colors.primary + '20' }]}>
@@ -757,6 +778,48 @@ export default function SettingsScreen() {
                   >
                     {planUpgrading ? <ActivityIndicator color="#fff" size="small" /> : (
                       <Text style={styles.planBtnText}>Assinar BUSINESS</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Card ENTERPRISE */}
+              <View style={[styles.planCard, { borderColor: '#8B5CF6' }, user?.plan === 'ENTERPRISE' && styles.planCardActiveB]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View>
+                    <Text style={[styles.planName, { color: '#8B5CF6' }]}>ENTERPRISE (15 Licenças)</Text>
+                    <Text style={styles.planPrice}>R$ 499,90/mês ($99.99 USD) <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 4.999,00/ano</Text></Text>
+                  </View>
+                  <View style={[styles.planBadge, { backgroundColor: '#8B5CF620' }]}>
+                    <Text style={[styles.planBadgeText, { color: '#8B5CF6' }]}>Corporativo</Text>
+                  </View>
+                </View>
+                <Text style={styles.planFeature}>✓  15 Licenças para Grandes Equipes</Text>
+                <Text style={styles.planFeature}>✓  Suporte Prioritário VIP 24/7</Text>
+                <Text style={styles.planFeature}>✓  Relatórios Analíticos de Vendas e Tradução</Text>
+                <Text style={styles.planFeature}>✓  Integração Customizada de PDV</Text>
+                <Text style={[styles.planFeature, { color: '#8B5CF6', fontWeight: '700' }]}>⭐ 90 dias grátis para novos assinantes!</Text>
+                {user?.plan === 'ENTERPRISE' ? (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <View style={[styles.planCurrentBadge, { flex: 1, backgroundColor: '#8B5CF620' }]}>
+                      <Text style={{ color: '#8B5CF6', fontWeight: '700', fontSize: 12 }}>Plano Atual ✓</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.planBtn, { flex: 1, backgroundColor: '#8B5CF6' }]}
+                      onPress={() => handleUpgradePlan('ENTERPRISE')}
+                      disabled={planUpgrading}
+                    >
+                      <Text style={styles.planBtnText}>Renovar</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.planBtn, { backgroundColor: '#8B5CF6', marginTop: 12 }]}
+                    onPress={() => handleUpgradePlan('ENTERPRISE')}
+                    disabled={planUpgrading}
+                  >
+                    {planUpgrading ? <ActivityIndicator color="#fff" size="small" /> : (
+                      <Text style={styles.planBtnText}>Assinar ENTERPRISE</Text>
                     )}
                   </TouchableOpacity>
                 )}

@@ -24,7 +24,8 @@ interface User {
   profileImage?: string;
   preferredLanguage?: string;
   isSearchable?: boolean;
-  plan?: 'FREE' | 'PRO' | 'BUSINESS';
+  voiceGender?: 'male' | 'female' | 'auto';
+  plan?: 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
   planExpiresAt?: Date;
   isEmailVerified?: boolean;
   isPhoneVerified?: boolean;
