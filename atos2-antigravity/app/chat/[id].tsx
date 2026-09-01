@@ -174,6 +174,16 @@ export default function ChatRoomScreen() {
   ];
   const [iceServers, setIceServers] = useState<any[]>(DEFAULT_ICE_SERVERS);
 
+  // Redireciona para login se o turista/usuário não estiver logado
+  useEffect(() => {
+    if (!user) {
+      router.replace({
+        pathname: '/(auth)/login',
+        params: { redirectUrl: `/chat/${id}?name=${encodeURIComponent(name || 'Contato')}` },
+      });
+    }
+  }, [user, id, name]);
+
   // Estado do Papel do Usuário no Grupo / Palestra (SPEAKER vs LISTENER)
   const [myRole, setMyRole] = useState<MemberRole>('SPEAKER');
   const [roomOwnerId, setRoomOwnerId] = useState<string>('');

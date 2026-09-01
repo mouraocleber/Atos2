@@ -17,6 +17,8 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import api, { SERVER_URL } from '../services/api';
 
+import { useAuth } from '../contexts/AuthContext';
+
 interface UserProfile {
   id: string;
   name: string;
@@ -28,6 +30,7 @@ interface UserProfile {
 export default function ConnectScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { user: currentUser } = useAuth();
 
   const userId =
     (params.user as string) ||
@@ -92,6 +95,16 @@ export default function ConnectScreen() {
 
   const handleStartChat = () => {
     if (!userId) return;
+    if (!currentUser) {
+      // Turista não logado: redireciona para login/cadastro rápido e depois abre o chat
+      const returnPath = `/chat/${userId}?name=${encodeURIComponent(recipient?.name || 'Contato')}`;
+      router.push({
+        pathname: '/(auth)/login',
+        params: { redirectUrl: returnPath },
+      });
+      return;
+    }
+
     router.replace({
       pathname: '/chat/[id]',
       params: {
@@ -103,6 +116,14 @@ export default function ConnectScreen() {
 
   const handleSendPayment = () => {
     if (!userId) return;
+    if (!currentUser) {
+      router.push({
+        pathname: '/(auth)/login',
+        params: { redirectUrl: `/(tabs)/wallet?targetId=${userId}` },
+      });
+      return;
+    }
+
     router.replace({
       pathname: '/(tabs)/wallet',
       params: { targetId: userId },

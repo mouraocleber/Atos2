@@ -109,10 +109,17 @@ export default function VerifyOtpScreen() {
     setLoading(true);
     try {
       await verifyOtp(codeEmailStr, codeSmsStr);
+      const redirectUrl = (params as any)?.redirectUrl;
       Alert.alert('Sucesso', 'Dispositivo verificado com sucesso!', [
         {
           text: 'Continuar',
-          onPress: () => router.replace('/(tabs)/chat'),
+          onPress: () => {
+            if (redirectUrl) {
+              router.replace(redirectUrl as any);
+            } else {
+              router.replace('/(tabs)/chat');
+            }
+          },
         },
       ]);
     } catch (error: any) {

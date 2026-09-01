@@ -8,10 +8,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLocalization } from '../../contexts/LocalizationContext';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 
 export default function LoginScreen() {
   const { signIn, signInWithGoogle } = useAuth();
   const { t } = useLocalization();
+  const params = useLocalSearchParams();
+  const redirectUrl = (params.redirectUrl as string) || '';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,10 +34,14 @@ export default function LoginScreen() {
       if (res?.requires2FA) {
         router.push({
           pathname: '/(auth)/verify-otp',
-          params: { mode: 'new_device', email: email.trim() },
+          params: { mode: 'new_device', email: email.trim(), redirectUrl },
         });
       } else {
-        router.replace('/(tabs)/chat');
+        if (redirectUrl) {
+          router.replace(redirectUrl as any);
+        } else {
+          router.replace('/(tabs)/chat');
+        }
       }
     } catch (error: any) {
       Alert.alert(t('error'), error.message || t('login_failed'));
@@ -49,10 +57,14 @@ export default function LoginScreen() {
       if (res?.requires2FA) {
         router.push({
           pathname: '/(auth)/verify-otp',
-          params: { mode: 'new_device' },
+          params: { mode: 'new_device', redirectUrl },
         });
       } else {
-        router.replace('/(tabs)/chat');
+        if (redirectUrl) {
+          router.replace(redirectUrl as any);
+        } else {
+          router.replace('/(tabs)/chat');
+        }
       }
     } catch (error: any) {
       if (error.message !== 'Login cancelado') {
