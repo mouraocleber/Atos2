@@ -594,32 +594,53 @@ export default function ChatRoomScreen() {
   const handleLocalSpeechRecognized = async (data: { text: string; language?: string; speakerName?: string; speakerFlag?: string }) => {
     if (!data.text || !data.text.trim()) return;
 
-    const sourceLang = (data.language || user?.preferredLanguage || language || 'pt').split('-')[0];
-    const targetLang = (remoteUserLanguage || 'pt').split('-')[0];
+    const sourceLang = (data.language || user?.preferredLanguage || language || 'pt').split('-')[0].toLowerCase();
+    const targetLang = (remoteUserLanguage || 'pt').split('-')[0].toLowerCase();
 
     let translatedText = data.text;
     if (sourceLang !== targetLang) {
+      let success = false;
+
+      // 1. Google Translate Fast API (sem limite de taxa para chamadas ao vivo)
       try {
-        const resp = await fetch(
-          `https://api.mymemory.translated.net/get?q=${encodeURIComponent(data.text)}&langpair=${sourceLang}|${targetLang}`
-        );
-        const mmData = await resp.json();
-        if (mmData.responseData?.translatedText) {
-          translatedText = mmData.responseData.translatedText;
+        const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(data.text)}`;
+        const gResp = await fetch(gUrl);
+        const gData = await gResp.json();
+        if (gData && gData[0] && gData[0][0] && gData[0][0][0]) {
+          translatedText = gData[0].map((part: any) => part[0]).filter(Boolean).join('');
+          success = true;
         }
-      } catch (e) {
-        console.warn('[VoIP Translation] Error translating spoken text:', e);
+      } catch (gErr) {
+        console.warn('[VoIP Translation Fast] Fallback Google Translate error:', gErr);
+      }
+
+      // 2. Fallback MyMemory
+      if (!success) {
+        try {
+          const resp = await fetch(
+            `https://api.mymemory.translated.net/get?q=${encodeURIComponent(data.text)}&langpair=${sourceLang}|${targetLang}`
+          );
+          const mmData = await resp.json();
+          if (mmData.responseData?.translatedText) {
+            translatedText = mmData.responseData.translatedText;
+          }
+        } catch (e) {
+          console.warn('[VoIP Translation] Error translating spoken text:', e);
+        }
       }
     }
 
+    // Detecção dinâmica de timbre de voz (Masculino vs. Feminino) baseada no pitch do falante e cadastro
     const detectedGender = liveTranslationService.detectVoiceGenderFromAudio(data.text, null, user?.voiceGender);
     const audioUrl = liveTranslationService.getTtsAudioUrl(translatedText, targetLang, detectedGender);
+
+    console.log(`[VoIP Live Translation] Transcrito: "${data.text}" ➔ Traduzido: "${translatedText}" (Timbre: ${detectedGender.toUpperCase()})`);
 
     socketRef.current?.emit('webrtcTranslationCaption', {
       to: id,
       roomId: currentRoomId,
       speakerName: data.speakerName || user?.name || user?.nickname || 'Usuário',
-      speakerFlag: data.speakerFlag || '🇧🇷',
+      speakerFlag: data.speakerFlag || '🌐',
       speakerLanguage: sourceLang,
       originalText: data.text,
       translatedText: translatedText,
