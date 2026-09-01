@@ -697,11 +697,24 @@ export const getWebRtcHtml = () => {
         };
       }
 
-      const config = window.webRtcConfig;
-      iceServers = config.iceServers;
+      const DEFAULT_FALLBACK_STUN = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:stun.services.mozilla.com:3478' }
+      ];
+
+      const config = window.webRtcConfig || {};
+      iceServers = (config.iceServers && Array.isArray(config.iceServers) && config.iceServers.length > 0)
+        ? config.iceServers
+        : DEFAULT_FALLBACK_STUN;
       isCaller = config.isCaller;
       callType = config.callType;
-      targetName = config.targetName;
+      targetName = config.targetName || 'Usuário Atos2';
+
+      log('Initialized iceServers with ' + iceServers.length + ' server(s).');
 
       // Auto-detect language from user registration profile (Zero manual pickers)
       const userLangInfo = mapLangDetails(config.userLanguage);
@@ -770,7 +783,11 @@ export const getWebRtcHtml = () => {
       try {
         log('Requesting local media streams...');
         const constraints = {
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
           video: callType === 'video' ? { facingMode: facingMode } : false
         };
         
@@ -778,7 +795,7 @@ export const getWebRtcHtml = () => {
           throw new Error("navigator.mediaDevices is undefined. Origin is not secure (requires HTTPS or localhost baseUrl in WebView).");
         }
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        log('Acquired local media stream.');
+        log('Acquired local media stream with audio/video tracks.');
 
         if (callType === 'video') {
           const localVideo = document.getElementById('localVideo');
@@ -843,14 +860,28 @@ export const getWebRtcHtml = () => {
           if (remoteAudio) {
             remoteAudio.srcObject = stream;
             remoteAudio.volume = 1.0;
-            remoteAudio.play().then(() => {
-              log('Remote audio playback started successfully.');
-              checkConnectedAndStartTimer();
-              startTimer();
-            }).catch(e => {
-              log('Remote audio play error: ' + e.message + '. Retrying after user interaction...');
-              startTimer();
-            });
+            remoteAudio.muted = false;
+
+            const playPromise = remoteAudio.play();
+            if (playPromise !== undefined) {
+              playPromise.then(() => {
+                log('Remote audio playback started successfully.');
+                checkConnectedAndStartTimer();
+                startTimer();
+              }).catch(e => {
+                log('Remote audio play error: ' + e.message + '. Adding user touch unlock listener...');
+                const unlockAudio = () => {
+                  remoteAudio.muted = false;
+                  remoteAudio.volume = 1.0;
+                  remoteAudio.play().then(() => {
+                    log('Remote audio playback unlocked on touch.');
+                  }).catch(err => log('Retry audio play failed: ' + err.message));
+                };
+                document.addEventListener('touchstart', unlockAudio, { once: true });
+                document.addEventListener('click', unlockAudio, { once: true });
+                startTimer();
+              });
+            }
           }
         };
 

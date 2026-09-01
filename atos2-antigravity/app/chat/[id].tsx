@@ -164,7 +164,15 @@ export default function ChatRoomScreen() {
   const webViewRef = useRef<WebView>(null);
   const signalQueueRef = useRef<string[]>([]);
   const isWebViewReadyRef = useRef<boolean>(false);
-  const [iceServers, setIceServers] = useState<any[]>([]);
+  const DEFAULT_ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:stun.services.mozilla.com:3478' }
+  ];
+  const [iceServers, setIceServers] = useState<any[]>(DEFAULT_ICE_SERVERS);
 
   // Estado do Papel do Usuário no Grupo / Palestra (SPEAKER vs LISTENER)
   const [myRole, setMyRole] = useState<MemberRole>('SPEAKER');
