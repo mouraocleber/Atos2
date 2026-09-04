@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atos2 - Pitch Deck</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #070a12 0%, #0f172a 100%);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-purple: #818cf8;
+      --accent-green: #34d399;
+      --accent-blue: #38bdf8;
+      --accent-gold: #fbbf24;
+      --card-bg: rgba(255, 255, 255, 0.035);
+      --card-border: rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #070a12;
+      color: var(--text-main);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Slides Container */
+    .deck-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      padding: 40px 20px;
+    }
+
+    /* Individual Slide */
+    .slide {
+      width: 100%;
+      max-width: 1120px;
+      aspect-ratio: 16 / 9;
+      background: var(--bg-gradient);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Ambient Glow Deco */
+    .slide::after {
+      content: '';
+      position: absolute;
+      width: 350px;
+      height: 350px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.12) 0%, transparent 70%);
+      top: -100px;
+      right: -100px;
+      pointer-events: none;
+      border-radius: 50%;
+    }
+
+    .slide::before {
+      content: '';
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(129, 140, 248, 0.1) 0%, transparent 70%);
+      bottom: -100px;
+      left: -100px;
+      pointer-events: none;
+      border-radius: 50%;
+    }
+
+    /* Header */
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 16px;
+      z-index: 2;
+    }
+
+    .logo {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      font-size: 26px;
+      letter-spacing: -0.5px;
+      background: linear-gradient(to right, var(--accent-blue), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-title {
+      font-family: 'Poppins', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .slide-number {
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Content Area */
+    .slide-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      padding: 24px 0;
+      z-index: 2;
+    }
+
+    /* Footer */
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 16px;
+      z-index: 2;
+    }
+
+    /* Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      width: 100%;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      width: 100%;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 16px;
+      width: 100%;
+    }
+
+    /* Typography & Badges */
+    h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 46px;
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 680px;
+      line-height: 1.6;
+    }
+
+    .badge-accent {
+      display: inline-block;
+      padding: 6px 14px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: var(--accent-blue);
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .card h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .bullet-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bullet-list li {
+      font-size: 14px;
+      color: #e2e8f0;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.4;
+    }
+
+    .bullet-list li::before {
+      content: '✓';
+      color: var(--accent-green);
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      height: 100%;
+    }
+
+    .metric-value {
+      font-family: 'Poppins', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--accent-gold);
+      line-height: 1;
+    }
+
+    .metric-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Print / PDF Rules */
+    @page {
+      size: 297mm 210mm; /* A4 Landscape */
+      margin: 0;
+    }
+
+    @media print {
+      html, body {
+        background: #070a12 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .deck-container {
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+      .slide {
+        width: 297mm !important;
+        height: 210mm !important;
+        max-width: none !important;
+        aspect-ratio: auto !important;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: var(--bg-gradient) !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="deck-container">
+
+    <!-- Slide 1: Cover -->
+    <div class="slide" id="slide-1">
+      <div class="slide-header">
+        <span class="logo">Atos2</span>
+        <span class="slide-number">01 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="hero-content">
+          <span class="badge-accent">INVESTOR PITCH DECK</span>
+          <h1>The Sustainable Tourism Super-App</h1>
+          <p class="subtitle">Connecting International Travelers to Local Communities. Zero Friction. Borderless Web3 Financials.</p>
+          <div style="display: flex; gap: 24px; margin-top: 32px;">
+            <div>
+              <div class="metric-value">0%</div>
+              <div class="metric-label">P2P Commission Fee</div>
+            </div>
+            <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 24px;">
+              <div class="metric-value">15+</div>
+              <div class="metric-label">Languages Real-Time AI Translation</div>
+            </div>
+            <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 24px;">
+              <div class="metric-value">USDC</div>
+              <div class="metric-label">Global Web3 Digital Currency</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>© 2026 Atos2 Inc. — Confidential</span>
+        <span>contact@atos2.com</span>
+      </div>
+    </div>
+
+    <!-- Slide 2: The Problem -->
+    <div class="slide" id="slide-2">
+      <div class="slide-header">
+        <span class="slide-title">The Market Inefficiencies</span>
+        <span class="slide-number">02 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="grid-3">
+          <div class="card">
+            <h3 style="color: #f87171;">1. Financial Friction & Spreads</h3>
+            <p>International tourists lose up to <strong>15%</strong> of their travel budget to banking spreads, foreign exchange fees, ATM surcharges, and credit card FX markups.</p>
+          </div>
+          <div class="card">
+            <h3 style="color: #f87171;">2. Severe Language Barrier</h3>
+            <p>Direct negotiation with independent local guides, artisans, and family-owned businesses is impossible due to language barriers, locking out micro-vendors.</p>
+          </div>
+          <div class="card">
+            <h3 style="color: #f87171;">3. OTA Exploitation & Fragmentation</h3>
+            <p>Online Travel Agencies (OTAs) extract <strong>15%–30% predatortial commissions</strong> from local vendors while forcing tourists to juggle multiple fragmented apps.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Atos2 Pitch Deck</span>
+        <span>Problem Definition</span>
+      </div>
+    </div>
+
+    <!-- Slide 3: The Solution -->
+    <div class="slide" id="slide-3">
+      <div class="slide-header">
+        <span class="slide-title">The Solution: Atos2 Super-App</span>
+        <span class="slide-number">03 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div>
+            <span class="badge-accent">ALL-IN-ONE ECOSYSTEM</span>
+            <h2 style="font-size: 26px; font-family: 'Poppins', sans-serif; font-weight: 700; margin-bottom: 12px;">Social + Commerce + Web3 Fintech</h2>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">A unified platform that connects travelers directly with authentic local providers with instant translation and frictionless digital dollars.</p>
+          </div>
+          <div class="card" style="justify-content: center;">
+            <ul class="bullet-list">
+              <li><strong>Direct P2P Marketplace:</strong> Discover authentic local experiences, guides, and crafts directly from the creators.</li>
+              <li><strong>AI Voice & Text Translation:</strong> Real-time translation powered by OpenAI (GPT + Whisper) in 15+ global languages.</li>
+              <li><strong>Borderless USDC Wallet:</strong> Instant QR code payments backed by Binance Pay and USDC stablecoin with 0% P2P fees.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Atos2 Pitch Deck</span>
+        <span>Value Proposition</span>
+      </div>
+    </div>
+
+    <!-- Slide 4: Socioeconomic Impact -->
+    <div class="slide" id="slide-4">
+      <div class="slide-header">
+        <span class="slide-title">Socioeconomic Impact & UN SDG 8</span>
+        <span class="slide-number">04 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="grid-3">
+          <div class="card">
+            <h3 style="color: var(--accent-green);">Fair Trade & Zero Fees</h3>
+            <p>P2P QR transactions incur <strong>0% commission fee</strong>, leaving 100% of tour revenue in the local community hands.</p>
+          </div>
+          <div class="card">
+            <h3 style="color: var(--accent-purple);">Financial Inclusion</h3>
+            <p>Micro-entrepreneurs earn and hold earnings in <strong>USDC digital dollars</strong>, protecting them against inflation and local currency devaluation.</p>
+          </div>
+          <div class="card">
+            <h3 style="color: var(--accent-blue);">Linguistic Empowerment</h3>
+            <p>Breaking the language barrier lets non-English speaking artisans trade directly with foreign tourists, fostering economic dignity.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Atos2 Pitch Deck</span>
+        <span>Sustainability & Social Impact</span>
+      </div>
+    </div>
+
+    <!-- Slide 5: Product & Features -->
+    <div class="slide" id="slide-5">
+      <div class="slide-header">
+        <span class="slide-title">Product Architecture & Tech Stack</span>
+        <span class="slide-number">05 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Core Technology Stack</h3>
+            <ul class="bullet-list">
+              <li><strong>Mobile Native:</strong> React Native & Expo with modular architecture for iOS & Android.</li>
+              <li><strong>Backend Engine:</strong> Node.js, TypeScript, PostgreSQL, Redis, Docker containerized on DigitalOcean.</li>
+              <li><strong>Real-time Voice & Media:</strong> WebRTC proxy calls & WebSocket low-latency messaging.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Fintech & Currency Innovation</h3>
+            <ul class="bullet-list">
+              <li><strong>Binance Pay Gateway:</strong> Instant fiat-to-crypto on-ramp and off-ramp rails.</li>
+              <li><strong>Global Currency Index (G):</strong> Weighted basket of 5 major currencies (USD, EUR, JPY, CNY, BRL) for price stabilization.</li>
+              <li><strong>Instant Settlement:</strong> QR Code instant transfer between wallets with full transaction security.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Atos2 Pitch Deck</span>
+        <span>Technology & Innovation</span>
+      </div>
+    </div>
+
+    <!-- Slide 6: Revenue Model -->
+    <div class="slide" id="slide-6">
+      <div class="slide-header">
+        <span class="slide-title">Monetization & Business Model</span>
+        <span class="slide-number">06 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="grid-3">
+          <div class="card">
+            <h3 style="color: var(--accent-gold);">1. Vendor Ads & SaaS</h3>
+            <p>Promoted marketplace listings and tiered merchant subscriptions ($2 to $5 USDC/month) for priority search placement.</p>
+          </div>
+          <div class="card">
+            <h3 style="color: var(--accent-gold);">2. Fiat-to-Crypto Margin</h3>
+            <p>Revenue generated on fiat-to-USDC conversion (on-ramp) and progressive fees (1%-5%) on external bank cashouts.</p>
+          </div>
+          <div class="card">
+            <h3 style="color: var(--accent-gold);">3. Global Debit Card</h3>
+            <p>Co-branded physical & virtual debit card issuing, earning interchange fees on traditional card terminal transactions.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Atos2 Pitch Deck</span>
+        <span>Business & Revenue Model</span>
+      </div>
+    </div>
+
+    <!-- Slide 7: Market & Scalability -->
+    <div class="slide" id="slide-7">
+      <div class="slide-header">
+        <span class="slide-title">Market Opportunity & Moats</span>
+        <span class="slide-number">07 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Massive TAM & Blue Ocean</h3>
+            <p>The global travel market exceeds <strong>$1.4 Trillion</strong>. Atos2 attacks an untapped blue ocean at the intersection of experiential travel, Web3 payments, and AI translation.</p>
+            <p>Capturing unbanked and informal tourism suppliers worldwide.</p>
+          </div>
+          <div class="card">
+            <h3>Defensible Moats</h3>
+            <ul class="bullet-list">
+              <li><strong>Asset-Light & Zero Inventory:</strong> 100% cloud software with near-zero marginal cost per new market.</li>
+              <li><strong>Full-Funnel Retention:</strong> Keeps the traveler inside one single app for discovery, negotiation, and payment.</li>
+              <li><strong>Network Effect Flywheel:</strong> 0% P2P fee attracts vendors organically, bringing tourists naturally.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Atos2 Pitch Deck</span>
+        <span>Competitive Advantage</span>
+      </div>
+    </div>
+
+    <!-- Slide 8: International Expansion -->
+    <div class="slide" id="slide-8">
+      <div class="slide-header">
+        <span class="slide-title">Expansion Strategy: Portugal & EU</span>
+        <span class="slide-number">08 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Portugal as the European Gateway</h3>
+            <p>Portugal is one of Europe's fastest-growing tourism hubs with high concentration of independent guides, local experiences, and international travelers.</p>
+            <ul class="bullet-list" style="margin-top: 8px;">
+              <li>Full European multi-language support (pt-PT, en-GB, es-ES, fr-FR, de-DE).</li>
+              <li>Native EUR inclusion in the Global Currency Index (20% weight).</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Regulatory & Global Readiness</h3>
+            <ul class="bullet-list">
+              <li><strong>GDPR & LGPD Compliant:</strong> Zero hardcoded secrets, strict privacy controls, and encrypted auth.</li>
+              <li><strong>MiCA Ready:</strong> USDC integration positions Atos2 for seamless EU crypto asset compliance.</li>
+              <li><strong>Local Alliances:</strong> Onboarding tourism boards, artisan guilds, and independent guide networks.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Atos2 Pitch Deck</span>
+        <span>Go-To-Market & Expansion</span>
+      </div>
+    </div>
+
+    <!-- Slide 9: Team & Execution -->
+    <div class="slide" id="slide-9">
+      <div class="slide-header">
+        <span class="slide-title">Team & Call to Action</span>
+        <span class="slide-number">09 / 09</span>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Execution & Leadership</h3>
+            <p>Built by a battle-tested product development team led by <strong>Cleber Mourão (CTO)</strong>, specializing in fintech infrastructure, microservices, and mobile UX.</p>
+            <p style="margin-top: 8px;"><strong>Status:</strong> Functional Alpha platform with P2P marketplace, OpenAI translation, WebRTC voice, and Binance USDC wallet live.</p>
+          </div>
+          <div class="card" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.3); justify-content: center;">
+            <h3 style="color: #fff;">Join Us in Building the Future of Sustainable Travel</h3>
+            <p style="color: #cbd5e1; margin-bottom: 16px;">We are seeking strategic partners, tourism delegation support, and seed funding to accelerate international market launch.</p>
+            <div style="font-size: 14px; color: var(--accent-blue); font-weight: 600;">📧 contact@atos2.com | mourao.cleber@gmail.com</div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>© 2026 Atos2 Inc. All rights reserved.</span>
+        <span>atos2.com</span>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

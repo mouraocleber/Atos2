@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AtoS2 - Vídeo Promocional (Pitch Showreel)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070a13;
+      --accent-cyan: #38bdf8;
+      --accent-purple: #818cf8;
+      --accent-green: #34d399;
+      --accent-gold: #fbbf24;
+      --accent-rose: #fb7185;
+      --primary-blue: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #030712;
+      color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Container de Controle Superior */
+    .top-bar {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 8px 18px;
+      border-radius: 40px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #fff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+    }
+
+    .btn-record {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+
+    .btn-record.recording {
+      animation: pulse-red 1.5s infinite;
+    }
+
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+      50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    }
+
+    .btn-sec {
+      background: rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-sec:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+
+    .time-badge {
+      font-family: 'Poppins', monospace;
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--accent-cyan);
+      padding: 0 8px;
+    }
+
+    /* Tela de Cinema 16:9 */
+    .viewport {
+      width: 1280px;
+      height: 720px;
+      max-width: 95vw;
+      max-height: 85vh;
+      aspect-ratio: 16 / 9;
+      background: var(--bg-dark);
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 40px rgba(37, 99, 235, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Barra de Progresso do Vídeo */
+    .timeline-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      z-index: 50;
+      cursor: pointer;
+    }
+
+    .timeline-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8, #34d399);
+      transition: width 0.1s linear;
+    }
+
+    /* Capítulos flutuantes */
+    .chapter-tag {
+      position: absolute;
+      bottom: 16px;
+      left: 24px;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Barra Superior -->
+  <div class="top-bar">
+    <button class="btn" id="btnPlay" onclick="togglePlay()">
+      <span id="playIcon">▶</span> <span id="playText">Reproduzir Vídeo</span>
+    </button>
+    <button class="btn btn-record" id="btnRecord" onclick="toggleRecord()">
+      <span>⏺</span> <span id="recordText">Gravar & Baixar (.webm)</span>
+    </button>
+    <button class="btn btn-sec" id="btnRestart" onclick="restartVideo()">
+      <span>↺</span> Reiniciar
+    </button>
+    <button class="btn btn-sec" onclick="toggleMute()" id="btnMute">
+      <span id="muteIcon">🔊</span> Som
+    </button>
+    <span class="time-badge" id="timeDisplay">00:00 / 01:45</span>
+    <button class="btn btn-sec" onclick="toggleFullscreen()">⛶ Tela Cheia</button>
+  </div>
+
+  <!-- Janela de Vídeo 16:9 -->
+  <div class="viewport" id="viewport">
+    <canvas id="canvas" width="1920" height="1080"></canvas>
+    
+    <div class="chapter-tag" id="chapterTag">Cena 1: Abertura Visionária</div>
+
+    <div class="timeline-bar" onclick="seek(event)">
+      <div class="timeline-fill" id="timelineFill"></div>
+    </div>
+  </div>
+
+  <script>
+    // Configurações do Vídeo
+    const TOTAL_DURATION = 105; // 105 segundos (1min 45s)
+    let currentTime = 0;
+    let isPlaying = false;
+    let isRecording = false;
+    let isMuted = false;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let animationFrameId = null;
+    let lastTimestamp = 0;
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const timelineFill = document.getElementById('timelineFill');
+    const chapterTag = document.getElementById('chapterTag');
+    const playIcon = document.getElementById('playIcon');
+    const playText = document.getElementById('playText');
+    const btnRecord = document.getElementById('btnRecord');
+    const recordText = document.getElementById('recordText');
+
+    // Cenas do Vídeo
+    const SCENES = [
+      { id: 1, start: 0, end: 12, name: "1. Abertura: A Super-App do Turismo Global" },
+      { id: 2, start: 12, end: 24, name: "2. O Desafio: Barreiras Linguísticas & Hardware Obsoleto" },
+      { id: 3, start: 24, end: 40, name: "3. Modo Guia & Entrada Instantânea via QR Code (Zero Fricção)" },
+      { id: 4, start: 40, end: 58, name: "4. Tradução Simultânea Coletiva de Voz em Tempo Real (<1s)" },
+      { id: 5, start: 58, end: 72, name: "5. Vitrine Comercial Multilíngue com Conversão Automática" },
+      { id: 6, start: 72, end: 84, name: "6. Fintech Embutida: Checkout PIX Instantâneo & Binance Pay Cripto" },
+      { id: 7, start: 84, end: 94, name: "7. Tração B2B Validada: 10 Unidades em Teste -> Expansão 398" },
+      { id: 8, start: 94, end: 105, name: "8. Diferencial Competitivo & Oportunidade de Investimento" }
+    ];
+
+    // Partículas de fundo dinâmicas
+    const particles = Array.from({ length: 60 }, () => ({
+      x: Math.random() * 1920,
+      y: Math.random() * 1080,
+      radius: Math.random() * 2.5 + 1,
+      speedX: (Math.random() - 0.5) * 0.4,
+      speedY: (Math.random() - 0.5) * 0.4,
+      alpha: Math.random() * 0.5 + 0.2
+    }));
+
+    // Sistema de Áudio Sintetizado Web Audio API
+    let audioCtx = null;
+    let bgOscillator = null;
+    let bgGain = null;
+    let chordInterval = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playSoundtrack() {
+      if (isMuted || !audioCtx) return;
+      try {
+        // Criar sintetizador ambiente relaxante e futurista
+        const notes = [220, 261.63, 329.63, 392, 440, 523.25]; // Escala Am pentatônica
+        let noteIndex = 0;
+
+        chordInterval = setInterval(() => {
+          if (!isPlaying || isMuted || !audioCtx) return;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(notes[noteIndex % notes.length], audioCtx.currentTime);
+          
+          gain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.04, audioCtx.currentTime + 0.3);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 2.2);
+          
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 2.3);
+          noteIndex++;
+        }, 1200);
+      } catch (e) {
+        console.warn('Audio init warning:', e);
+      }
+    }
+
+    function stopSoundtrack() {
+      if (chordInterval) {
+        clearInterval(chordInterval);
+        chordInterval = null;
+      }
+    }
+
+    function playBeep(freq = 880, duration = 0.15) {
+      if (isMuted || !audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    // Função de Renderização Principal de Cada Quadro (1920 x 1080)
+    function render(t) {
+      // 1. Limpa fundo com gradiente escuro profundo
+      const bgGrad = ctx.createLinearGradient(0, 0, 1920, 1080);
+      bgGrad.addColorStop(0, '#040711');
+      bgGrad.addColorStop(1, '#0d1527');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      // 2. Luzes ambientes dinâmicas (Glow)
+      const glow1 = ctx.createRadialGradient(400, 300, 50, 400, 300, 600);
+      glow1.addColorStop(0, 'rgba(56, 189, 248, 0.12)');
+      glow1.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow1;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      const glow2 = ctx.createRadialGradient(1500, 800, 50, 1500, 800, 600);
+      glow2.addColorStop(0, 'rgba(129, 140, 248, 0.12)');
+      glow2.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow2;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      // 3. Partículas flutuantes
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      particles.forEach(p => {
+        p.x += p.speedX;
+        p.y += p.speedY;
+        if (p.x < 0) p.x = 1920;
+        if (p.x > 1920) p.x = 0;
+        if (p.y < 0) p.y = 1080;
+        if (p.y > 1080) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
+        ctx.fill();
+      });
+
+      // 4. Marca d'água superior
+      renderHeaderLogo();
+
+      // 5. Renderizar a cena atual baseada no tempo
+      if (t >= 0 && t < 12) {
+        renderScene1(t - 0);
+      } else if (t >= 12 && t < 24) {
+        renderScene2(t - 12);
+      } else if (t >= 24 && t < 40) {
+        renderScene3(t - 24);
+      } else if (t >= 40 && t < 58) {
+        renderScene4(t - 40);
+      } else if (t >= 58 && t < 72) {
+        renderScene5(t - 58);
+      } else if (t >= 72 && t < 84) {
+        renderScene6(t - 72);
+      } else if (t >= 84 && t < 94) {
+        renderScene7(t - 84);
+      } else {
+        renderScene8(t - 94);
+      }
+
+      // 6. Rodapé cinematográfico com dados de tração e URL
+      renderFooterStats();
+    }
+
+    // Cabeçalho Fixo
+    function renderHeaderLogo() {
+      ctx.save();
+      // Badge Atos2
+      ctx.fillStyle = '#2563eb';
+      roundRect(ctx, 80, 50, 120, 42, 8);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 22px Poppins';
+      ctx.fillText('AtoS2', 105, 80);
+
+      // Subtítulo
+      ctx.font = '600 14px Inter';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('GLOBAL TOURISM SUPER-APP • PITCH SHOWREEL', 220, 77);
+
+      // Tag Ao Vivo
+      ctx.fillStyle = 'rgba(52, 211, 153, 0.15)';
+      roundRect(ctx, 1680, 50, 160, 38, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = '#34d399';
+      ctx.beginPath();
+      ctx.arc(1705, 69, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = '700 13px Inter';
+      ctx.fillText('PITCH ATIVO', 1722, 74);
+      ctx.restore();
+    }
+
+    // Rodapé de Métricas
+    function renderFooterStats() {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(80, 1000);
+      ctx.lineTo(1840, 1000);
+      ctx.stroke();
+
+      ctx.font = '600 14px Inter';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('Infraestrutura B2B Omnichannel: WebRTC + IA Groq/Deepgram + Binance Pay', 80, 1030);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '700 15px Poppins';
+      ctx.fillText('https://atos2.online', 1670, 1030);
+      ctx.restore();
+    }
+
+    // ==========================================
+    // CENAS INDIVIDUAIS COM ANIMAÇÕES MOTION
+    // ==========================================
+
+    // CENA 1: ABERTURA
+    function renderScene1(localT) {
+      const alpha = Math.min(1, localT * 1.2);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      // Glow Central
+      const grad = ctx.createRadialGradient(960, 480, 20, 960, 480, 500);
+      grad.addColorStop(0, 'rgba(37, 99, 235, 0.25)');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      // Selo de Categoria
+      ctx.font = '800 16px Inter';
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.fillText('APRESENTAÇÃO EXECUTIVA • EXECUTIVE PITCH DECK', 960, 310);
+
+      // Título Principal
+      ctx.font = '900 64px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('O Futuro da Comunicação Global &', 960, 400);
+
+      const titleGrad = ctx.createLinearGradient(600, 400, 1320, 400);
+      titleGrad.addColorStop(0, '#38bdf8');
+      titleGrad.addColorStop(0.5, '#818cf8');
+      titleGrad.addColorStop(1, '#34d399');
+      ctx.fillStyle = titleGrad;
+      ctx.fillText('Turismo Inteligente Sem Fronteiras', 960, 480);
+
+      // Subtítulo descritivo
+      ctx.font = '500 24px Inter';
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText('Tradução simultânea coletiva de voz, pagamentos instantâneos (PIX & Cripto)', 960, 560);
+      ctx.fillText('e experiência zero atrito via QR Code — direto no smartphone.', 960, 600);
+
+      // Badges Pilares
+      const badges = [
+        { label: 'Zero Download (PWA Web)', color: '#38bdf8' },
+        { label: 'Tradução Multilíngue < 1s', color: '#818cf8' },
+        { label: 'PIX + Binance Pay Cripto', color: '#34d399' },
+        { label: '10 Unidades Ativas em Teste', color: '#fbbf24' }
+      ];
+
+      badges.forEach((b, i) => {
+        const x = 500 + i * 260;
+        const y = 690;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        roundRect(ctx, x - 110, y, 220, 48, 24);
+        ctx.fill();
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.font = '700 14px Inter';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(b.label, x, y + 29);
+      });
+
+      ctx.restore();
+    }
+
+    // CENA 2: O DESAFIO DO MERCADO
+    function renderScene2(localT) {
+      ctx.save();
+      ctx.textAlign = 'left';
+
+      // Header da Cena
+      ctx.font = '800 16px Inter';
+      ctx.fillStyle = '#fb7185';
+      ctx.fillText('01. O DESAFIO GLOBAL • THE CHALLENGE', 80, 160);
+
+      ctx.font = '900 48px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Por que o turismo e os eventos globais ainda enfrentam atritos arcaicos?', 80, 220);
+
+      // 3 Cards de Problemas
+      const problems = [
+        {
+          num: '01',
+          title: 'Hardwares de Rádio Obsoletos',
+          sub: 'Equipamentos físicos (rádios-guia) caros, pesados, com custos logísticos de recarga e que NÃO oferecem nenhuma tradução (apenas repetem o mesmo idioma).',
+          stat: 'Custo Alto & Sem Tradução'
+        },
+        {
+          num: '02',
+          title: 'Barreiras Linguísticas Severas',
+          sub: 'Turistas de dezenas de nacionalidades ficam excluídos de palestras, passeios guiados e compras locais por falta de interpretação simultânea acessível.',
+          stat: 'Perda de 40%+ das Vendas'
+        },
+        {
+          num: '03',
+          title: 'Atrito Cambial & Taxas Abusivas',
+          sub: 'Spread de 6% a 15% em casas de câmbio e cartões internacionais em compras de souvenirs, passeios e gorjetas nas cidades turísticas.',
+          stat: '12% em Spreads Bancários'
+        }
+      ];
+
+      problems.forEach((p, i) => {
+        const cardX = 80 + i * 580;
+        const cardY = 300;
+        const animOffset = Math.max(0, (1 - localT * 0.8 + i * 0.2) * 40);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        roundRect(ctx, cardX, cardY + animOffset, 540, 480, 16);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(251, 113, 133, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Número
+        ctx.font = '900 36px Poppins';
+        ctx.fillStyle = '#fb7185';
+        ctx.fillText(p.num, cardX + 36, cardY + animOffset + 70);
+
+        // Título
+        ctx.font = '800 24px Poppins';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(p.title, cardX + 36, cardY + animOffset + 130);
+
+        // Descrição
+        ctx.font = '400 17px Inter';
+        ctx.fillStyle = '#94a3b8';
+        wrapText(ctx, p.sub, cardX + 36, cardY + animOffset + 180, 460, 26);
+
+        // Badge de Estatística
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.15)';
+        roundRect(ctx, cardX + 36, cardY + animOffset + 380, 460, 48, 10);
+        ctx.fill();
+        ctx.font = '700 15px Inter';
+        ctx.fillStyle = '#fb7185';
+        ctx.fillText('Impacto: ' + p.stat, cardX + 54, cardY + animOffset + 410);
+      });
+
+      ctx.restore();
+    }
+
+    // CENA 3: MODO GUIA & ENTRADA VIA QR CODE
+    function renderScene3(localT) {
+      ctx.save();
+
+      // Títulos à esquerda
+      ctx.textAlign = 'left';
+      ctx.font = '800 16px Inter';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('02. A SOLUÇÃO: ZERO FRICÇÃO • APPLESS VIA QR CODE', 80, 160);
+
+      ctx.font = '900 46px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('O Smartphone do Guia vira a Estação.', 80, 220);
+      ctx.fillText('O Turista apenas aponta a câmera.', 80, 275);
+
+      ctx.font = '400 19px Inter';
+      ctx.fillStyle = '#cbd5e1';
+      wrapText(ctx, 'Sem downloads na App Store ou Google Play. O turista lê o QR Code físico ou digital do guia e entra instantaneamente no canal de áudio traduzido pelo navegador web.', 80, 340, 720, 30);
+
+      // Bullets com ícones
+      const features = [
+        ' Entrada instantânea em < 2 segundos via Web PWA',
+        ' Zero aparelhos de rádio para higienizar ou recarregar',
+        ' O guia transmite a voz no idioma nativo dele',
+        ' Suporta mais de 50 turistas simultâneos por sala'
+      ];
+
+      features.forEach((feat, idx) => {
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+        roundRect(ctx, 80, 480 + idx * 75, 680, 60, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.font = '600 18px Inter';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(feat, 104, 517 + idx * 75);
+      });
+
+      // Mockup de Smartphone à direita
+      drawPhoneMockup(1300, 200, 360, 700, (pCtx, w, h) => {
+        // Tela do App: Sala Palestra / Modo Guia
+        pCtx.fillStyle = '#0f172a';
+        pCtx.fillRect(0, 0, w, h);
+
+        // Header do App
+        pCtx.fillStyle = '#1e293b';
+        pCtx.fillRect(0, 0, w, 70);
+        pCtx.font = '800 16px Poppins';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.textAlign = 'center';
+        pCtx.fillText('Canal do Guia: Lisboa Tour', w / 2, 44);
+
+        // Tag Transmitindo
+        pCtx.fillStyle = '#ef4444';
+        roundRect(pCtx, w / 2 - 50, 85, 100, 26, 13);
+        pCtx.fill();
+        pCtx.font = '700 11px Inter';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillText('🔴 TRANSMITINDO', w / 2, 102);
+
+        // QR Code animado gerado
+        drawSimulatedQRCode(pCtx, w / 2 - 90, 130, 180, 180);
+
+        pCtx.font = '700 14px Inter';
+        pCtx.fillStyle = '#38bdf8';
+        pCtx.fillText('Aponte a Câmera para Entrar', w / 2, 340);
+
+        pCtx.font = '400 12px Inter';
+        pCtx.fillStyle = '#94a3b8';
+        pCtx.fillText('https://atos2.online/connect?room=LISBOA', w / 2, 365);
+
+        // Lista de Ouvintes Conectados
+        pCtx.fillStyle = '#1e293b';
+        roundRect(pCtx, 20, 400, w - 40, 240, 12);
+        pCtx.fill();
+
+        pCtx.font = '700 13px Inter';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.textAlign = 'left';
+        pCtx.fillText('Ouvintes Conectados (48)', 35, 430);
+
+        const listeners = [
+          { name: 'John Smith', flag: '🇺🇸 English', status: 'Ouvindo em tempo real' },
+          { name: 'Carlos Morales', flag: '🇪🇸 Español', status: 'Ouvindo em tempo real' },
+          { name: 'Sophie Martin', flag: '🇫🇷 Français', status: 'Ouvindo em tempo real' }
+        ];
+
+        listeners.forEach((l, li) => {
+          pCtx.font = '600 13px Inter';
+          pCtx.fillStyle = '#ffffff';
+          pCtx.fillText(l.name, 35, 465 + li * 55);
+          pCtx.font = '700 11px Inter';
+          pCtx.fillStyle = '#34d399';
+          pCtx.fillText(l.flag, 240, 465 + li * 55);
+          pCtx.font = '400 11px Inter';
+          pCtx.fillStyle = '#94a3b8';
+          pCtx.fillText(l.status, 35, 485 + li * 55);
+        });
+      });
+
+      ctx.restore();
+    }
+
+    // CENA 4: TRADUÇÃO SIMULTÂNEA COLETIVA (<1s)
+    function renderScene4(localT) {
+      ctx.save();
+      ctx.textAlign = 'left';
+
+      // Header
+      ctx.font = '800 16px Inter';
+      ctx.fillStyle = '#818cf8';
+      ctx.fillText('03. TECNOLOGIA PROPRIETÁRIA • REAL-TIME PIPELINE', 80, 160);
+
+      ctx.font = '900 48px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Voz & Texto com Tradução Simultânea', 80, 220);
+
+      const subGrad = ctx.createLinearGradient(80, 260, 600, 260);
+      subGrad.addColorStop(0, '#818cf8');
+      subGrad.addColorStop(1, '#38bdf8');
+      ctx.fillStyle = subGrad;
+      ctx.fillText('Latência ultra-baixa de < 1 segundo.', 80, 275);
+
+      // Diagrama do Pipeline
+      const pipelineSteps = [
+        { title: 'Voz do Palestrante', desc: 'Captura WebRTC de baixa latência no smartphone' },
+        { title: 'Transcrição IA (Deepgram)', desc: 'Reconhecimento contínuo de fonemas em streaming' },
+        { title: 'Tradução Instantânea', desc: 'Groq LLaMA-3 + DeepL contextual para múltiplos idiomas' },
+        { title: 'Voz Neural Sintética', desc: 'ElevenLabs áudio multivoz direto no fone do turista' }
+      ];
+
+      pipelineSteps.forEach((step, si) => {
+        const py = 350 + si * 125;
+        ctx.fillStyle = 'rgba(129, 140, 248, 0.08)';
+        roundRect(ctx, 80, py, 680, 100, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(129, 140, 248, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.font = '800 20px Poppins';
+        ctx.fillStyle = '#818cf8';
+        ctx.fillText(`0${si + 1}`, 110, py + 40);
+
+        ctx.font = '700 18px Poppins';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(step.title, 160, py + 40);
+
+        ctx.font = '400 14px Inter';
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillText(step.desc, 160, py + 70);
+      });
+
+      // Mockup de Smartphone mostrando a conversa de áudio
+      drawPhoneMockup(1300, 200, 360, 700, (pCtx, w, h) => {
+        pCtx.fillStyle = '#0b1329';
+        pCtx.fillRect(0, 0, w, h);
+
+        pCtx.fillStyle = '#1e293b';
+        pCtx.fillRect(0, 0, w, 65);
+        pCtx.font = '800 15px Poppins';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.textAlign = 'center';
+        pCtx.fillText('Tradução Ao Vivo: Tour Belém', w / 2, 42);
+
+        // Espectro de Áudio Pulsando
+        pCtx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+        roundRect(pCtx, 20, 80, w - 40, 80, 12);
+        pCtx.fill();
+
+        pCtx.fillStyle = '#38bdf8';
+        for (let i = 0; i < 24; i++) {
+          const barHeight = Math.sin(localT * 6 + i * 0.5) * 22 + 25;
+          pCtx.fillRect(45 + i * 11, 120 - barHeight / 2, 6, barHeight);
+        }
+
+        // Balões de Chat Traduzidos
+        pCtx.textAlign = 'left';
+
+        // Fala Guia
+        pCtx.fillStyle = '#1e293b';
+        roundRect(pCtx, 20, 180, w - 40, 90, 12);
+        pCtx.fill();
+        pCtx.font = '700 11px Inter';
+        pCtx.fillStyle = '#38bdf8';
+        pCtx.fillText('🇧🇷 Guia (Português):', 35, 205);
+        pCtx.font = '500 13px Inter';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillText('"Bem-vindos ao Mosteiro dos Jerónimos!"', 35, 230);
+        pCtx.font = '400 10px Inter';
+        pCtx.fillStyle = '#94a3b8';
+        pCtx.fillText('Transmitido às 14:32 • Áudio broadcast', 35, 255);
+
+        // Ouvinte Americano
+        pCtx.fillStyle = '#1e1b4b';
+        roundRect(pCtx, 20, 290, w - 40, 90, 12);
+        pCtx.fill();
+        pCtx.strokeStyle = 'rgba(129, 140, 248, 0.4)';
+        pCtx.stroke();
+        pCtx.font = '700 11px Inter';
+        pCtx.fillStyle = '#818cf8';
+        pCtx.fillText('🇺🇸 Turista US (Fone de Ouvido):', 35, 315);
+        pCtx.font = '500 13px Inter';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillText('"Welcome to the Jerónimos Monastery!"', 35, 340);
+        pCtx.font = '700 10px Inter';
+        pCtx.fillStyle = '#34d399';
+        pCtx.fillText('⚡ Traduzido em 0.62s por IA', 35, 365);
+
+        // Ouvinte Espanhol
+        pCtx.fillStyle = '#1e293b';
+        roundRect(pCtx, 20, 400, w - 40, 90, 12);
+        pCtx.fill();
+        pCtx.font = '700 11px Inter';
+        pCtx.fillStyle = '#fbbf24';
+        pCtx.fillText('🇪🇸 Turista ES (Fone de Ouvido):', 35, 425);
+        pCtx.font = '500 13px Inter';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillText('"¡Bienvenidos al Monasterio de los Jerónimos!"', 35, 450);
+        pCtx.font = '700 10px Inter';
+        pCtx.fillStyle = '#34d399';
+        pCtx.fillText('⚡ Traduzido em 0.58s por IA', 35, 475);
+      });
+
+      ctx.restore();
+    }
+
+    // CENA 5: VITRINE COMERCIAL MULTILÍNGUE
+    function renderScene5(localT) {
+      ctx.save();
+      ctx.textAlign = 'left';
+
+      ctx.font = '800 16px Inter';
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('04. VITRINE COMERCIAL INTEGRADA • SOCIAL COMMERCE', 80, 160);
+
+      ctx.font = '900 48px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Produtos & Experiências Traduzidos', 80, 220);
+      ctx.fillText('com Preços na Moeda do Visitante', 80, 275);
+
+      ctx.font = '400 19px Inter';
+      ctx.fillStyle = '#cbd5e1';
+      wrapText(ctx, 'O visitante navega pelos produtos da loja, restaurante ou souvenirs do tour. Categorias e descrições são traduzidas instantaneamente, preservando a identidade da marca e convertendo a moeda em tempo real.', 80, 340, 720, 30);
+
+      const items = [
+        { label: 'Conversão Automática de Moeda (EUR, USD, BRL, USDT)', icon: '💱' },
+        { label: 'Nome comercial original intacto + descrição adaptada', icon: '🏷️' },
+        { label: 'Comissão por venda e monetização direta no ecossistema', icon: '📈' }
+      ];
+
+      items.forEach((it, idx) => {
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.08)';
+        roundRect(ctx, 80, 520 + idx * 85, 680, 68, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.font = '24px Inter';
+        ctx.fillText(it.icon, 105, 563 + idx * 85);
+
+        ctx.font = '600 17px Inter';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(it.label, 150, 562 + idx * 85);
+      });
+
+      // Mockup Smartphone Vitrine
+      drawPhoneMockup(1300, 200, 360, 700, (pCtx, w, h) => {
+        pCtx.fillStyle = '#090d1a';
+        pCtx.fillRect(0, 0, w, h);
+
+        pCtx.fillStyle = '#1e293b';
+        pCtx.fillRect(0, 0, w, 65);
+        pCtx.font = '800 16px Poppins';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.textAlign = 'center';
+        pCtx.fillText('Vitrine Oficial • Store', w / 2, 42);
+
+        // Card Produto 1
+        pCtx.textAlign = 'left';
+        pCtx.fillStyle = '#131e36';
+        roundRect(pCtx, 20, 90, w - 40, 180, 12);
+        pCtx.fill();
+
+        pCtx.fillStyle = '#38bdf8';
+        roundRect(pCtx, 35, 105, 70, 70, 8);
+        pCtx.fill();
+        pCtx.font = '30px Inter';
+        pCtx.fillText('🍷', 52, 150);
+
+        pCtx.font = '700 15px Poppins';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillText('Vinho do Porto Reserva', 120, 125);
+
+        pCtx.font = '600 11px Inter';
+        pCtx.fillStyle = '#38bdf8';
+        pCtx.fillText('Bebidas Tradicionais • Beverages', 120, 145);
+
+        pCtx.font = '400 11px Inter';
+        pCtx.fillStyle = '#94a3b8';
+        pCtx.fillText('Safra artesanal envelhecida em carvalho.', 120, 165);
+
+        pCtx.font = '800 17px Poppins';
+        pCtx.fillStyle = '#34d399';
+        pCtx.fillText('€ 35,00', 35, 235);
+        pCtx.font = '500 12px Inter';
+        pCtx.fillStyle = '#94a3b8';
+        pCtx.fillText('≈ $ 38.20 USD / R$ 195', 110, 235);
+
+        pCtx.fillStyle = '#2563eb';
+        roundRect(pCtx, w - 110, 210, 80, 34, 6);
+        pCtx.fill();
+        pCtx.font = '700 12px Inter';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.textAlign = 'center';
+        pCtx.fillText('Comprar', w - 70, 232);
+
+        // Card Produto 2
+        pCtx.textAlign = 'left';
+        pCtx.fillStyle = '#131e36';
+        roundRect(pCtx, 20, 290, w - 40, 180, 12);
+        pCtx.fill();
+
+        pCtx.fillStyle = '#fbbf24';
+        roundRect(pCtx, 35, 305, 70, 70, 8);
+        pCtx.fill();
+        pCtx.font = '30px Inter';
+        pCtx.fillText('🥧', 52, 350);
+
+        pCtx.font = '700 15px Poppins';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillText('Pastel de Nata Artesanal (Box)', 120, 325);
+
+        pCtx.font = '600 11px Inter';
+        pCtx.fillStyle = '#fbbf24';
+        pCtx.fillText('Gastronomia Local • Food', 120, 345);
+
+        pCtx.font = '400 11px Inter';
+        pCtx.fillStyle = '#94a3b8';
+        pCtx.fillText('Caixa com 6 unidades quentes.', 120, 365);
+
+        pCtx.font = '800 17px Poppins';
+        pCtx.fillStyle = '#34d399';
+        pCtx.fillText('€ 9,50', 35, 435);
+        pCtx.font = '500 12px Inter';
+        pCtx.fillStyle = '#94a3b8';
+        pCtx.fillText('≈ $ 10.35 USD', 100, 435);
+
+        pCtx.fillStyle = '#2563eb';
+        roundRect(pCtx, w - 110, 410, 80, 34, 6);
+        pCtx.fill();
+        pCtx.font = '700 12px Inter';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.textAlign = 'center';
+        pCtx.fillText('Comprar', w - 70, 432);
+      });
+
+      ctx.restore();
+    }
+
+    // CENA 6: FINTECH EMBUTIDA (PIX & BINANCE PAY)
+    function renderScene6(localT) {
+      ctx.save();
+      ctx.textAlign = 'left';
+
+      ctx.font = '800 16px Inter';
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText('05. EMBEDDED FINANCE • PAGAMENTOS GLOBAIS', 80, 160);
+
+      ctx.font = '900 48px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('PIX Instantâneo & Binance Pay Cripto', 80, 220);
+      ctx.fillText('Zero Câmbio Abusivo para Turistas', 80, 275);
+
+      ctx.font = '400 19px Inter';
+      ctx.fillStyle = '#cbd5e1';
+      wrapText(ctx, 'Eliminamos a extorsão bancária em transações internacionais. Estrangeiros pagam serviços, produtos e gorjetas diretamente em Cripto (USDT/BTC) ou PIX com liquidação instantânea para os guias e estabelecimentos credenciados.', 80, 340, 720, 30);
+
+      // Pilares Financeiros
+      const finSteps = [
+        { label: 'PIX Instantâneo', desc: 'QR Code Dinâmico com confirmação imediata em 2 segundos' },
+        { label: 'Binance Pay Nativo', desc: 'Depósito e liquidação em USDT/BTC sem taxas de rede abusivas' },
+        { label: 'Modelo de Receita Take Rate', desc: 'Margem sobre volume transacionado + taxa SaaS para comerciantes' }
+      ];
+
+      finSteps.forEach((fs, fsi) => {
+        const fy = 500 + fsi * 95;
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.08)';
+        roundRect(ctx, 80, fy, 680, 78, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.font = '700 18px Poppins';
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText(fs.label, 110, fy + 33);
+
+        ctx.font = '400 14px Inter';
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillText(fs.desc, 110, fy + 58);
+      });
+
+      // Mockup Smartphone Checkout
+      drawPhoneMockup(1300, 200, 360, 700, (pCtx, w, h) => {
+        pCtx.fillStyle = '#0a101f';
+        pCtx.fillRect(0, 0, w, h);
+
+        pCtx.fillStyle = '#1e293b';
+        pCtx.fillRect(0, 0, w, 65);
+        pCtx.font = '800 16px Poppins';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.textAlign = 'center';
+        pCtx.fillText('Checkout Instantâneo', w / 2, 42);
+
+        // Valor
+        pCtx.font = '800 32px Poppins';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillText('€ 35,00', w / 2, 120);
+
+        pCtx.font = '500 13px Inter';
+        pCtx.fillStyle = '#34d399';
+        pCtx.fillText('Taxa de Câmbio Reduzida (0% IOF)', w / 2, 145);
+
+        // QR Code de Pagamento
+        drawSimulatedQRCode(pCtx, w / 2 - 85, 170, 170, 170);
+
+        // Métodos de Pagamento Selecionados
+        pCtx.textAlign = 'left';
+
+        // PIX Badge
+        pCtx.fillStyle = '#1e293b';
+        roundRect(pCtx, 25, 370, w - 50, 60, 10);
+        pCtx.fill();
+        pCtx.strokeStyle = '#34d399';
+        pCtx.stroke();
+        pCtx.font = '700 15px Inter';
+        pCtx.fillStyle = '#34d399';
+        pCtx.fillText('🟢 PIX Instantâneo (Brasil)', 45, 406);
+
+        // Binance Pay Badge
+        pCtx.fillStyle = '#1e293b';
+        roundRect(pCtx, 25, 445, w - 50, 60, 10);
+        pCtx.fill();
+        pCtx.strokeStyle = '#fbbf24';
+        pCtx.stroke();
+        pCtx.font = '700 15px Inter';
+        pCtx.fillStyle = '#fbbf24';
+        pCtx.fillText('🟡 Binance Pay (USDT / Cripto)', 45, 481);
+
+        // Botão Confirmar
+        pCtx.fillStyle = '#2563eb';
+        roundRect(pCtx, 25, 540, w - 50, 52, 12);
+        pCtx.fill();
+        pCtx.textAlign = 'center';
+        pCtx.font = '800 15px Poppins';
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillText('Confirmar Pagamento', w / 2, 572);
+      });
+
+      ctx.restore();
+    }
+
+    // CENA 7: TRAÇÃO VALIDADA & EXPANSÃO (398 UNIDADES)
+    function renderScene7(localT) {
+      ctx.save();
+      ctx.textAlign = 'left';
+
+      ctx.font = '800 16px Inter';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('06. VALIDAÇÃO DE MERCADO & TRAÇÃO', 80, 160);
+
+      ctx.font = '900 48px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Modelo Validado em Rede B2B', 80, 220);
+
+      const subG = ctx.createLinearGradient(80, 260, 600, 260);
+      subG.addColorStop(0, '#38bdf8');
+      subG.addColorStop(1, '#34d399');
+      ctx.fillStyle = subG;
+      ctx.fillText('Estratégia Land & Expand em Escala Imediata', 80, 275);
+
+      // Gráficos de Tração
+      const metrics = [
+        {
+          val: '10',
+          unit: 'Unidades Ativas',
+          sub: 'Piloto em execução operacional com validação de uso contínuo e feedbacks excelentes.'
+        },
+        {
+          val: '398',
+          unit: 'Unidades Mapeadas',
+          sub: 'Potencial direto de expansão no mesmo grupo empresarial com custo de aquisição (CAC) zero.'
+        },
+        {
+          val: '$1.8 T',
+          unit: 'TAM Mercado Global',
+          sub: 'Mercado de turismo internacional, conferências e experiências corporativas sem atrito.'
+        }
+      ];
+
+      metrics.forEach((m, mi) => {
+        const mx = 80 + mi * 580;
+        const my = 350;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+        roundRect(ctx, mx, my, 540, 450, 16);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.font = '900 68px Poppins';
+        ctx.fillStyle = mi === 1 ? '#34d399' : (mi === 0 ? '#38bdf8' : '#fbbf24');
+        ctx.fillText(m.val, mx + 40, my + 110);
+
+        ctx.font = '800 24px Poppins';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(m.unit, mx + 40, my + 175);
+
+        ctx.font = '400 17px Inter';
+        ctx.fillStyle = '#94a3b8';
+        wrapText(ctx, m.sub, mx + 40, my + 230, 460, 28);
+
+        // Barra de progresso visual
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        roundRect(ctx, mx + 40, my + 370, 460, 12, 6);
+        ctx.fill();
+
+        ctx.fillStyle = mi === 1 ? '#34d399' : (mi === 0 ? '#38bdf8' : '#fbbf24');
+        const fillW = mi === 0 ? 120 : (mi === 1 ? 400 : 460);
+        roundRect(ctx, mx + 40, my + 370, fillW, 12, 6);
+        ctx.fill();
+      });
+
+      ctx.restore();
+    }
+
+    // CENA 8: DIFERENCIAL COMPETITIVO & ENCERRAMENTO (CTA)
+    function renderScene8(localT) {
+      ctx.save();
+      ctx.textAlign = 'center';
+
+      // Glow Central
+      const grad = ctx.createRadialGradient(960, 450, 20, 960, 450, 500);
+      grad.addColorStop(0, 'rgba(52, 211, 153, 0.18)');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      ctx.font = '800 16px Inter';
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('07. DIFERENCIAL COMPETITIVO & OPORTUNIDADE', 960, 160);
+
+      ctx.font = '900 56px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('A Solução Definitiva para o Turismo Global', 960, 235);
+
+      ctx.font = '500 22px Inter';
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText('Zero hardware. Tradução simultânea de voz. Checkout PIX e Cripto integrado.', 960, 295);
+
+      // Matriz Comparativa Resumida
+      const rows = [
+        { label: 'Entrada sem baixar App (QR Code Web)', atos: '✅ SIM (PWA)', others: '❌ Não (Exige App/Hardware)' },
+        { label: 'Tradução Simultânea Coletiva Multilíngue', atos: '✅ SIM (<1s)', others: '❌ Não (Hardware não traduz)' },
+        { label: 'Custo de Hardware para o Guia / Agência', atos: '✅ R$ 0,00', others: '❌ R$ 15.000+ em aparelhos' },
+        { label: 'Fintech Embutida (PIX + Cripto Binance)', atos: '✅ SIM NATIVO', others: '❌ Não possui' }
+      ];
+
+      rows.forEach((r, ri) => {
+        const ry = 360 + ri * 82;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+        roundRect(ctx, 360, ry, 1200, 68, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.font = '700 18px Inter';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(r.label, 390, ry + 41);
+
+        ctx.textAlign = 'center';
+        ctx.font = '800 17px Poppins';
+        ctx.fillStyle = '#34d399';
+        ctx.fillText(r.atos, 1050, ry + 41);
+
+        ctx.font = '600 16px Inter';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(r.others, 1370, ry + 41);
+      });
+
+      // Banner CTA Final
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
+      roundRect(ctx, 460, 740, 1000, 150, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.font = '900 28px Poppins';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Participe da Revolução do Turismo Inteligente', 960, 790);
+
+      ctx.font = '600 18px Inter';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('Acesse a plataforma em tempo real: https://atos2.online', 960, 830);
+
+      ctx.font = '500 15px Inter';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('Pitch Deck Oficial Disponível em: https://atos2.online/pitch-deck.pdf', 960, 860);
+
+      ctx.restore();
+    }
+
+    // ==========================================
+    // UTILITÁRIOS DE DESENHO (PHONE MOCKUP & TEXT)
+    // ==========================================
+
+    function drawPhoneMockup(x, y, w, h, contentCallback) {
+      ctx.save();
+      // Sombra
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+      ctx.shadowBlur = 40;
+      ctx.shadowOffsetY = 20;
+
+      // Corpo do Celular
+      ctx.fillStyle = '#1e293b';
+      roundRect(ctx, x, y, w, h, 38);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+
+      // Borda de Titânio
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 3;
+      roundRect(ctx, x, y, w, h, 38);
+      ctx.stroke();
+
+      // Tela Interna (Clip)
+      ctx.save();
+      roundRect(ctx, x + 10, y + 10, w - 20, h - 20, 30);
+      ctx.clip();
+
+      // Contexto local para o callback desenhar a tela
+      ctx.translate(x + 10, y + 10);
+      contentCallback(ctx, w - 20, h - 20);
+      ctx.restore();
+
+      // Dynamic Island / Notch
+      ctx.fillStyle = '#000000';
+      roundRect(ctx, x + w / 2 - 45, y + 18, 90, 24, 12);
+      ctx.fill();
+
+      // Câmera
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(x + w / 2 + 25, y + 30, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawSimulatedQRCode(targetCtx, x, y, w, h) {
+      targetCtx.save();
+      targetCtx.fillStyle = '#ffffff';
+      roundRect(targetCtx, x, y, w, h, 10);
+      targetCtx.fill();
+
+      targetCtx.fillStyle = '#000000';
+      const gridSize = 9;
+      const cellSize = (w - 20) / gridSize;
+
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+          if ((r < 3 && c < 3) || (r < 3 && c > gridSize - 4) || (r > gridSize - 4 && c < 3)) {
+            targetCtx.fillRect(x + 10 + c * cellSize, y + 10 + r * cellSize, cellSize, cellSize);
+          } else if ((r + c) % 2 === 0 || (r * c) % 3 === 0) {
+            targetCtx.fillRect(x + 10 + c * cellSize, y + 10 + r * cellSize, cellSize - 1, cellSize - 1);
+          }
+        }
+      }
+      targetCtx.restore();
+    }
+
+    function roundRect(context, x, y, w, h, radius) {
+      context.beginPath();
+      context.moveTo(x + radius, y);
+      context.arcTo(x + w, y, x + w, y + h, radius);
+      context.arcTo(x + w, y + h, x, y + h, radius);
+      context.arcTo(x, y + h, x, y, radius);
+      context.arcTo(x, y, x + w, y, radius);
+      context.closePath();
+    }
+
+    function wrapText(context, text, x, y, maxWidth, lineHeight) {
+      const words = text.split(' ');
+      let line = '';
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = context.measureText(testLine);
+        const testWidth = metrics.width;
+        if (testWidth > maxWidth && n > 0) {
+          context.fillText(line, x, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      context.fillText(line, x, y);
+    }
+
+    // ==========================================
+    // CONTROLES DE REPRODUÇÃO E GRAVAÇÃO
+    // ==========================================
+
+    function togglePlay() {
+      initAudio();
+      isPlaying = !isPlaying;
+      if (isPlaying) {
+        playIcon.textContent = '⏸';
+        playText.textContent = 'Pausar';
+        lastTimestamp = performance.now();
+        playSoundtrack();
+        tick();
+      } else {
+        playIcon.textContent = '▶';
+        playText.textContent = 'Reproduzir';
+        stopSoundtrack();
+        cancelAnimationFrame(animationFrameId);
+      }
+    }
+
+    function restartVideo() {
+      currentTime = 0;
+      updateUI();
+      render(0);
+      if (isPlaying) {
+        lastTimestamp = performance.now();
+      }
+    }
+
+    function toggleMute() {
+      initAudio();
+      isMuted = !isMuted;
+      document.getElementById('muteIcon').textContent = isMuted ? '🔇' : '🔊';
+      if (isMuted) {
+        stopSoundtrack();
+      } else if (isPlaying) {
+        playSoundtrack();
+      }
+    }
+
+    function toggleFullscreen() {
+      const vp = document.getElementById('viewport');
+      if (!document.fullscreenElement) {
+        vp.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    function seek(event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const clickX = event.clientX - rect.left;
+      const pct = clickX / rect.width;
+      currentTime = pct * TOTAL_DURATION;
+      updateUI();
+      render(currentTime);
+    }
+
+    function updateUI() {
+      const mins = Math.floor(currentTime / 60);
+      const secs = Math.floor(currentTime % 60);
+      const totalMins = Math.floor(TOTAL_DURATION / 60);
+      const totalSecs = Math.floor(TOTAL_DURATION % 60);
+
+      timeDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} / ${String(totalMins).padStart(2, '0')}:${String(totalSecs).padStart(2, '0')}`;
+
+      const pct = (currentTime / TOTAL_DURATION) * 100;
+      timelineFill.style.width = `${pct}%`;
+
+      // Atualiza nome da cena atual
+      const curScene = SCENES.find(s => currentTime >= s.start && currentTime < s.end) || SCENES[SCENES.length - 1];
+      if (curScene) {
+        chapterTag.textContent = curScene.name;
+      }
+    }
+
+    function tick() {
+      if (!isPlaying) return;
+
+      const now = performance.now();
+      const delta = (now - lastTimestamp) / 1000;
+      lastTimestamp = now;
+
+      currentTime += delta;
+      if (currentTime >= TOTAL_DURATION) {
+        currentTime = TOTAL_DURATION;
+        render(currentTime);
+        updateUI();
+        togglePlay();
+        if (isRecording) {
+          stopRecording();
+        }
+        return;
+      }
+
+      render(currentTime);
+      updateUI();
+      animationFrameId = requestAnimationFrame(tick);
+    }
+
+    // Gravação nativa usando MediaRecorder direto para arquivo .webm / .mp4
+    function toggleRecord() {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    }
+
+    function startRecording() {
+      initAudio();
+      recordedChunks = [];
+      const stream = canvas.captureStream(60); // 60 FPS Full HD
+
+      // Adiciona faixa de áudio se disponível
+      if (audioCtx) {
+        const dest = audioCtx.createMediaStreamDestination();
+        stream.addTrack(dest.stream.getAudioTracks()[0]);
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4');
+
+      mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000 });
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'video_promocional_atos2.webm';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+        btnRecord.classList.remove('recording');
+        recordText.textContent = 'Gravar & Baixar (.webm)';
+        alert('Vídeo promocional gravado e baixado com sucesso!');
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      btnRecord.classList.add('recording');
+      recordText.textContent = '⏹ Parar & Salvar';
+
+      // Reinicia e reproduz
+      currentTime = 0;
+      if (!isPlaying) {
+        togglePlay();
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      isRecording = false;
+    }
+
+    // Inicialização ao carregar
+    window.addEventListener('load', () => {
+      render(0);
+      updateUI();
+    });
+  </script>
+</body>
+</html>

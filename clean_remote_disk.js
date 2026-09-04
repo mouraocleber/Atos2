@@ -16,10 +16,20 @@ conn.on('error', (err) => {
 });
 
 conn.on('ready', () => {
-  console.log('SSH connection established! Fetching filtered logs...');
+  console.log('SSH connection established! Starting disk cleanup...');
   
-  // View backend container logs for MercadoPago errors and events with timestamps, filtering out repetitive checking lines
-  conn.exec("docker logs atos2-backend --timestamps 2>&1 | grep -i -E 'reconcil|webhook|approved|aprovado|payment|error|erro|falha' | grep -v 'Verificando 14'", (err, stream) => {
+  const cmd = [
+    'echo "=== DISK SPACE BEFORE ==="',
+    'df -h',
+    'echo "=== DOCKER IMAGES/CONTAINERS BEFORE ==="',
+    'docker system df',
+    'echo "=== RUNNING DOCKER PRUNE ==="',
+    'docker system prune -a --volumes -f',
+    'echo "=== DISK SPACE AFTER ==="',
+    'df -h'
+  ].join(' && ');
+
+  conn.exec(cmd, (err, stream) => {
     if (err) {
       console.error('Error running exec:', err);
       conn.end();
@@ -35,7 +45,7 @@ conn.on('ready', () => {
     });
     
     stream.on('close', (code, signal) => {
-      console.log(`\nSSH command exited with code ${code}`);
+      console.log(`SSH commands exited with code ${code}`);
       conn.end();
     });
   });

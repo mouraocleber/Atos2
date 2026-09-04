@@ -20,7 +20,7 @@ conn.on('ready', () => {
   
   const cmd = [
     'echo "=== RECENT TRANSACTIONS ==="',
-    'docker exec atos2-db psql -U postgres -d atos2 -c "SELECT id, type, amount, status, description, reference, created_at FROM transactions ORDER BY created_at DESC LIMIT 15;"'
+    'docker exec atos2-db psql -U postgres -d atos2 -c "SELECT t.id, t.type, t.amount, t.status, t.reference, t.created_at, u.email FROM transactions t LEFT JOIN users u ON t.to_user_id = u.id WHERE t.type = \'DEPOSIT\' AND t.status = \'PENDING\' ORDER BY t.created_at DESC;"'
   ].join(' && ');
 
   conn.exec(cmd, (err, stream) => {

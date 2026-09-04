@@ -1,4 +1,6 @@
 const { Client } = require('ssh2');
+const fs = require('fs');
+const path = require('path');
 
 const config = {
   host: '142.93.59.54',
@@ -16,26 +18,28 @@ conn.on('error', (err) => {
 });
 
 conn.on('ready', () => {
-  console.log('SSH connection established! Fetching filtered logs...');
+  console.log('SSH connection established! Fetching 3000 lines of logs...');
   
-  // View backend container logs for MercadoPago errors and events with timestamps, filtering out repetitive checking lines
-  conn.exec("docker logs atos2-backend --timestamps 2>&1 | grep -i -E 'reconcil|webhook|approved|aprovado|payment|error|erro|falha' | grep -v 'Verificando 14'", (err, stream) => {
+  conn.exec('docker logs atos2-backend --tail 3000', (err, stream) => {
     if (err) {
       console.error('Error running exec:', err);
       conn.end();
       process.exit(1);
     }
     
+    const writeStream = fs.createWriteStream(path.join(__dirname, 'backend_logs.txt'));
+    
     stream.on('data', (data) => {
-      process.stdout.write(data.toString());
+      writeStream.write(data);
     });
     
     stream.stderr.on('data', (data) => {
-      process.stderr.write(data.toString());
+      writeStream.write(data);
     });
     
     stream.on('close', (code, signal) => {
-      console.log(`\nSSH command exited with code ${code}`);
+      console.log(`Logs saved to backend_logs.txt. SSH command exited with code ${code}`);
+      writeStream.end();
       conn.end();
     });
   });

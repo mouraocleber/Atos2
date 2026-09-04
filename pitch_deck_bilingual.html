@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atos2 - Pitch Deck (Bilingual PT/EN)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #070a12 0%, #0d1527 100%);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-purple: #818cf8;
+      --accent-green: #34d399;
+      --accent-gold: #fbbf24;
+      --accent-rose: #fb7185;
+      --card-bg: rgba(255, 255, 255, 0.04);
+      --card-border: rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #070a12;
+      color: var(--text-main);
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .deck-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+      padding: 30px 20px;
+    }
+
+    .slide {
+      width: 100%;
+      max-width: 1180px;
+      aspect-ratio: 16 / 9;
+      background: var(--bg-gradient);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 40px 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Ambient glow elements */
+    .slide::after {
+      content: '';
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.1) 0%, transparent 70%);
+      top: -120px;
+      right: -120px;
+      pointer-events: none;
+      border-radius: 50%;
+    }
+
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      padding-bottom: 14px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+      color: #fff;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      font-size: 18px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .slide-category {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+
+    .slide-title-pt {
+      font-family: 'Poppins', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .slide-title-en {
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--accent-purple);
+      line-height: 1.2;
+      margin-top: 3px;
+    }
+
+    .lang-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-right: 6px;
+    }
+
+    .pill-pt {
+      background: rgba(52, 211, 153, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+
+    .pill-en {
+      background: rgba(129, 140, 248, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(129, 140, 248, 0.3);
+    }
+
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      backdrop-filter: blur(10px);
+    }
+
+    .card-title {
+      font-family: 'Poppins', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .text-pt {
+      font-size: 13px;
+      color: #e2e8f0;
+      line-height: 1.45;
+    }
+
+    .text-en {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      border-top: 1px dashed rgba(255, 255, 255, 0.08);
+      padding-top: 8px;
+      margin-top: 2px;
+    }
+
+    .highlight-number {
+      font-family: 'Poppins', sans-serif;
+      font-size: 42px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+    }
+
+    .highlight-sub {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+      padding-top: 12px;
+      margin-top: 15px;
+      font-size: 11px;
+      color: var(--text-muted);
+      position: relative;
+      z-index: 2;
+    }
+
+    .footer-url {
+      color: var(--accent-cyan);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    @media print {
+      @page {
+        size: 297mm 210mm;
+        margin: 0;
+      }
+      html, body {
+        background: #070a12 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .deck-container {
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+      .slide {
+        width: 297mm !important;
+        height: 210mm !important;
+        max-width: none !important;
+        aspect-ratio: auto !important;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: var(--bg-gradient) !important;
+        padding: 24mm 24mm !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="deck-container">
+
+    <!-- SLIDE 1: COVER -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="brand-group">
+          <div class="logo-badge">ATOS2</div>
+          <div>
+            <div class="slide-category">Executive Pitch Deck • Apresentação Executiva</div>
+            <div style="font-size: 12px; color: var(--text-muted);">Confidential • Confidencial</div>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <span class="lang-pill pill-pt">PT</span>
+          <span class="lang-pill pill-en">EN</span>
+        </div>
+      </div>
+
+      <div class="slide-body" style="align-items: center; text-align: center; gap: 20px;">
+        <div style="display: inline-block; padding: 6px 16px; border-radius: 20px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); font-size: 12px; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 1px;">
+          B2B SaaS + Global Embedded Fintech
+        </div>
+
+        <h1 style="font-family: 'Poppins', sans-serif; font-size: 40px; font-weight: 800; line-height: 1.15; max-width: 950px; background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          Infraestrutura Global de Atendimento Multilíngue & Pagamentos Instantâneos
+        </h1>
+
+        <div style="font-size: 18px; color: var(--accent-purple); font-weight: 500; max-width: 880px;">
+          Global Multilingual Voice AI Communication & Instant Cross-Border Payments
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; justify-content: center;">
+          <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+            ⚡ Zero-Download Browser WebRTC
+          </div>
+          <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+            🎙️ Live Speech-to-Speech AI (&lt;300ms)
+          </div>
+          <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+            💳 PIX + Binance Pay (USDT/USDC/BTC)
+          </div>
+          <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+            🏢 Enterprise Land & Expand
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 Global Inc.</div>
+        <div>Demonstração ao vivo / Live Demo: <a href="https://atos2.online" class="footer-url" target="_blank">atos2.online</a></div>
+        <div>Slide 1 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: THE PROBLEM -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">01. O Desafio • The Challenge</div>
+          <div class="slide-title-pt">O Gargalo Bilionário no Atendimento & Pagamentos</div>
+          <div class="slide-title-en">The Multi-Billion Dollar Language & Cross-Border Payment Barrier</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card" style="border-top: 3px solid var(--accent-rose);">
+            <div class="card-title" style="color: var(--accent-rose);">🗣️ Barreira de Idioma</div>
+            <div class="text-pt">
+              <strong>Vendas perdidas no balcão:</strong> Mais de 74% dos turistas e clientes internacionais desistem da compra quando o atendente não fala seu idioma nativo.
+            </div>
+            <div class="text-en">
+              <strong>Lost revenue at the counter:</strong> Over 74% of international tourists abandon transactions when staff cannot communicate in their native language.
+            </div>
+          </div>
+
+          <div class="card" style="border-top: 3px solid var(--accent-gold);">
+            <div class="card-title" style="color: var(--accent-gold);">💸 Fricção Financeira & Spread</div>
+            <div class="text-pt">
+              <strong>Custos abusivos e recusa:</strong> Máquinas de cartão rejeitam cartões estrangeiros, cobram spreads de 6% a 12% e impõem tarifas bancárias predatórias.
+            </div>
+            <div class="text-en">
+              <strong>High fees & card declines:</strong> Local POS terminals decline foreign cards, charge 6%–12% FX spreads, and burden merchants with chargeback risks.
+            </div>
+          </div>
+
+          <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+            <div class="card-title" style="color: var(--accent-cyan);">📲 Atrito de Download</div>
+            <div class="text-pt">
+              <strong>Rejeição de novos apps:</strong> O viajante não quer baixar um aplicativo local para usar apenas uma vez num restaurante, hotel ou clínica.
+            </div>
+            <div class="text-en">
+              <strong>App store fatigue:</strong> Travelers refuse to download regional apps for one-off transactions in hospitality, dining, and local services.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • Eliminando barreiras linguísticas e cambiais</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 2 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: THE SOLUTION -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">02. A Solução • The Solution</div>
+          <div class="slide-title-pt">Infraestrutura All-in-One: Tradução de Voz + Pagamentos</div>
+          <div class="slide-title-en">Unified Zero-Friction Voice AI & Instant Cross-Border Checkout</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+            <div class="card-title" style="color: var(--accent-cyan);">⚡ Zero Fricção (WebRTC Web)</div>
+            <div class="text-pt">
+              O cliente escaneia o QR Code no balcão ou clica em um link e acessa <strong>direto pelo navegador</strong> (Safari/Chrome), sem baixar nada na loja de apps.
+            </div>
+            <div class="text-en">
+              Customers scan a QR Code or click a link to connect <strong>instantly in their mobile browser</strong>. No app download or account setup friction required.
+            </div>
+          </div>
+
+          <div class="card" style="border-top: 3px solid var(--accent-purple);">
+            <div class="card-title" style="color: var(--accent-purple);">🎙️ Tradução de Voz em Tempo Real</div>
+            <div class="text-pt">
+              Chamadas de voz P2P e chat com tradução simultânea em <strong>menos de 300ms</strong> com voz humana natural (Deepgram Nova-2 + Groq Whisper).
+            </div>
+            <div class="text-en">
+              Sub-300ms speech-to-speech voice translation and instant messaging powered by Deepgram Nova-2 and Groq Whisper with ultra-natural vocal synthesis.
+            </div>
+          </div>
+
+          <div class="card" style="border-top: 3px solid var(--accent-green);">
+            <div class="card-title" style="color: var(--accent-green);">💳 Checkout Integrado Multimoeda</div>
+            <div class="text-pt">
+              Pagamentos instantâneos na mesma tela: <strong>PIX local</strong> e <strong>Criptoativos globais (USDT, USDC, BTC, ETH)</strong> via Binance Pay com liquidação automática.
+            </div>
+            <div class="text-en">
+              Embedded checkout on the exact same screen: Instant local fiat (PIX) and global crypto (USDT, USDC, BTC, ETH) settled via official Binance Pay rails.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • Conversas que se transformam em transações</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 3 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: TRACTION & ENTERPRISE VALIDATION -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">03. Tração & Validação • Traction & Validation</div>
+          <div class="slide-title-pt">Validação B2B e Estratégia Land & Expand</div>
+          <div class="slide-title-en">Enterprise Deployment & Strategic Land & Expand Pipeline</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-2">
+          <!-- Left metrics box -->
+          <div class="card" style="background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); justify-content: center; gap: 16px;">
+            <div>
+              <div class="highlight-sub">Piloto Ativo / Live Pilot Deployment</div>
+              <div class="highlight-number">10 Unidades</div>
+              <div style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">Em validação controlada com operação real / In active operational validation</div>
+            </div>
+
+            <div style="height: 1px; background: rgba(255, 255, 255, 0.1);"></div>
+
+            <div>
+              <div class="highlight-sub">Rede Mapeada para Rollout / Total Fleet Potential</div>
+              <div class="highlight-number" style="background: linear-gradient(135deg, #34d399 0%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">398 Unidades</div>
+              <div style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">Expansão de quase 40x na receita contratável / Near 40x contracted expansion pipeline</div>
+            </div>
+          </div>
+
+          <!-- Right explanation box -->
+          <div class="card" style="justify-content: space-between;">
+            <div>
+              <div class="card-title" style="color: var(--accent-cyan); font-size: 18px;">🎯 Tese de Valuation & Oportunidade</div>
+              
+              <div class="text-pt" style="margin-top: 10px;">
+                <strong>Por que o momento é ideal para o investidor:</strong> Nosso faturamento inicial reflete a fase cirúrgica de homologação em 10 unidades (apenas 2,5% do potencial deste primeiro contrato corporativo).
+                <br><br>
+                O valuation é respaldado pelo <strong>pipeline mapeado de 398 unidades</strong>, cuja expansão ocorre com <strong>CAC marginal próximo a zero</strong>, além da tecnologia própria 100% desenvolvida e em produção.
+              </div>
+
+              <div class="text-en">
+                <strong>Why the entry valuation is compelling:</strong> Early revenue reflects the controlled pilot stage in 10 units (only 2.5% of this first enterprise account's capacity). 
+                <br><br>
+                Valuation is anchored by the <strong>398-unit expansion pipeline</strong> delivering ~40x revenue scale at near-zero marginal CAC, on top of proprietary, production-ready technology.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • De um piloto cirúrgico a uma rede global</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 4 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: BUSINESS MODEL -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">04. Modelo de Negócio • Business Model</div>
+          <div class="slide-title-pt">Receita Dupla: Previsibilidade SaaS + Escala Fintech</div>
+          <div class="slide-title-en">Dual Revenue Engine: Predictable SaaS MRR + Transactional Take Rate</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+            <div class="card-title" style="color: var(--accent-cyan);">🏢 B2B SaaS Recorrente</div>
+            <div class="text-pt">
+              <strong>Mensalidade por Estabelecimento:</strong> Planos recorrentes para hotéis, restaurantes, clínicas e lojistas por unidade ou ponto de atendimento (MRR previsível).
+            </div>
+            <div class="text-en">
+              <strong>Unit Subscriptions:</strong> Monthly SaaS fee per venue, front-desk, or sales counter. Generates predictable recurring revenue (MRR/ARR) with high retention.
+            </div>
+          </div>
+
+          <div class="card" style="border-top: 3px solid var(--accent-green);">
+            <div class="card-title" style="color: var(--accent-green);">📈 Take Rate Transacional</div>
+            <div class="text-pt">
+              <strong>Fatia sobre Pagamentos:</strong> Monetização percentual sobre cada transação financeira processada em PIX ou Criptoativos (Binance Pay).
+            </div>
+            <div class="text-en">
+              <strong>Payment Processing Take Rate:</strong> Transaction percentage on every fiat and crypto payment processed through the embedded checkout.
+            </div>
+          </div>
+
+          <div class="card" style="border-top: 3px solid var(--accent-gold);">
+            <div class="card-title" style="color: var(--accent-gold);">🎙️ Franquia de IA por Minuto</div>
+            <div class="text-pt">
+              <strong>Volume de Tradução Vocal:</strong> Pacotes corporativos e cobrança por minuto excedente em chamadas VoIP com tradução simultânea de alta fidelidade.
+            </div>
+            <div class="text-en">
+              <strong>Voice AI Metering:</strong> Corporate voice minute bundles and micro-billing for high-volume cross-border translation calls.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • Modelo escalável de alta margem bruta</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 5 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: PRODUCT EXPERIENCE FLOW -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">05. Experiência do Usuário • Product Experience Flow</div>
+          <div class="slide-title-pt">Como Funciona na Prática em 3 Etapas Simples</div>
+          <div class="slide-title-en">Zero-Friction Journey: From Physical Counter to Settled Transaction</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card">
+            <div style="font-size: 28px; font-weight: 800; color: var(--accent-cyan);">01</div>
+            <div class="card-title">Escaneie &amp; Conecte / Scan &amp; Connect</div>
+            <div class="text-pt">
+              O turista aponta a câmera do celular para o QR Code no balcão ou acessa o link. A tela de chat e chamada abre na hora pelo navegador, sem cadastro demorado.
+            </div>
+            <div class="text-en">
+              Customer points phone camera at the venue QR Code. Chat and voice call interface launches instantly in browser with zero app installation.
+            </div>
+          </div>
+
+          <div class="card">
+            <div style="font-size: 28px; font-weight: 800; color: var(--accent-purple);">02</div>
+            <div class="card-title">Voz &amp; Chat Multilíngue / Live Translation</div>
+            <div class="text-pt">
+              O cliente fala ou digita no seu idioma nativo (Inglês, Espanhol, Mandarim, Francês). O atendente ouve e lê em Português instantaneamente via IA.
+            </div>
+            <div class="text-en">
+              Both parties speak or type in their native tongues. Speech-to-speech AI delivers instantaneous voice translations and subtitles in under 300ms.
+            </div>
+          </div>
+
+          <div class="card">
+            <div style="font-size: 28px; font-weight: 800; color: var(--accent-green);">03</div>
+            <div class="card-title">Checkout Imediato / Instant Settlement</div>
+            <div class="text-pt">
+              O valor do pedido surge na tela. O cliente escolhe pagar via PIX ou Cripto (Binance Pay) com cotação em tempo real. O estabelecimento recebe a confirmação na hora.
+            </div>
+            <div class="text-en">
+              Invoice generates directly in the interaction. Customer completes payment via local PIX or Binance Pay Crypto with instant confirmation.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • Experiência fluida para clientes e estabelecimentos</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 6 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: MARKET OPPORTUNITY (TAM) -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">06. Mercado &amp; Oportunidade • Market Opportunity</div>
+          <div class="slide-title-pt">Um Mercado Trilionário Impulsionado pelo Turismo &amp; Varejo</div>
+          <div class="slide-title-en">Capturing Trillions in Global Tourism, Hospitality &amp; Cross-Border Commerce</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card" style="background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); text-align: center;">
+            <div class="highlight-sub">TAM • Mercado Total</div>
+            <div class="highlight-number">US$ 1.9T</div>
+            <div class="text-pt" style="margin-top: 10px;">
+              Volume financeiro global movimentado por turismo internacional, hotelaria e gastronomia receptiva.
+            </div>
+            <div class="text-en">
+              Global annual expenditure across international travel, hospitality, and cross-border food &amp; services.
+            </div>
+          </div>
+
+          <div class="card" style="background: rgba(129, 140, 248, 0.05); border: 1px solid rgba(129, 140, 248, 0.2); text-align: center;">
+            <div class="highlight-sub">SAM • Mercado Endereçável</div>
+            <div class="highlight-number">US$ 180B</div>
+            <div class="text-pt" style="margin-top: 10px;">
+              Gastos de viajantes em serviços locais presenciais (hotéis, clínicas, restaurantes e passeios) com necessidade de atendimento multilíngue.
+            </div>
+            <div class="text-en">
+              In-person cross-border retail and hospitality spend requiring multilingual interaction and instant settlement.
+            </div>
+          </div>
+
+          <div class="card" style="background: rgba(52, 211, 153, 0.05); border: 1px solid rgba(52, 211, 153, 0.2); text-align: center;">
+            <div class="highlight-sub">SOM • Mercado Alvo Inicial</div>
+            <div class="highlight-number">US$ 12B</div>
+            <div class="text-pt" style="margin-top: 10px;">
+              Grandes redes de hospitalidade e polos turísticos estratégicos na América Latina e Península Ibérica.
+            </div>
+            <div class="text-en">
+              Target enterprise hotel chains and premier travel hubs across Latin America and Southern Europe.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • Posicionado no cruzamento de IA e Pagamentos Globais</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 7 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: COMPETITIVE MOATS -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">07. Diferenciais &amp; Moats • Competitive Advantage</div>
+          <div class="slide-title-pt">Por Que o Atos2 É Único e Defensável</div>
+          <div class="slide-title-en">Proprietary Technology &amp; Defensible Competitive Advantages</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="card" style="border-left: 4px solid var(--accent-cyan);">
+            <div class="card-title" style="color: var(--accent-cyan);">🚀 Zero Barreiras de Adoção (No-Download WebRTC)</div>
+            <div class="text-pt">
+              Diferente de WhatsApp ou WeChat que exigem contas locais e downloads prévios, o Atos2 roda nativo no navegador do celular com WebRTC de baixa latência.
+            </div>
+            <div class="text-en">
+              Unlike WhatsApp or WeChat which require installed apps and foreign account registrations, Atos2 operates instantly in mobile web browsers via universal WebRTC.
+            </div>
+          </div>
+
+          <div class="card" style="border-left: 4px solid var(--accent-green);">
+            <div class="card-title" style="color: var(--accent-green);">🔗 Comunicação Unificada ao Checkout</div>
+            <div class="text-pt">
+              Apps de tradução tradicionais (Google Tradutor) não cobram; gateways de pagamento (Stripe) não traduzem voz. O Atos2 é o único que integra voz e dinheiro na mesma sessão.
+            </div>
+            <div class="text-en">
+              Translation apps don't handle money; payment processors don't translate real-time speech. Atos2 uniquely bridges live voice AI and multi-currency settlement.
+            </div>
+          </div>
+
+          <div class="card" style="border-left: 4px solid var(--accent-purple);">
+            <div class="card-title" style="color: var(--accent-purple);">🛡️ Liquidação Cripto com Binance Pay</div>
+            <div class="text-pt">
+              Integração oficial com a maior exchange do mundo: liquidação sem estorno (chargeback-proof), sem intermediários bancários e com proteção total contra gasto duplo.
+            </div>
+            <div class="text-en">
+              Native integration with Binance Pay provides instant, chargeback-free crypto settlement (USDT, USDC, BTC) bypassing volatile banking corridors.
+            </div>
+          </div>
+
+          <div class="card" style="border-left: 4px solid var(--accent-gold);">
+            <div class="card-title" style="color: var(--accent-gold);">🏢 Escalabilidade Corporativa "Land &amp; Expand"</div>
+            <div class="text-pt">
+              Uma vez homologado em uma rede, a expansão para centenas de filiais ocorre de forma centralizada e padronizada com Custo de Aquisição (CAC) marginal zero.
+            </div>
+            <div class="text-en">
+              Enterprise homologation allows centralized rollout across hundreds of branch locations with near-zero marginal acquisition cost (CAC).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • Barreiras de entrada tecnológicas e comerciais</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 8 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: TECH STACK -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">08. Tecnologia &amp; Arquitetura • Tech Stack</div>
+          <div class="slide-title-pt">Infraestrutura Proprietária, Escalável e Segura</div>
+          <div class="slide-title-en">High-Performance, Scalable &amp; Enterprise-Grade Architecture</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-cyan);">🎙️ Voice AI Engine</div>
+            <div class="text-pt">
+              <strong>Deepgram Nova-2 + Groq Whisper:</strong> Transcrição e tradução com latência inferior a 300ms. Síntese vocal de alta fidelidade com ElevenLabs.
+            </div>
+            <div class="text-en">
+              <strong>Sub-300ms AI Pipeline:</strong> Deepgram Nova-2 and Groq Whisper LPUs coupled with natural text-to-speech voice cloning.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-purple);">🌐 Universal WebRTC Core</div>
+            <div class="text-pt">
+              <strong>Conexão P2P com TURN/STUN:</strong> Suporte nativo para iOS, Android e navegadores Web com bypass de autoplay e Web Audio API.
+            </div>
+            <div class="text-en">
+              <strong>P2P Mesh with Twilio TURN:</strong> Crystal-clear voice and video across iOS, Android, and mobile web with low bandwidth overhead.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-green);">🔒 Fintech &amp; Security</div>
+            <div class="text-pt">
+              <strong>Binance Pay + PIX:</strong> Criptografia de ponta a ponta, isolamento de chaves mestras e conformidade total com privacidade e antifraude.
+            </div>
+            <div class="text-en">
+              <strong>Bank-Grade Rails:</strong> Direct Binance Pay API and Central Bank PIX connections with strict key isolation and zero local secret leaks.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • Engenharia robusta pronta para milhões de conexões</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 9 / 10</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 10: INVESTMENT OPPORTUNITY & CONTACT -->
+    <div class="slide">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">09. Oportunidade &amp; Contato • Opportunity &amp; Contact</div>
+          <div class="slide-title-pt">Construindo a Ponte Global do Comércio &amp; Turismo</div>
+          <div class="slide-title-en">Building the Future of Global Frictionless Commerce</div>
+        </div>
+        <div class="logo-badge">ATOS2</div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-2">
+          <!-- Left: Investment Use of funds -->
+          <div class="card" style="border-top: 3px solid var(--accent-cyan); justify-content: space-between;">
+            <div>
+              <div class="card-title" style="color: var(--accent-cyan); font-size: 18px;">🎯 Destino dos Recursos • Use of Funds</div>
+              
+              <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 6px;">
+                  <span style="font-size: 13px; font-weight: 600;">50% Expansão Comercial &amp; Rollout (398 unidades)</span>
+                  <span style="font-size: 11px; color: var(--accent-cyan);">Sales &amp; Rollout</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 6px;">
+                  <span style="font-size: 13px; font-weight: 600;">30% Engenharia de IA &amp; Infraestrutura P2P</span>
+                  <span style="font-size: 11px; color: var(--accent-purple);">AI &amp; Tech R&amp;D</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 6px;">
+                  <span style="font-size: 13px; font-weight: 600;">20% Parcerias Globais &amp; Compliance Financeiro</span>
+                  <span style="font-size: 11px; color: var(--accent-green);">Partnerships</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-pt" style="margin-top: 10px;">
+              O investimento acelerará a captura de redes de hotelaria e comércio internacional com modelo comprovado.
+            </div>
+          </div>
+
+          <!-- Right: Contact & Action -->
+          <div class="card" style="border-top: 3px solid var(--accent-gold); justify-content: space-between;">
+            <div>
+              <div class="card-title" style="color: var(--accent-gold); font-size: 18px;">🤝 Vamos Conversar • Get in Touch</div>
+              
+              <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 16px; font-weight: 700; color: #ffffff;">Cleber Mourão</div>
+                <div style="font-size: 13px; color: var(--accent-cyan); font-weight: 600;">Fundador &amp; CEO / Founder &amp; CEO</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Atos2 Global Inc.</div>
+              </div>
+            </div>
+
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 12px 14px; border-radius: 8px; margin-top: 10px;">
+              <div style="font-size: 12px; color: #cbd5e1; font-weight: 600;">Acesse a plataforma ao vivo / Access Live App:</div>
+              <a href="https://atos2.online" target="_blank" style="font-size: 14px; color: var(--accent-cyan); font-weight: 700; text-decoration: none;">https://atos2.online</a>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Pitch Deck Oficial: <a href="https://atos2.online/pitch-deck.pdf" style="color: var(--accent-gold); text-decoration: none;">atos2.online/pitch-deck.pdf</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div>Atos2 • Conectando o mundo, acelerando negócios sem fronteiras</div>
+        <div class="footer-url">atos2.online</div>
+        <div>Slide 10 / 10</div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
