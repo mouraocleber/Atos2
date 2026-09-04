@@ -11,10 +11,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 
 export default function LoginScreen() {
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, setLinkAccess } = useAuth();
   const { t } = useLocalization();
   const params = useLocalSearchParams();
   const redirectUrl = (params.redirectUrl as string) || '';
+
+  React.useEffect(() => {
+    if (redirectUrl) {
+      setLinkAccess(true);
+    }
+  }, [redirectUrl]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -175,11 +181,20 @@ export default function LoginScreen() {
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>{t('dont_have_account')}</Text>
-              <Link href="/(auth)/register" asChild>
-                <TouchableOpacity>
-                  <Text style={styles.registerLink}>{t('create_account')}</Text>
-                </TouchableOpacity>
-              </Link>
+              <TouchableOpacity
+                onPress={() => {
+                  if (redirectUrl) {
+                    router.push({
+                      pathname: '/(auth)/register',
+                      params: { redirectUrl },
+                    });
+                  } else {
+                    router.push('/(auth)/register');
+                  }
+                }}
+              >
+                <Text style={styles.registerLink}>{t('create_account')}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>

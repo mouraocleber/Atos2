@@ -652,3 +652,98 @@ class LiveTranslationService {
 
 export const liveTranslationService = new LiveTranslationService();
 
+const translationCache: Record<string, string> = {};
+
+export async function translateText(text: string, targetLang: string = 'pt-BR'): Promise<string> {
+  if (!text || !text.trim()) return text;
+  const langOnly = targetLang.split('-')[0].toLowerCase();
+  if (langOnly === 'pt') return text;
+
+  const cacheKey = `${langOnly}:${text.trim()}`;
+  if (translationCache[cacheKey]) return translationCache[cacheKey];
+
+  if (DEEPL_API_KEY) {
+    try {
+      const deeplDomain = DEEPL_API_KEY.endsWith(':fx') 
+        ? 'https://api-free.deepl.com/v2/translate' 
+        : 'https://api.deepl.com/v2/translate';
+      const targetCode = langOnly === 'en' ? 'EN-US' : langOnly.toUpperCase();
+      const resp = await fetch(deeplDomain, {
+        method: 'POST',
+        headers: {
+          'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: [text],
+          target_lang: targetCode,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const res = data.translations?.[0]?.text;
+        if (res) {
+          translationCache[cacheKey] = res;
+          return res;
+        }
+      }
+    } catch (e) {
+      console.warn('[translateText] DeepL error:', e);
+    }
+  }
+
+  if (GROQ_API_KEY) {
+    try {
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            {
+              role: 'system',
+              content: `Translate the text into language code "${langOnly}". Return ONLY the translation, nothing else.`,
+            },
+            {
+              role: 'user',
+              content: text,
+            },
+          ],
+          temperature: 0.1,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const res = data.choices?.[0]?.message?.content?.trim();
+        if (res) {
+          translationCache[cacheKey] = res;
+          return res;
+        }
+      }
+    } catch (e) {
+      console.warn('[translateText] Groq error:', e);
+    }
+  }
+
+  return text;
+}
+
+export function formatLocalizedPrice(price: number | string, targetLang: string = 'pt-BR'): string {
+  const num = typeof price === 'number' ? price : parseFloat(String(price).replace(',', '.')) || 0;
+  const langShort = targetLang.split('-')[0].toLowerCase();
+  
+  if (langShort === 'en') {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+  }
+  if (langShort === 'es') {
+    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(num);
+  }
+  if (langShort === 'fr' || langShort === 'de' || langShort === 'it') {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(num);
+  }
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+}
+

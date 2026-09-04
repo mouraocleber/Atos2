@@ -10,7 +10,8 @@ class RingtoneService {
       await AudioModule.setAudioModeAsync({
         playsInSilentMode: true,
         allowsRecording: true,
-      });
+        defaultToSpeaker: true,
+      } as any);
     } catch (e) {
       console.warn('[RingtoneService] Error setting audio mode:', e);
     }

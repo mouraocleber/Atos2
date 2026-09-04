@@ -11,10 +11,16 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { setLinkAccess } = useAuth();
+
+  useEffect(() => {
+    setLinkAccess(true);
+  }, []);
 
   const rawAmount = (params.amount as string) || '100.00';
   const table = (params.table as string) || '01';

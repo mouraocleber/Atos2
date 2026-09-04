@@ -38,6 +38,15 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     (async () => {
       try {
+        const isLink = await AsyncStorage.getItem('@atos2_is_link_access');
+        if (isLink === 'true') {
+          // Acesso via link: tour do primeiro acesso desativado
+          setShowcaseDone(true);
+          setCoachDone({ chat: true, products: true, wallet: true, search: true, settings: true });
+          setLoaded(true);
+          return;
+        }
+
         const [sc, ch, pr, wa, se, st] = await AsyncStorage.multiGet([
           KEYS.showcase, KEYS.chat, KEYS.products, KEYS.wallet, KEYS.search, KEYS.settings,
         ]);

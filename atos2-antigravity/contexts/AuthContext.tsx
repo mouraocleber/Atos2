@@ -42,6 +42,8 @@ interface AuthContextData {
   user: User | null;
   token: string | null;
   loading: boolean;
+  isLinkAccess: boolean;
+  setLinkAccess: (value: boolean) => Promise<void>;
   pendingAuthData: PendingAuthData | null;
   signIn: (email: string, password: string) => Promise<{ requires2FA?: boolean }>;
   signInWithGoogle: () => Promise<{ requires2FA?: boolean }>;
@@ -71,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isLinkAccess, setIsLinkAccessState] = useState(false);
   const [pendingAuthData, setPendingAuthData] = useState<PendingAuthData | null>(null);
 
   useEffect(() => {
@@ -89,6 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const storedToken = await getSecureItem('token');
       const storedUser = await AsyncStorage.getItem('user');
+      const storedLinkAccess = await AsyncStorage.getItem('@atos2_is_link_access');
+      if (storedLinkAccess === 'true') {
+        setIsLinkAccessState(true);
+      }
       if (storedToken && storedUser) {
         setToken(storedToken);
         const parsedUser = JSON.parse(storedUser);
@@ -102,6 +109,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Erro ao carregar dados salvos:', e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function setLinkAccess(value: boolean) {
+    setIsLinkAccessState(value);
+    if (value) {
+      await AsyncStorage.setItem('@atos2_is_link_access', 'true');
+    } else {
+      await AsyncStorage.removeItem('@atos2_is_link_access');
     }
   }
 
@@ -328,6 +344,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         token,
         loading,
+        isLinkAccess,
+        setLinkAccess,
         pendingAuthData,
         signIn,
         signInWithGoogle,

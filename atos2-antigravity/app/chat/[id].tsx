@@ -162,6 +162,17 @@ export default function ChatRoomScreen() {
   const flatListRef = useRef<FlatList>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const webViewRef = useRef<WebView>(null);
+  const sendToCallBridge = (msg: string) => {
+    if (Platform.OS === 'web') {
+      try {
+        iframeRef.current?.contentWindow?.postMessage(msg, '*');
+      } catch (e) {}
+    } else {
+      sendToCallBridge(msg);
+    }
+  };
+
+  const iframeRef = useRef<any>(null);
   const signalQueueRef = useRef<string[]>([]);
   const isWebViewReadyRef = useRef<boolean>(false);
   const DEFAULT_ICE_SERVERS = [
@@ -179,7 +190,7 @@ export default function ChatRoomScreen() {
     if (!user) {
       router.replace({
         pathname: '/(auth)/login',
-        params: { redirectUrl: `/chat/${id}?name=${encodeURIComponent(name || 'Contato')}` },
+        params: { redirectUrl: `/chat/${id}?name=${encodeURIComponent(Array.isArray(name) ? name[0] : (name || 'Contato'))}` },
       });
     }
   }, [user, id, name]);
@@ -225,6 +236,9 @@ export default function ChatRoomScreen() {
   }, [isRoomBool, socket, id]);
 
   const requestCallPermissions = async (type: 'audio' | 'video') => {
+    if (Platform.OS === 'web') {
+      return true;
+    }
     try {
       const audioPerm = await AudioModule.requestRecordingPermissionsAsync();
       if (!audioPerm.granted) {
@@ -446,7 +460,7 @@ export default function ChatRoomScreen() {
         signal: data.signal
       });
       if (isWebViewReadyRef.current && webViewRef.current) {
-        webViewRef.current.postMessage(msg);
+        sendToCallBridge(msg);
       } else {
         console.log('[VoIP Signal Queue] Armazenando sinal recebido antes do WebView estar pronto:', data.signal?.type);
         signalQueueRef.current.push(msg);
@@ -467,7 +481,7 @@ export default function ChatRoomScreen() {
         }
       });
       if (isWebViewReadyRef.current && webViewRef.current) {
-        webViewRef.current.postMessage(msg);
+        sendToCallBridge(msg);
       } else {
         signalQueueRef.current.push(msg);
       }
@@ -482,7 +496,7 @@ export default function ChatRoomScreen() {
         }
       });
       if (isWebViewReadyRef.current && webViewRef.current) {
-        webViewRef.current.postMessage(msg);
+        sendToCallBridge(msg);
       } else {
         signalQueueRef.current.push(msg);
       }
@@ -661,6 +675,134 @@ export default function ChatRoomScreen() {
       roomId: currentRoomId,
       audioUrl: audioUrl,
     });
+  };
+
+  
+  const handleCallBridgeMessage = (rawMsg: any) => {
+    try {
+      const data = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
+      if (!data || !data.type) return;
+
+      if (data.type === 'ready') {
+        isWebViewReadyRef.current = true;
+        if (signalQueueRef.current.length > 0) {
+          console.log(`[VoIP Signal Queue] Descarregando ${signalQueueRef.current.length} sinais acumulados...`);
+          const queue = [...signalQueueRef.current];
+          signalQueueRef.current = [];
+          for (const msg of queue) {
+            sendToCallBridge(msg);
+          }
+        }
+      } else if (data.type === 'signal') {
+        socketRef.current?.emit('webrtcSignal', {
+          to: id,
+          roomId: currentRoomId,
+          signal: data.signal
+        });
+      } else if (data.type === 'speech_recognized') {
+        handleLocalSpeechRecognized(data);
+      } else if (data.type === 'audio_chunk') {
+        handleLocalAudioChunk(data);
+      } else if (data.type === 'hangup') {
+        handleHangUp();
+      } else if (data.type === 'translation_toggle') {
+        socketRef.current?.emit('webrtcTranslationToggle', {
+          to: id,
+          from: user?.id,
+          roomId: currentRoomId,
+          enabled: data.enabled,
+          language: data.language,
+          languageName: data.languageName,
+          rateUsdPerMin: data.rateUsdPerMin || 0.30
+        });
+      } else if (data.type === 'log') {
+        console.log('[Call Bridge Log]', data.message);
+      }
+    } catch (e) {
+      console.error('Error in handleCallBridgeMessage:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || callStatus !== 'in-call') return;
+
+    const onWebMessage = (event: MessageEvent) => {
+      handleCallBridgeMessage(event.data);
+    };
+
+    window.addEventListener('message', onWebMessage);
+    return () => {
+      window.removeEventListener('message', onWebMessage);
+    };
+  }, [callStatus, currentRoomId]);
+
+  const handleLocalAudioChunk = async (data: { base64Audio: string; mimeType?: string; language?: string; speakerName?: string; speakerFlag?: string }) => {
+    if (!data.base64Audio) return;
+    try {
+      const res = await fetch(data.base64Audio);
+      const audioBlob = await res.blob();
+      if (!audioBlob || audioBlob.size < 500) return;
+
+      let transcript = '';
+      const dgKey = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
+
+      // 1. Tenta transcrição via Deepgram Nova-2 (super rápida, ~180ms)
+      try {
+        const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
+        const dgResp = await fetch(dgUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${dgKey}`,
+            'Content-Type': audioBlob.type || data.mimeType || 'audio/webm',
+          },
+          body: audioBlob,
+        });
+
+        if (dgResp.ok) {
+          const dgData = await dgResp.json();
+          transcript = dgData.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
+        }
+      } catch (dgErr) {
+        console.warn('[VoIP Deepgram Chunk] Erro:', dgErr);
+      }
+
+      // 2. Fallback Groq Whisper caso Deepgram não retorne
+      if (!transcript && process.env.EXPO_PUBLIC_GROQ_API_KEY) {
+        try {
+          const groqKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || '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';
+          const formData = new FormData();
+          formData.append('file', audioBlob as any, 'audio.webm');
+          formData.append('model', 'whisper-large-v3-turbo');
+
+          const groqResp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${groqKey}`,
+            },
+            body: formData,
+          });
+
+          if (groqResp.ok) {
+            const groqData = await groqResp.json();
+            transcript = groqData.text?.trim() || '';
+          }
+        } catch (groqErr) {
+          console.warn('[VoIP Groq Chunk] Erro:', groqErr);
+        }
+      }
+
+      if (transcript && transcript.length >= 2) {
+        console.log(`[VoIP Live Chunk Recognized] "${transcript}"`);
+        handleLocalSpeechRecognized({
+          text: transcript,
+          language: data.language,
+          speakerName: data.speakerName,
+          speakerFlag: data.speakerFlag,
+        });
+      }
+    } catch (chunkErr) {
+      console.warn('[VoIP handleLocalAudioChunk] Erro geral:', chunkErr);
+    }
   };
   
   const handleBlockUser = async () => {
@@ -1497,9 +1639,9 @@ export default function ChatRoomScreen() {
               onPress={() => setRoomInviteModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Feather name="user-plus" size={14} color={roomType === 'LECTURE' ? '#B45309' : '#0369A1'} />
+              <Feather name={roomType === 'LECTURE' ? 'maximize' : 'user-plus'} size={14} color={roomType === 'LECTURE' ? '#B45309' : '#0369A1'} />
               <Text style={{ fontSize: 12, fontWeight: '700', color: roomType === 'LECTURE' ? '#92400E' : '#0369A1' }}>
-                Convidar
+                {roomType === 'LECTURE' ? 'QR Guia' : 'Convidar'}
               </Text>
             </TouchableOpacity>
           )}
@@ -1735,77 +1877,79 @@ export default function ChatRoomScreen() {
       <Modal visible={callModalVisible} animationType="fade" transparent statusBarTranslucent>
         <View style={styles.callModal}>
           {callStatus === 'in-call' ? (
-            <View style={{ width: '100%', height: '100%', flex: 1 }}>
-              <WebView
-                ref={webViewRef}
-                style={{ flex: 1 }}
-                source={{ html: getWebRtcHtml(), baseUrl: 'https://localhost' }}
-                originWhitelist={['*']}
-                allowsInlineMediaPlayback
-                mediaPlaybackRequiresUserAction={false}
-                domStorageEnabled
-                javaScriptEnabled
-                {...({ onPermissionRequest: (request: any) => request.grant(request.resources) } as any)}
-                injectedJavaScriptBeforeContentLoaded={`
-                  window.webRtcConfig = {
-                    iceServers: ${JSON.stringify(iceServers)},
-                    isCaller: ${callDirection === 'outgoing'},
-                    callType: '${callType}',
-                    targetName: '${(callDirection === 'incoming' ? callerName : name) || 'Usuário'}',
-                    userName: '${user?.name || user?.nickname || 'Usuário'}',
-                    userId: '${user?.id || 'temp_user'}',
-                    targetId: '${id || ''}',
-                    userLanguage: '${user?.preferredLanguage || (user as any)?.language || language || 'pt-BR'}',
-                    remoteLanguage: '${remoteUserLanguage || ''}',
-                    roomId: '${currentRoomId}'
-                  };
-                  true;
-                `}
-                onMessage={(event) => {
-                  try {
-                    const data = JSON.parse(event.nativeEvent.data);
-                    if (data.type === 'ready') {
-                      isWebViewReadyRef.current = true;
-                      if (signalQueueRef.current.length > 0) {
-                        console.log(`[VoIP Signal Queue] Descarregando ${signalQueueRef.current.length} sinais acumulados na WebView...`);
-                        const queue = [...signalQueueRef.current];
-                        signalQueueRef.current = [];
-                        for (const msg of queue) {
-                          webViewRef.current?.postMessage(msg);
-                        }
-                      }
-                    } else if (data.type === 'signal') {
-                      // Send signaling message to peer via sockets
-                      socketRef.current?.emit('webrtcSignal', {
-                        to: id,
-                        roomId: currentRoomId,
-                        signal: data.signal
-                      });
-                    } else if (data.type === 'speech_recognized') {
-                      // Traduz a fala captada durante a chamada e envia legenda/áudio ao destinatário
-                      handleLocalSpeechRecognized(data);
-                    } else if (data.type === 'hangup') {
-                      // User clicked hang up in WebView
-                      handleHangUp();
-                    } else if (data.type === 'translation_toggle') {
-                      console.log('[Translation Toggle]', data);
-                      socketRef.current?.emit('webrtcTranslationToggle', {
-                        to: id,
-                        from: user?.id,
-                        roomId: currentRoomId,
-                        enabled: data.enabled,
-                        language: data.language,
-                        languageName: data.languageName,
-                        rateUsdPerMin: data.rateUsdPerMin || 0.30
-                      });
-                    } else if (data.type === 'log') {
-                      console.log('[WebView Log]', data.message);
-                    }
-                  } catch (e) {
-                    console.error('Error parsing message from WebView:', e);
-                  }
+            <View style={{ width: '100%', height: '100%', flex: 1, position: 'relative' }}>
+              {/* Botão flutuante de segurança para encerrar/sair da chamada e voltar à conversa */}
+              <TouchableOpacity
+                style={{
+                  position: 'absolute',
+                  top: 24,
+                  right: 20,
+                  zIndex: 99999,
+                  backgroundColor: '#ef4444',
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  elevation: 10,
                 }}
-              />
+                onPress={handleHangUp}
+              >
+                <Feather name="phone-off" size={16} color="#fff" />
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>Encerrar</Text>
+              </TouchableOpacity>
+
+              {Platform.OS === 'web' ? (
+                React.createElement('iframe', {
+                  ref: iframeRef,
+                  srcDoc: getWebRtcHtml({
+                    iceServers: iceServers,
+                    isCaller: callDirection === 'outgoing',
+                    callType: callType,
+                    targetName: (callDirection === 'incoming' ? callerName : name) || 'Usuário',
+                    userName: user?.name || user?.nickname || 'Usuário',
+                    userId: user?.id || 'temp_user',
+                    targetId: id || '',
+                    userLanguage: user?.preferredLanguage || (user as any)?.language || language || 'pt-BR',
+                    remoteLanguage: remoteUserLanguage || '',
+                    roomId: currentRoomId,
+                  }),
+                  style: { width: '100%', height: '100%', border: 'none', background: '#041527' },
+                  allow: 'camera; microphone; autoplay; display-capture',
+                })
+              ) : (
+                <WebView
+                  ref={webViewRef}
+                  style={{ flex: 1 }}
+                  source={{
+                    html: getWebRtcHtml({
+                      iceServers: iceServers,
+                      isCaller: callDirection === 'outgoing',
+                      callType: callType,
+                      targetName: (callDirection === 'incoming' ? callerName : name) || 'Usuário',
+                      userName: user?.name || user?.nickname || 'Usuário',
+                      userId: user?.id || 'temp_user',
+                      targetId: id || '',
+                      userLanguage: user?.preferredLanguage || (user as any)?.language || language || 'pt-BR',
+                      remoteLanguage: remoteUserLanguage || '',
+                      roomId: currentRoomId,
+                    }),
+                    baseUrl: 'https://localhost'
+                  }}
+                  originWhitelist={['*']}
+                  allowsInlineMediaPlayback
+                  mediaPlaybackRequiresUserAction={false}
+                  mediaCapturePermissionGrantType="grant"
+                  allowsProtectedMedia
+                  domStorageEnabled
+                  javaScriptEnabled
+                  {...({ onPermissionRequest: (request: any) => request.grant(request.resources) } as any)}
+                  onMessage={(event) => {
+                    handleCallBridgeMessage(event.nativeEvent.data);
+                  }}
+                />
+              )}
             </View>
           ) : (
             <>

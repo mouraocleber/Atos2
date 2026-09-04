@@ -257,22 +257,28 @@ const globalCallStyles = StyleSheet.create({
  * Exibe o WelcomeShowcase uma vez, após o login.
  */
 function OnboardingGate() {
-  const { token } = useAuth();
+  const { token, isLinkAccess } = useAuth();
   const { showcaseDone, markShowcaseDone } = useOnboarding();
   const [showShowcase, setShowShowcase] = useState(false);
 
   useEffect(() => {
+    if (isLinkAccess) {
+      setShowShowcase(false);
+      return;
+    }
     if (token && !showcaseDone) {
       // Pequeno delay para a tela principal já estar montada
       const t = setTimeout(() => setShowShowcase(true), 600);
       return () => clearTimeout(t);
     }
-  }, [token, showcaseDone]);
+  }, [token, showcaseDone, isLinkAccess]);
 
   const handleDone = async () => {
     setShowShowcase(false);
     await markShowcaseDone();
   };
+
+  if (isLinkAccess) return null;
 
   return <WelcomeShowcase visible={showShowcase} onDone={handleDone} />;
 }

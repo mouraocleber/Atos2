@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import api, { SERVER_URL } from '../services/api';
+import { getRoomDetails } from '../services/group';
 
 import { useAuth } from '../contexts/AuthContext';
 
@@ -30,7 +31,14 @@ interface UserProfile {
 export default function ConnectScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, setLinkAccess } = useAuth();
+
+  const roomId =
+    (params.room as string) ||
+    (params.roomId as string) ||
+    '';
+  const roomNameParam = (params.name as string) || (params.roomName as string) || '';
+  const roomTypeParam = (params.type as string) || 'LECTURE';
 
   const userId =
     (params.user as string) ||
@@ -38,60 +46,114 @@ export default function ConnectScreen() {
     (params.id as string) ||
     '';
 
+  const isRoom = Boolean(roomId);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [recipient, setRecipient] = useState<UserProfile | null>(null);
+  const [roomDetails, setRoomDetails] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
-      setLoading(false);
-      setError('Identificador de usuário não fornecido.');
+    let isMounted = true;
+
+    if (roomId) {
+      setLinkAccess(true);
+      const fetchRoom = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+          const roomData = await getRoomDetails(roomId);
+          if (isMounted) {
+            if (roomData && roomData.name) {
+              setRoomDetails(roomData);
+            } else {
+              setRoomDetails({
+                id: roomId,
+                name: roomNameParam || (roomTypeParam === 'LECTURE' ? 'Tour com Guia' : 'Grupo'),
+                type: roomTypeParam,
+              });
+            }
+          }
+        } catch (e) {
+          if (isMounted) {
+            setRoomDetails({
+              id: roomId,
+              name: roomNameParam || (roomTypeParam === 'LECTURE' ? 'Tour com Guia' : 'Grupo'),
+              type: roomTypeParam,
+            });
+          }
+        } finally {
+          if (isMounted) setLoading(false);
+        }
+      };
+      fetchRoom();
+      return () => { isMounted = false; };
+    }
+
+    if (userId) {
+      setLinkAccess(true);
+      const fetchUser = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+          const { data } = await api.get(`/users/${userId}`);
+
+          if (isMounted) {
+            if (data && data.success && data.data) {
+              setRecipient(data.data);
+            } else if (data && data.id) {
+              setRecipient(data);
+            } else {
+              setRecipient({
+                id: userId,
+                name: `Usuário ${userId.substring(0, 8)}`,
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Erro ao carregar usuário via QR Code:', err);
+          if (isMounted) {
+            setRecipient({
+              id: userId,
+              name: `Usuário (${userId.substring(0, 8)}...)`,
+            });
+          }
+        } finally {
+          if (isMounted) setLoading(false);
+        }
+      };
+      fetchUser();
+      return () => { isMounted = false; };
+    }
+
+    setLoading(false);
+    setError('Identificador de conexão não fornecido.');
+  }, [userId, roomId]);
+
+  
+  const handleJoinRoom = () => {
+    if (!roomId) return;
+    const title = roomNameParam || roomDetails?.name || 'Tour com Guia';
+    const returnPath = `/chat/${roomId}?name=${encodeURIComponent(title)}&isRoom=true&roomType=${roomTypeParam}`;
+
+    if (!currentUser) {
+      router.push({
+        pathname: '/(auth)/login',
+        params: { redirectUrl: returnPath },
+      });
       return;
     }
 
-    let isMounted = true;
-
-    const fetchUser = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const { data } = await api.get(`/users/${userId}`);
-
-        if (isMounted) {
-          if (data && data.success && data.data) {
-            setRecipient(data.data);
-          } else if (data && data.id) {
-            setRecipient(data);
-          } else {
-            // Fallback com o ID recebido
-            setRecipient({
-              id: userId,
-              name: `Usuário ${userId.substring(0, 8)}`,
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Erro ao carregar usuário via QR Code:', err);
-        if (isMounted) {
-          // Permite prosseguir usando o próprio ID caso a busca direta falhe
-          setRecipient({
-            id: userId,
-            name: `Usuário (${userId.substring(0, 8)}...)`,
-          });
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchUser();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [userId]);
+    router.replace({
+      pathname: '/chat/[id]',
+      params: {
+        id: roomId,
+        name: title,
+        isRoom: 'true',
+        roomType: roomTypeParam,
+      },
+    });
+  };
 
   const handleStartChat = () => {
     if (!userId) return;
@@ -189,6 +251,68 @@ export default function ConnectScreen() {
               onPress={() => router.replace('/')}
             >
               <Text style={styles.actionBtnText}>Voltar ao Início</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isRoom ? (
+          <View style={styles.card}>
+            {/* Avatar do Tour / Palestra */}
+            <View style={styles.avatarContainer}>
+              <View style={[styles.avatarCircle, { backgroundColor: roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.primary }]}>
+                <Feather name={roomTypeParam === 'LECTURE' ? 'mic' : 'users'} size={40} color="#fff" />
+              </View>
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+              </View>
+            </View>
+
+            <Text style={styles.userName}>{roomNameParam || roomDetails?.name || 'Tour com Guia'}</Text>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 6, backgroundColor: roomTypeParam === 'LECTURE' ? '#FEF3C7' : '#E0F2FE', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+              <Feather name="headphones" size={14} color={roomTypeParam === 'LECTURE' ? '#B45309' : '#0369A1'} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: roomTypeParam === 'LECTURE' ? '#92400E' : '#0369A1' }}>
+                {roomTypeParam === 'LECTURE' ? '🎤 Palestra / Tour Guia Turístico' : '👥 Grupo Aberto'}
+              </Text>
+            </View>
+
+            <Text style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', marginHorizontal: 12, marginVertical: 8, lineHeight: 18 }}>
+              {roomTypeParam === 'LECTURE'
+                ? 'Conecte-se para ouvir a voz do guia em tempo real com tradução simultânea no seu fone de ouvido, no seu idioma nativo.'
+                : 'Entre na sala para interagir e receber traduções em tempo real.'}
+            </Text>
+
+            <View style={styles.divider} />
+
+            <Text style={styles.sectionTitle}>Entrar na Transmissão</Text>
+
+            <TouchableOpacity
+              style={[styles.actionBtnPrimary, { backgroundColor: roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.primary }]}
+              onPress={handleJoinRoom}
+              activeOpacity={0.8}
+            >
+              <Feather name="headphones" size={20} color="#041527" />
+              <Text style={[styles.actionBtnText, { color: '#041527', fontWeight: '800' }]}>
+                🎧 Entrar como Ouvinte no Tour
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionBtnSecondary, { borderColor: roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.secondary }]}
+              onPress={() => {
+                if (!currentUser) {
+                  router.push({
+                    pathname: '/(auth)/login',
+                    params: { redirectUrl: '/(tabs)/wallet' },
+                  });
+                } else {
+                  router.replace('/(tabs)/wallet');
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="wallet-outline" size={20} color={roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.secondary} />
+              <Text style={[styles.actionBtnText, { color: roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.secondary }]}>
+                💳 Pagar / Dar Gorjeta ao Guia
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (

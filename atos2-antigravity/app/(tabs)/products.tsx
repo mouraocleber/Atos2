@@ -9,6 +9,8 @@ import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import api, { SERVER_URL } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
+import { translateText, formatLocalizedPrice } from '../../services/LiveTranslationService';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import CoachMark from '../../components/CoachMark';
 import CachedImage from '../../components/CachedImage';
@@ -279,6 +281,8 @@ function ProductGallery({ images, onImagePress }: {
 // ─── Tela interna ─────────────────────────────────────────────────────────────
 function MarketplaceScreenInner() {
   const { user } = useAuth();
+  const { language } = useLocalization();
+  const [translatedFields, setTranslatedFields] = useState<Record<string, { group?: string; subgroup?: string }>>({});
   const { isCoachDone, markCoachDone } = useOnboarding();
   const [coachVisible, setCoachVisible] = useState(false);
 
@@ -344,8 +348,35 @@ function MarketplaceScreenInner() {
   const [newProdPrice, setNewProdPrice] = useState('');
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdCat, setNewProdCat] = useState('');
-  const [newProdImages, setNewProdImages] = useState<(string | null)[]>([null, null, null]);
+  const [newProdImage, setNewProdImage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+
+
+  // Tradução automática em tempo real para o idioma do usuário:
+  // - Nome do Produto: NUNCA é traduzido (mantém nome próprio comercial)
+  // - Grupo (category): Traduzido
+  // - Subgrupo (description): Traduzido
+  // - Valor (price): Formatado na moeda e idioma do usuário
+  useEffect(() => {
+    const list = mode === 'vitrine' ? products : myProducts;
+    if (!list || list.length === 0) return;
+    if (!language || language.startsWith('pt')) return;
+
+    let isMounted = true;
+    const translateCatalog = async () => {
+      const updates: Record<string, { group?: string; subgroup?: string }> = {};
+      for (const p of list) {
+        const g = p.category ? await translateText(p.category, language) : '';
+        const s = p.description ? await translateText(p.description, language) : '';
+        updates[p.id] = { group: g, subgroup: s };
+      }
+      if (isMounted) {
+        setTranslatedFields(prev => ({ ...prev, ...updates }));
+      }
+    };
+    translateCatalog();
+    return () => { isMounted = false; };
+  }, [products, myProducts, mode, language]);
 
   // ─── Carregamento ────────────────────────────────────────────────────────────
   const loadMarketplace = useCallback(async () => {
@@ -408,49 +439,63 @@ function MarketplaceScreenInner() {
     setCreateModal(true);
   };
 
-  const handlePickImage = async (slot: number) => {
+  const handlePickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert('Permissão', 'Falta permissão de galeria.');
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (!result.canceled && result.assets[0]) {
-      const updated = [...newProdImages];
-      updated[slot] = result.assets[0].uri;
-      setNewProdImages(updated);
+    if (!perm.granted) return Alert.alert('Permissão', 'Falta permissão de acesso à galeria.');
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: true, aspect: [4, 3] });
+    if (!result.canceled && result.assets && result.assets[0]) {
+      setNewProdImage(result.assets[0].uri);
     }
   };
 
-  const handleRemoveImage = (slot: number) => {
-    const updated = [...newProdImages];
-    updated[slot] = null;
-    setNewProdImages(updated);
+  const handleRemoveImage = () => {
+    setNewProdImage(null);
   };
 
   const handleCreateProduct = async () => {
-    if (!newProdName || !newProdPrice) return Alert.alert('Atenção', 'Nome e Preço são obrigatórios');
+    if (!newProdName.trim() || !newProdPrice.trim()) {
+      return Alert.alert('Atenção', 'Nome do produto e Valor são obrigatórios.');
+    }
     setIsCreating(true);
     try {
       const formData = new FormData();
-      formData.append('name', newProdName);
-      formData.append('price', newProdPrice.replace(',', '.'));
-      if (newProdDesc) formData.append('description', newProdDesc);
-      if (newProdCat) formData.append('category', newProdCat);
+      formData.append('name', newProdName.trim());
+      formData.append('price', newProdPrice.trim().replace(',', '.'));
+      if (newProdCat.trim()) formData.append('category', newProdCat.trim());
+      if (newProdDesc.trim()) formData.append('description', newProdDesc.trim());
 
-      // Envia até 3 imagens com chaves image0, image1, image2
-      newProdImages.forEach((uri, i) => {
-        if (uri) {
-          formData.append(`image${i}`, { uri, name: `prod_${i}.jpg`, type: 'image/jpeg' } as any);
+      // Envia 1 imagem única com suporte universal (Web e Mobile)
+      if (newProdImage) {
+        if (Platform.OS === 'web') {
+          const resp = await fetch(newProdImage);
+          const blob = await resp.blob();
+          formData.append('image', blob, `product_${Date.now()}.jpg`);
+        } else {
+          formData.append('image', {
+            uri: newProdImage,
+            name: `product_${Date.now()}.jpg`,
+            type: 'image/jpeg',
+          } as any);
         }
+      }
+
+      await api.post('/products', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      await api.post('/products', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      Alert.alert('Sucesso', 'Anúncio publicado na vitrine!');
+      Alert.alert('Sucesso! 🎉', 'Produto anunciado com sucesso na vitrine!');
       setCreateModal(false);
-      setNewProdName(''); setNewProdPrice(''); setNewProdDesc(''); setNewProdCat('');
-      setNewProdImages([null, null, null]);
+      setNewProdName('');
+      setNewProdPrice('');
+      setNewProdDesc('');
+      setNewProdCat('');
+      setNewProdImage(null);
       loadMarketplace();
       if (mode === 'meus') loadMyProducts();
-    } catch {
-      Alert.alert('Erro', 'Não foi possível publicar.');
+    } catch (err: any) {
+      console.error('[Vitrine] Erro ao cadastrar produto:', err?.response?.data || err?.message);
+      const msg = err?.response?.data?.message || 'Não foi possível publicar o produto.';
+      Alert.alert('Erro', msg);
     } finally {
       setIsCreating(false);
     }
@@ -904,38 +949,79 @@ function MarketplaceScreenInner() {
             <Text style={styles.modalTitle}>Anunciar Produto</Text>
             <ScrollView showsVerticalScrollIndicator={false}>
 
-              {/* Slots de foto */}
-              <Text style={styles.photoSlotsLabel}>
-                Fotos do anúncio ({newProdImages.filter(Boolean).length}/{MAX_PRODUCT_IMAGES})
-              </Text>
-              <View style={styles.photoSlotsRow}>
-                {newProdImages.map((uri, slot) => (
-                  <View key={slot} style={styles.photoSlotWrapper}>
-                    {uri ? (
-                      <View style={styles.photoSlot}>
-                        <Image source={{ uri }} style={{ width: '100%', height: '100%', borderRadius: 8 }} />
-                        <TouchableOpacity
-                          style={styles.photoSlotRemove}
-                          onPress={() => handleRemoveImage(slot)}
-                          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                        >
-                          <Feather name="x" size={12} color="#fff" />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity style={styles.photoSlotEmpty} onPress={() => handlePickImage(slot)}>
-                        <Feather name="camera" size={22} color={Colors.light.textMuted} />
-                        <Text style={styles.photoSlotEmptyText}>Foto {slot + 1}</Text>
-                      </TouchableOpacity>
-                    )}
+              {/* Slot único de Foto do Produto */}
+              <Text style={styles.photoSlotsLabel}>Foto do Produto (1 imagem)</Text>
+              <View style={{ alignItems: 'center', marginBottom: 14 }}>
+                {newProdImage ? (
+                  <View style={{ width: '100%', height: 180, borderRadius: 12, overflow: 'hidden', position: 'relative', borderWidth: 1, borderColor: Colors.light.border }}>
+                    <Image source={{ uri: newProdImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    <TouchableOpacity
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        backgroundColor: 'rgba(239, 68, 68, 0.85)',
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      }}
+                      onPress={handleRemoveImage}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Feather name="trash-2" size={16} color="#fff" />
+                    </TouchableOpacity>
                   </View>
-                ))}
+                ) : (
+                  <TouchableOpacity
+                    style={{
+                      width: '100%',
+                      height: 130,
+                      borderRadius: 12,
+                      borderWidth: 2,
+                      borderColor: Colors.light.border,
+                      borderStyle: 'dashed',
+                      backgroundColor: Colors.light.surfaceLight,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                    onPress={handlePickImage}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary + '15', justifyContent: 'center', alignItems: 'center' }}>
+                      <Feather name="camera" size={22} color={Colors.primary} />
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.primary }}>
+                      Adicionar Foto do Produto
+                    </Text>
+                    <Text style={{ fontSize: 11, color: Colors.light.textMuted }}>
+                      Toque para escolher da galeria
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
-              <TextInput style={styles.inputModal} placeholder="Nome do Produto *" placeholderTextColor={Colors.light.textMuted} value={newProdName} onChangeText={setNewProdName} />
-              <TextInput style={styles.inputModal} placeholder="Preço (R$) *" placeholderTextColor={Colors.light.textMuted} keyboardType="numeric" value={newProdPrice} onChangeText={setNewProdPrice} />
-              <TextInput style={styles.inputModal} placeholder="Categoria (ex: Serviços, Cursos...)" placeholderTextColor={Colors.light.textMuted} value={newProdCat} onChangeText={setNewProdCat} />
-              <TextInput style={[styles.inputModal, { minHeight: 80 }]} placeholder="Descrição do produto..." placeholderTextColor={Colors.light.textMuted} value={newProdDesc} onChangeText={setNewProdDesc} multiline numberOfLines={3} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.light.text, marginBottom: 4 }}>
+                Nome do Produto * (Nome comercial — não será traduzido)
+              </Text>
+              <TextInput style={styles.inputModal} placeholder="ex: Pastel de Belém, Caipirinha..." placeholderTextColor={Colors.light.textMuted} value={newProdName} onChangeText={setNewProdName} />
+
+              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.light.text, marginBottom: 4 }}>
+                Grupo * (Será traduzido para o idioma do visitante)
+              </Text>
+              <TextInput style={styles.inputModal} placeholder="ex: Alimentação, Bebidas, Turismo, Serviços..." placeholderTextColor={Colors.light.textMuted} value={newProdCat} onChangeText={setNewProdCat} />
+
+              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.light.text, marginBottom: 4 }}>
+                Subgrupo * (Será traduzido para o idioma do visitante)
+              </Text>
+              <TextInput style={styles.inputModal} placeholder="ex: Lanches Rápidos, Bebidas Típicas..." placeholderTextColor={Colors.light.textMuted} value={newProdDesc} onChangeText={setNewProdDesc} />
+
+              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.light.text, marginBottom: 4 }}>
+                Valor * (Será formatado e traduzido para a moeda do visitante)
+              </Text>
+              <TextInput style={styles.inputModal} placeholder="ex: 25.00" placeholderTextColor={Colors.light.textMuted} keyboardType="numeric" value={newProdPrice} onChangeText={setNewProdPrice} />
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setCreateModal(false)}>

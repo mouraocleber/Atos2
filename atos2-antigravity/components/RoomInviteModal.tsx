@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   Modal, View, Text, StyleSheet, TextInput, TouchableOpacity,
-  FlatList, ActivityIndicator, Alert
+  FlatList, ActivityIndicator, Alert, Share, Platform
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
+import * as Clipboard from 'expo-clipboard';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import { MemberRole, inviteUserToRoom, RoomType } from '../services/group';
 import api, { SERVER_URL } from '../services/api';
@@ -33,6 +35,8 @@ export default function RoomInviteModal({
   onClose,
   onSuccess,
 }: RoomInviteModalProps) {
+  const [activeTab, setActiveTab] = useState<'qr' | 'contacts'>(roomType === 'LECTURE' ? 'qr' : 'contacts');
+  const [copied, setCopied] = useState(false);
   const [search, setSearch] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -40,15 +44,19 @@ export default function RoomInviteModal({
   const [selectedRole, setSelectedRole] = useState<MemberRole>('LISTENER');
   const [sendingInvite, setSendingInvite] = useState(false);
 
+  const inviteUrl = `https://atos2.online/connect?room=${roomId}&name=${encodeURIComponent(roomName)}&type=${roomType}`;
+
   useEffect(() => {
     if (visible) {
+      setActiveTab(roomType === 'LECTURE' ? 'qr' : 'contacts');
       loadContacts();
     } else {
       setSelectedContact(null);
       setSearch('');
       setSelectedRole('LISTENER');
+      setCopied(false);
     }
-  }, [visible]);
+  }, [visible, roomType]);
 
   const loadContacts = async () => {
     setLoadingContacts(true);
@@ -79,6 +87,28 @@ export default function RoomInviteModal({
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.nickname.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleCopyLink = async () => {
+    try {
+      await Clipboard.setStringAsync(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (e) {
+      console.warn('Erro ao copiar link:', e);
+    }
+  };
+
+  const handleShareLink = async () => {
+    try {
+      await Share.share({
+        title: `AtoS2 - ${roomType === 'LECTURE' ? 'Tour com Guia / Palestra' : 'Grupo'}: ${roomName}`,
+        message: `Entre no tour "${roomName}" pelo AtoS2 para ouvir o guia turístico com tradução simultânea no seu idioma:\n${inviteUrl}`,
+        url: inviteUrl,
+      });
+    } catch (e) {
+      console.warn('Erro ao compartilhar:', e);
+    }
+  };
 
   const handleSendInvite = async () => {
     if (!selectedContact) {
@@ -127,19 +157,19 @@ export default function RoomInviteModal({
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={styles.iconCircle}>
+              <View style={[styles.iconCircle, roomType === 'LECTURE' && { backgroundColor: '#FEF3C7' }]}>
                 <Feather
                   name={roomType === 'LECTURE' ? 'mic' : 'users'}
                   size={20}
-                  color={Colors.secondaryDark}
+                  color={roomType === 'LECTURE' ? '#B45309' : Colors.secondaryDark}
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.headerTitle}>
-                  {roomType === 'LECTURE' ? 'Convidar para Palestra' : 'Convidar para o Grupo'}
+                  {roomType === 'LECTURE' ? 'Guia Turístico & Palestra' : 'Convidar para o Grupo'}
                 </Text>
                 <Text style={styles.headerSub} numberOfLines={1}>
-                  Sala: {roomName}
+                  {roomName}
                 </Text>
               </View>
             </View>
@@ -148,122 +178,187 @@ export default function RoomInviteModal({
             </TouchableOpacity>
           </View>
 
-          {/* Campo de Busca de Contatos */}
-          <View style={styles.searchBox}>
-            <Feather name="search" size={18} color={Colors.light.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar contato por nome ou apelido..."
-              placeholderTextColor={Colors.light.textMuted}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
-
-          {/* Seleção do Papel na Palestra (Palestrante vs Ouvinte) */}
-          {roomType === 'LECTURE' && (
-            <View style={styles.roleSelectionBox}>
-              <Text style={styles.roleSelectionLabel}>Definir Papel na Palestra:</Text>
-              <View style={styles.roleButtonsRow}>
-                <TouchableOpacity
-                  style={[styles.roleBtn, selectedRole === 'SPEAKER' && styles.roleBtnActiveSpeaker]}
-                  onPress={() => setSelectedRole('SPEAKER')}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="mic" size={16} color={selectedRole === 'SPEAKER' ? '#fff' : '#D97706'} />
-                  <Text style={[styles.roleBtnText, selectedRole === 'SPEAKER' && styles.roleBtnTextActive]}>
-                    🎤 Palestrante (Fala)
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.roleBtn, selectedRole === 'LISTENER' && styles.roleBtnActiveListener]}
-                  onPress={() => setSelectedRole('LISTENER')}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="headphones" size={16} color={selectedRole === 'LISTENER' ? '#fff' : '#0369A1'} />
-                  <Text style={[styles.roleBtnText, selectedRole === 'LISTENER' && styles.roleBtnTextActive]}>
-                    🎧 Ouvinte
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* Lista de Contatos */}
-          <Text style={styles.sectionLabel}>Selecione um Contato:</Text>
-
-          {loadingContacts ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator color={Colors.primary} size="small" />
-              <Text style={styles.loadingText}>Carregando seus contatos...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredContacts}
-              keyExtractor={item => item.id}
-              style={styles.list}
-              contentContainerStyle={{ gap: 8, paddingBottom: 16 }}
-              renderItem={({ item }) => {
-                const isSelected = selectedContact?.id === item.id;
-                return (
-                  <TouchableOpacity
-                    style={[styles.contactCard, isSelected && styles.contactCardSelected]}
-                    onPress={() => setSelectedContact(item)}
-                    activeOpacity={0.7}
-                  >
-                    {item.profileImage ? (
-                      <CachedImage url={item.profileImage} style={styles.avatar} />
-                    ) : (
-                      <View style={styles.avatarFallback}>
-                        <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )}
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.contactName}>{item.name}</Text>
-                      {item.nickname ? (
-                        <Text style={styles.contactNickname}>@{item.nickname}</Text>
-                      ) : null}
-                    </View>
-
-                    <View style={[styles.radio, isSelected && styles.radioSelected]}>
-                      {isSelected && <Feather name="check" size={14} color="#fff" />}
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={styles.emptyBox}>
-                  <Feather name="users" size={32} color={Colors.light.textMuted} />
-                  <Text style={styles.emptyText}>Nenhum contato encontrado.</Text>
-                </View>
-              }
-            />
-          )}
-
-          {/* Rodapé com Botão de Enviar Convite */}
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={sendingInvite}>
-              <Text style={styles.cancelText}>Cancelar</Text>
+          {/* Abas: QR Code vs Contatos */}
+          <View style={styles.tabBar}>
+            <TouchableOpacity
+              style={[styles.tabBtn, activeTab === 'qr' && styles.tabBtnActive]}
+              onPress={() => setActiveTab('qr')}
+              activeOpacity={0.8}
+            >
+              <Feather name="maximize" size={15} color={activeTab === 'qr' ? '#fff' : Colors.light.textMuted} />
+              <Text style={[styles.tabBtnText, activeTab === 'qr' && styles.tabBtnTextActive]}>
+                {roomType === 'LECTURE' ? 'QR Code do Guia' : 'QR Code de Acesso'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.sendBtn, (!selectedContact || sendingInvite) && styles.sendBtnDisabled]}
-              onPress={handleSendInvite}
-              disabled={!selectedContact || sendingInvite}
+              style={[styles.tabBtn, activeTab === 'contacts' && styles.tabBtnActive]}
+              onPress={() => setActiveTab('contacts')}
               activeOpacity={0.8}
             >
-              {sendingInvite ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Feather name="send" size={18} color="#fff" />
-                  <Text style={styles.sendBtnText}>Enviar Convite</Text>
-                </>
-              )}
+              <Feather name="users" size={15} color={activeTab === 'contacts' ? '#fff' : Colors.light.textMuted} />
+              <Text style={[styles.tabBtnText, activeTab === 'contacts' && styles.tabBtnTextActive]}>
+                Meus Contatos
+              </Text>
             </TouchableOpacity>
           </View>
+
+          {activeTab === 'qr' ? (
+            <View style={styles.qrSection}>
+              <View style={styles.qrBadge}>
+                <Feather name="headphones" size={14} color="#B45309" />
+                <Text style={styles.qrBadgeText}>
+                  {roomType === 'LECTURE' ? 'Turistas entram direto como Ouvintes' : 'Entrada direta sem cadastro longo'}
+                </Text>
+              </View>
+
+              <View style={styles.qrWrapper}>
+                <QRCode value={inviteUrl} size={200} color="#041527" />
+              </View>
+
+              <Text style={styles.qrInstructions}>
+                {roomType === 'LECTURE'
+                  ? 'Aponte a câmera do celular para este QR Code. Os turistas ouvirão a sua voz traduzida em tempo real no fone de ouvido, sem precisar baixar o app!'
+                  : 'Escaneie para entrar na sala diretamente pelo navegador do celular com zero atrito.'}
+              </Text>
+
+              {/* Link de compartilhamento */}
+              <View style={styles.linkCard}>
+                <Text style={styles.linkText} numberOfLines={1}>{inviteUrl}</Text>
+              </View>
+
+              <View style={styles.qrButtonRow}>
+                <TouchableOpacity style={styles.copyBtn} onPress={handleCopyLink} activeOpacity={0.8}>
+                  <Feather name={copied ? 'check' : 'copy'} size={16} color={Colors.primary} />
+                  <Text style={styles.copyBtnText}>{copied ? 'Link Copiado! 🎉' : 'Copiar Link'}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.shareBtn} onPress={handleShareLink} activeOpacity={0.8}>
+                  <Feather name="share-2" size={16} color="#fff" />
+                  <Text style={styles.shareBtnText}>Compartilhar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <>
+              {/* Campo de Busca de Contatos */}
+              <View style={styles.searchBox}>
+                <Feather name="search" size={18} color={Colors.light.textMuted} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Buscar contato por nome ou apelido..."
+                  placeholderTextColor={Colors.light.textMuted}
+                  value={search}
+                  onChangeText={setSearch}
+                />
+              </View>
+
+              {/* Seleção do Papel na Palestra (Palestrante vs Ouvinte) */}
+              {roomType === 'LECTURE' && (
+                <View style={styles.roleSelectionBox}>
+                  <Text style={styles.roleSelectionLabel}>Definir Papel na Palestra:</Text>
+                  <View style={styles.roleButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.roleBtn, selectedRole === 'SPEAKER' && styles.roleBtnActiveSpeaker]}
+                      onPress={() => setSelectedRole('SPEAKER')}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="mic" size={16} color={selectedRole === 'SPEAKER' ? '#fff' : '#D97706'} />
+                      <Text style={[styles.roleBtnText, selectedRole === 'SPEAKER' && styles.roleBtnTextActive]}>
+                        🎤 Palestrante (Fala)
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.roleBtn, selectedRole === 'LISTENER' && styles.roleBtnActiveListener]}
+                      onPress={() => setSelectedRole('LISTENER')}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="headphones" size={16} color={selectedRole === 'LISTENER' ? '#fff' : '#0369A1'} />
+                      <Text style={[styles.roleBtnText, selectedRole === 'LISTENER' && styles.roleBtnTextActive]}>
+                        🎧 Ouvinte
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Lista de Contatos */}
+              <Text style={styles.sectionLabel}>Selecione um Contato:</Text>
+
+              {loadingContacts ? (
+                <View style={styles.loadingBox}>
+                  <ActivityIndicator color={Colors.primary} size="small" />
+                  <Text style={styles.loadingText}>Carregando seus contatos...</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={filteredContacts}
+                  keyExtractor={item => item.id}
+                  style={styles.list}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 16 }}
+                  renderItem={({ item }) => {
+                    const isSelected = selectedContact?.id === item.id;
+                    return (
+                      <TouchableOpacity
+                        style={[styles.contactCard, isSelected && styles.contactCardSelected]}
+                        onPress={() => setSelectedContact(item)}
+                        activeOpacity={0.7}
+                      >
+                        {item.profileImage ? (
+                          <CachedImage url={item.profileImage} style={styles.avatar} />
+                        ) : (
+                          <View style={styles.avatarFallback}>
+                            <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                        )}
+
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.contactName}>{item.name}</Text>
+                          {item.nickname ? (
+                            <Text style={styles.contactNickname}>@{item.nickname}</Text>
+                          ) : null}
+                        </View>
+
+                        <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                          {isSelected && <Feather name="check" size={14} color="#fff" />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                  ListEmptyComponent={
+                    <View style={styles.emptyBox}>
+                      <Feather name="users" size={32} color={Colors.light.textMuted} />
+                      <Text style={styles.emptyText}>Nenhum contato encontrado.</Text>
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Rodapé com Botão de Enviar Convite */}
+              <View style={styles.footer}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={sendingInvite}>
+                  <Text style={styles.cancelText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.sendBtn, (!selectedContact || sendingInvite) && styles.sendBtnDisabled]}
+                  onPress={handleSendInvite}
+                  disabled={!selectedContact || sendingInvite}
+                  activeOpacity={0.8}
+                >
+                  {sendingInvite ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Feather name="send" size={16} color="#fff" />
+                      <Text style={styles.sendBtnText}>Enviar Convite</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
       </View>
     </Modal>
@@ -273,30 +368,30 @@ export default function RoomInviteModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   container: {
     backgroundColor: Colors.light.surface,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    maxHeight: '85%',
+    maxHeight: '90%',
     padding: Spacing.md,
     gap: Spacing.sm,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingBottom: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
   },
   iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.secondary + '20',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.light.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -310,23 +405,141 @@ const styles = StyleSheet.create({
     color: Colors.light.textMuted,
   },
   closeBtn: {
-    padding: 6,
+    padding: Spacing.xs,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: Colors.light.surfaceLight,
+    padding: 4,
+    borderRadius: BorderRadius.md,
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.sm,
+  },
+  tabBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  tabBtnText: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    color: Colors.light.textMuted,
+  },
+  tabBtnTextActive: {
+    color: '#fff',
+  },
+  qrSection: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 12,
+  },
+  qrBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  qrBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  qrWrapper: {
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    marginVertical: 4,
+  },
+  qrInstructions: {
+    fontSize: FontSize.xs,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
+  },
+  linkCard: {
+    width: '100%',
+    backgroundColor: Colors.light.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  linkText: {
+    fontSize: 11,
+    color: Colors.light.textMuted,
+  },
+  qrButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    marginTop: 4,
+  },
+  copyBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#E0F2FE',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  copyBtnText: {
+    color: Colors.primary,
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  shareBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+  },
+  shareBtnText: {
+    color: '#fff',
+    fontSize: FontSize.sm,
+    fontWeight: '700',
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.sm,
     backgroundColor: Colors.light.surfaceLight,
     borderWidth: 1,
     borderColor: Colors.light.border,
     borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    gap: 8,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 10,
     fontSize: FontSize.sm,
     color: Colors.light.text,
+    padding: 0,
   },
   roleSelectionBox: {
     backgroundColor: '#FEF3C7',
@@ -354,47 +567,49 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: '#D97706',
-    backgroundColor: '#fff',
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.surface,
   },
   roleBtnActiveSpeaker: {
     backgroundColor: '#D97706',
-    borderColor: '#D97706',
+    borderColor: '#B45309',
   },
   roleBtnActiveListener: {
     backgroundColor: '#0284C7',
-    borderColor: '#0284C7',
+    borderColor: '#0369A1',
   },
   roleBtnText: {
     fontSize: FontSize.xs,
-    fontWeight: '700',
-    color: Colors.light.text,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
   },
   roleBtnTextActive: {
     color: '#fff',
+    fontWeight: '700',
   },
   sectionLabel: {
     fontSize: FontSize.xs,
-    fontWeight: '700',
-    color: Colors.light.textMuted,
-    marginTop: 4,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   list: {
-    maxHeight: 240,
+    maxHeight: 220,
   },
   contactCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Spacing.sm,
     padding: Spacing.sm,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
     backgroundColor: Colors.light.surfaceLight,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   contactCardSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: '#EFF6FF',
   },
   avatar: {
     width: 40,
