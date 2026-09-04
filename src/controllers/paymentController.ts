@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { mercadoPagoService } from '../services/mercadoPagoService';
+import { binanceService } from '../services/binanceService';
 import { query } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -198,6 +199,77 @@ export class PaymentController {
       return res.status(500).json({ error: error.message || 'Erro interno ao processar pagamento PIX.' });
     }
   }
+
+  /**
+   * Endpoint Público/Privado: Cotação em tempo real BRL -> Cripto via Binance
+   */
+  async getBinanceQuote(req: any, res: Response) {
+    try {
+      const asset = String(req.query.asset || 'USDC');
+      const amountBrl = parseFloat(String(req.query.amountBrl || '100'));
+
+      if (isNaN(amountBrl) || amountBrl <= 0) {
+        return res.status(400).json({ success: false, error: 'Valor inválido em BRL' });
+      }
+
+      const quote = await binanceService.getQuote(asset, amountBrl);
+      return res.status(200).json({
+        success: true,
+        data: quote
+      });
+    } catch (error: any) {
+      console.error('[PaymentController] Erro em getBinanceQuote:', error?.message);
+      return res.status(500).json({ success: false, error: error?.message || 'Falha ao consultar cotação na Binance' });
+    }
+  }
+
+  /**
+   * Endpoint Privado: Gera ordem de depósito via Binance
+   */
+  async createBinanceDeposit(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId!;
+      const amount = parseFloat(String(req.body.amount || '0'));
+      const asset = String(req.body.cryptoAsset || req.body.asset || 'USDC');
+
+      if (isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ success: false, error: 'Valor em BRL deve ser maior que zero' });
+      }
+
+      const order = await binanceService.createBuyOrder(userId, amount, asset);
+      return res.status(200).json({
+        success: true,
+        data: order
+      });
+    } catch (error: any) {
+      console.error('[PaymentController] Erro em createBinanceDeposit:', error?.message);
+      return res.status(500).json({ success: false, error: error?.message || 'Falha ao gerar depósito na Binance' });
+    }
+  }
+
+  /**
+   * Endpoint Privado: Verifica status da ordem na Binance
+   */
+  async checkBinanceOrderStatus(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.userId!;
+      const orderId = String(req.params.orderId);
+
+      if (!orderId) {
+        return res.status(400).json({ success: false, error: 'ID do pedido obrigatório' });
+      }
+
+      const result = await binanceService.checkOrderStatus(orderId, userId);
+      return res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (error: any) {
+      console.error('[PaymentController] Erro em checkBinanceOrderStatus:', error?.message);
+      return res.status(500).json({ success: false, error: error?.message || 'Falha ao checar status da ordem' });
+    }
+  }
+
 }
 
 export const paymentController = new PaymentController();
