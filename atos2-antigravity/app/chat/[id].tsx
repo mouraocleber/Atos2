@@ -655,7 +655,9 @@ export default function ChatRoomScreen() {
     }
 
     // Detecção dinâmica de timbre de voz (Masculino vs. Feminino) baseada no pitch do falante e cadastro
-    const detectedGender = liveTranslationService.detectVoiceGenderFromAudio(data.text, null, user?.voiceGender);
+    const detectedGender: 'male' | 'female' = (user?.voiceGender && user.voiceGender !== 'auto')
+      ? user.voiceGender
+      : liveTranslationService.detectVoiceGenderFromAudio(data.text, null, user?.voiceGender);
     const audioUrl = liveTranslationService.getTtsAudioUrl(translatedText, targetLang, detectedGender);
 
     console.log(`[VoIP Live Translation] Transcrito: "${data.text}" ➔ Traduzido: "${translatedText}" (Timbre: ${detectedGender.toUpperCase()})`);
@@ -1110,10 +1112,20 @@ export default function ChatRoomScreen() {
     }
   };
 
-  const playTranslatedAudioTts = async (text: string, lang: string) => {
+  const playTranslatedAudioTts = async (text: string, lang: string, speakerGender?: 'male' | 'female' | 'auto') => {
     try {
       const langOnly = (lang || 'pt').split('-')[0];
-      const gender = liveTranslationService.detectVoiceGenderFromAudio(text, null, user?.voiceGender);
+      const gender: 'male' | 'female' = (speakerGender && speakerGender !== 'auto')
+        ? speakerGender
+        : (user?.voiceGender && user.voiceGender !== 'auto')
+          ? user.voiceGender
+          : 'male';
+
+      // 1. Tenta Web Speech API nativa calibrada para tom masculino autêntico (pitch 0.78)
+      const spoken = liveTranslationService.speakWithNativeTts(text, langOnly, gender);
+      if (spoken) return;
+
+      // 2. Fallback para player com URL sintetizada
       const ttsUrl = liveTranslationService.getTtsAudioUrl(text, langOnly, gender);
       const { createAudioPlayer } = await import('expo-audio');
       const player = createAudioPlayer({ uri: ttsUrl });
@@ -1191,6 +1203,7 @@ export default function ChatRoomScreen() {
           content: contentToSend,
           translatedContent: translatedText || undefined,
           translatedLanguage: targetLang,
+          senderVoiceGender: user?.voiceGender || 'male',
         } as any, uri);
 
         loadLiveMessages(true);
@@ -1379,7 +1392,7 @@ export default function ChatRoomScreen() {
                           Tradução IA ({transLanguage || 'PT'})
                         </Text>
                       </View>
-                      <TouchableOpacity onPress={() => playTranslatedAudioTts(transContent, transLanguage || 'pt')}>
+                      <TouchableOpacity onPress={() => playTranslatedAudioTts(transContent, transLanguage || 'pt', isMe ? (user?.voiceGender || 'male') : ((item as any).senderVoiceGender || 'male'))}>
                         <Feather name="volume-2" size={14} color={isMe ? '#fff' : '#22c55e'} />
                       </TouchableOpacity>
                     </View>

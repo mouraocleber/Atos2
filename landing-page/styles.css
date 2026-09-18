@@ -2,23 +2,23 @@
 
 /* --- Design Tokens / Variables --- */
 :root {
-  --bg-color: #0c0c0e;
-  --bg-surface: #141417;
-  --bg-surface-light: #1d1d22;
+  --bg-color: #040D1A;
+  --bg-surface: #07152E;
+  --bg-surface-light: #0C2147;
   
-  --primary: #e52e2e;
-  --primary-light: #ff4747;
-  --primary-dark: #b21c1c;
+  --primary: #0088FF;
+  --primary-light: #00D2FF;
+  --primary-dark: #0055FF;
   
-  --secondary: #f5b041;
-  --secondary-light: #f8c471;
-  --secondary-dark: #d35400;
+  --secondary: #FF8800;
+  --secondary-light: #FFAA00;
+  --secondary-dark: #E66A00;
   
   --text-primary: #ffffff;
-  --text-secondary: #a0a0ab;
-  --text-muted: #71717a;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
   
-  --border-color: rgba(255, 71, 71, 0.15);
+  --border-color: rgba(0, 210, 255, 0.2);
   --border-light: rgba(255, 255, 255, 0.08);
   
   --font-title: 'Outfit', sans-serif;
@@ -28,11 +28,12 @@
   --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   
-  --shadow-primary: 0 10px 30px -10px rgba(229, 46, 46, 0.3);
-  --shadow-glow: 0 0 50px 0px rgba(229, 46, 46, 0.1);
+  --shadow-primary: 0 10px 30px -10px rgba(0, 136, 255, 0.45);
+  --shadow-glow: 0 0 60px 0px rgba(0, 210, 255, 0.18);
+  --shadow-secondary: 0 10px 30px -10px rgba(255, 136, 0, 0.35);
   
   --radius-sm: 8px;
-  --radius-md: 12px;
+  --radius-md: 14px;
   --radius-lg: 20px;
   --radius-full: 9999px;
 }
@@ -157,7 +158,7 @@ button, input {
 .btn-primary:hover {
   transform: translateY(-2px);
   filter: brightness(1.1);
-  box-shadow: 0 15px 35px -8px rgba(229, 46, 46, 0.45);
+  box-shadow: 0 15px 35px -8px rgba(0, 136, 255, 0.45);
 }
 
 .btn-secondary {
@@ -299,8 +300,8 @@ button, input {
 
 .badge-new {
   display: inline-block;
-  background: rgba(229, 46, 46, 0.15);
-  border: 1px solid rgba(229, 46, 46, 0.3);
+  background: rgba(0, 136, 255, 0.15);
+  border: 1px solid rgba(0, 136, 255, 0.3);
   color: var(--primary-light);
   font-family: var(--font-title);
   font-weight: 700;
@@ -513,14 +514,14 @@ button, input {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(180deg, rgba(229,46,46,0.03) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgba(0, 136, 255,0.03) 0%, transparent 100%);
   opacity: 0;
   transition: var(--transition-normal);
 }
 
 .feature-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(229, 46, 46, 0.4);
+  border-color: rgba(0, 136, 255, 0.4);
   box-shadow: var(--shadow-glow);
 }
 
@@ -532,7 +533,7 @@ button, input {
   width: 56px;
   height: 56px;
   border-radius: var(--radius-md);
-  background: rgba(229, 46, 46, 0.1);
+  background: rgba(0, 136, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -742,7 +743,7 @@ button, input {
 .benefit-check {
   width: 24px;
   height: 24px;
-  background: rgba(229, 46, 46, 0.15);
+  background: rgba(0, 136, 255, 0.15);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -837,7 +838,7 @@ button, input {
 
 .calc-input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 10px rgba(229, 46, 46, 0.15);
+  box-shadow: 0 0 10px rgba(0, 136, 255, 0.15);
 }
 
 .calc-input[readonly] {
@@ -853,7 +854,7 @@ button, input {
 }
 
 .swap-icon {
-  background: rgba(229, 46, 46, 0.15);
+  background: rgba(0, 136, 255, 0.15);
   border: 1px solid var(--border-color);
   color: var(--primary-light);
   padding: 12px;
@@ -1086,7 +1087,7 @@ button, input {
 
 /* Open State */
 .faq-item.active {
-  border-color: rgba(229, 46, 46, 0.35);
+  border-color: rgba(0, 136, 255, 0.35);
 }
 
 .faq-item.active .faq-icon {
@@ -1290,7 +1291,7 @@ button, input {
 
 .lang-select-dropdown:hover {
   border-color: var(--primary-light);
-  box-shadow: 0 0 10px rgba(229, 46, 46, 0.15);
+  box-shadow: 0 0 10px rgba(0, 136, 255, 0.15);
 }
 
 .lang-select-dropdown option {
@@ -1298,3 +1299,19 @@ button, input {
   color: var(--text-primary);
 }
 
+
+
+.brand-logo-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 4px 15px rgba(0, 136, 255, 0.35);
+  border: 1px solid rgba(0, 210, 255, 0.3);
+}
+
+.logo-accent {
+  background: linear-gradient(135deg, #00D2FF 0%, #FF8800 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

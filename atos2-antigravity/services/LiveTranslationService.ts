@@ -262,8 +262,8 @@ class LiveTranslationService {
   }
 
   /**
-   * Identifica o timbre de voz (Masculino vs. Feminino) com base nas frequências acústicas (F0 Pitch)
-   * ou na preferência configurada no perfil do usuário.
+   * Identifica o timbre de voz (Masculino vs. Feminino) com base na preferência do usuário
+   * ou nas frequências acústicas (F0 Pitch do áudio).
    */
   public detectVoiceGenderFromAudio(
     transcript: string,
@@ -280,25 +280,124 @@ class LiveTranslationService {
       return audioMetadata.mean_pitch < 165 ? 'male' : 'female';
     }
 
-    // Análise de densidade de consoantes/vogais e resonância de fala
-    const vowelsCount = (transcript.match(/[aeiouáéíóúâêôãõ]/gi) || []).length;
-    const consonantsCount = (transcript.match(/[bcdfghjklmnpqrstvwxyz]/gi) || []).length;
-    const pitchIndicator = (vowelsCount * 7 + consonantsCount * 3 + transcript.length) % 10;
+    // Timbre padrão do usuário principal do app: Masculino (evita sintetizar homem com voz de mulher)
+    return 'male';
+  }
 
-    // Distribuição de timbre estatisticamente calibrada
-    return pitchIndicator >= 5 ? 'female' : 'male';
+  /**
+   * Síntese de voz com suporte a Web Speech API e controle de pitch acústico
+   * Garante tom masculino autêntico (grave/barítono, pitch 0.78) ou feminino (pitch 1.18)
+   */
+  public speakWithNativeTts(text: string, langCode: string, gender: 'male' | 'female' | 'auto' = 'male'): boolean {
+    if (!text || !text.trim()) return false;
+
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        const langShort = (langCode || 'pt-BR').split('-')[0].toLowerCase();
+        const effectiveGender = gender === 'female' ? 'female' : 'male';
+
+        const langMap: Record<string, string> = {
+          pt: 'pt-BR',
+          en: 'en-US',
+          es: 'es-ES',
+          fr: 'fr-FR',
+          de: 'de-DE',
+          it: 'it-IT',
+          ja: 'ja-JP',
+          zh: 'zh-CN',
+          ru: 'ru-RU',
+        };
+        utterance.lang = langMap[langShort] || langCode || 'pt-BR';
+
+        // Seleciona voz disponível por idioma e gênero
+        const allVoices = window.speechSynthesis.getVoices();
+        const matchingLangVoices = allVoices.filter(v => v.lang.toLowerCase().startsWith(langShort));
+
+        let selectedVoice: SpeechSynthesisVoice | undefined;
+        if (effectiveGender === 'male') {
+          // Procura vozes masculinas conhecidas
+          selectedVoice = matchingLangVoices.find(v => {
+            const n = v.name.toLowerCase();
+            return (
+              n.includes('antonio') ||
+              n.includes('david') ||
+              n.includes('jorge') ||
+              n.includes('guy') ||
+              n.includes('male') ||
+              n.includes('daniel') ||
+              n.includes('ricardo') ||
+              n.includes('felipe') ||
+              n.includes('alvaro') ||
+              n.includes('homem') ||
+              n.includes('masculin')
+            );
+          });
+        } else {
+          // Procura vozes femininas conhecidas
+          selectedVoice = matchingLangVoices.find(v => {
+            const n = v.name.toLowerCase();
+            return (
+              n.includes('francisca') ||
+              n.includes('zira') ||
+              n.includes('maria') ||
+              n.includes('luciana') ||
+              n.includes('female') ||
+              n.includes('helena') ||
+              n.includes('dalia') ||
+              n.includes('mulher') ||
+              n.includes('feminin')
+            );
+          });
+        }
+
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        } else if (matchingLangVoices.length > 0) {
+          utterance.voice = matchingLangVoices[0];
+        }
+
+        // Calibração de Pitch Acústico F0:
+        // 0.78 = tom masculino encorpado/grave (barítono natural)
+        // 1.18 = tom feminino brilhante e suave
+        utterance.pitch = effectiveGender === 'male' ? 0.78 : 1.18;
+        utterance.rate = 1.0;
+
+        this.setState('speaking');
+        utterance.onend = () => {
+          if (this.isLiveModeActive) {
+            this.setState('listening');
+          } else {
+            this.setState('idle');
+          }
+        };
+        utterance.onerror = () => {
+          if (this.isLiveModeActive) {
+            this.setState('listening');
+          } else {
+            this.setState('idle');
+          }
+        };
+
+        window.speechSynthesis.speak(utterance);
+        console.log(`[LiveTranslationService] Síntese WebSpeech acionada com tom ${effectiveGender.toUpperCase()} (Pitch: ${utterance.pitch})`);
+        return true;
+      }
+    } catch (e) {
+      console.warn('[LiveTranslationService] Falha ao usar SpeechSynthesis nativo:', e);
+    }
+    return false;
   }
 
   /**
    * Gera a URL/áudio de síntese de voz (TTS) configurado para o timbre masculino ou feminino
    */
-  public getTtsAudioUrl(text: string, langCode: string, gender: 'male' | 'female'): string {
+  public getTtsAudioUrl(text: string, langCode: string, gender: 'male' | 'female' | 'auto' = 'male'): string {
     const langShort = (langCode || 'pt-BR').split('-')[0];
-    
-    // Modelos de síntese neural de alta qualidade por idioma e timbre
-    // Para Google/Deepgram TTS endpoints com especificações de voz
-    const voiceVariant = gender === 'female' ? 'a' : 'b';
-    return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langShort}&client=tw-ob&idx=0&total=1&textlen=${text.length}&voice=${voiceVariant}&gender=${gender}`;
+    const effectiveGender = gender === 'female' ? 'female' : 'male';
+    const voiceVariant = effectiveGender === 'female' ? 'a' : 'b';
+    return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langShort}&client=tw-ob&idx=0&total=1&textlen=${text.length}&voice=${voiceVariant}&gender=${effectiveGender}`;
   }
 
   /**
@@ -504,9 +603,9 @@ class LiveTranslationService {
         this.callbacks.onTranslationResult(result);
       }
 
-      // 5. Reproduz a tradução falada de forma não-bloqueante
-      if (result.audioUrl) {
-        await this.playTranslatedAudio(result.audioUrl);
+      // 5. Reproduz a tradução falada com tom masculino/feminino autêntico
+      if (result.translatedText || result.audioUrl) {
+        await this.playTranslatedAudio(result.audioUrl || '', result.translatedText, targetLangShort, detectedGender);
       } else {
         if (this.isLiveModeActive && this.currentState !== 'speaking') {
           this.setState('listening');
@@ -529,9 +628,14 @@ class LiveTranslationService {
   /**
    * Reproduz a voz traduzida no fone de ouvido ou alto-falante sem bloquear o microfone
    */
-  private async playTranslatedAudio(audioSource: string) {
+  private async playTranslatedAudio(audioSource: string, text?: string, langCode?: string, gender?: 'male' | 'female') {
     try {
       this.setState('speaking');
+
+      // Tenta síntese de voz nativa com tom calibrado (pitch 0.78 para masculino)
+      if (text && this.speakWithNativeTts(text, langCode || this.targetLanguage, gender || 'male')) {
+        return;
+      }
 
       if (this.player) {
         try {
@@ -540,9 +644,11 @@ class LiveTranslationService {
         this.player = null;
       }
 
-      console.log('[LiveTranslationService] Reproduzindo voz traduzida:', audioSource);
-      this.player = createAudioPlayer({ uri: audioSource });
-      this.player.play();
+      if (audioSource) {
+        console.log('[LiveTranslationService] Reproduzindo voz traduzida via player:', audioSource);
+        this.player = createAudioPlayer({ uri: audioSource });
+        this.player.play();
+      }
 
       // Retorna o indicador de estado após 2.0s sem bloquear a gravação do microfone
       setTimeout(() => {

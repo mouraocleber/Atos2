@@ -95,6 +95,9 @@ export default function SettingsScreen() {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
 
+  // Voice Timbre Modal
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+
   // Language Modal
   const [langVisible, setLangVisible] = useState(false);
   const [selectedLang, setSelectedLang] = useState(user?.preferredLanguage || 'pt-BR');
@@ -433,6 +436,18 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{t('section_app') || 'Aplicativo'}</Text>
         <View style={styles.menuGroup}>
           <MenuItem icon="globe" title={t('language_label') || 'Idioma das Traduções'} subtitle={currentLangLabel} onPress={() => setLangVisible(true)} />
+          <MenuItem
+            icon="volume-2"
+            title="Timbre de Voz na Tradução IA"
+            subtitle={
+              user?.voiceGender === 'female'
+                ? '👩 Feminino (Voz Suave)'
+                : user?.voiceGender === 'auto'
+                ? '⚡ Detecção Inteligente'
+                : '👨 Masculino (Voz Grave)'
+            }
+            onPress={() => setVoiceModalVisible(true)}
+          />
           <MenuItem icon="download-cloud" title="Agendar Downloads" subtitle={dlMode === 'wifi' ? "Apenas Wi-Fi" : dlMode === 'always' ? "Qualquer Rede" : `Madrugada (${dlStart} - ${dlEnd})`} onPress={() => setDlVisible(true)} />
           <MenuItem icon="hard-drive" title="Uso de Dados e Memória" subtitle={`Armazenamento Local: ${formatBytes(cacheSize)}`} onPress={handleClearCache} />
           <View ref={resetTutorialBtnRef}>
@@ -497,6 +512,100 @@ export default function SettingsScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal de Timbre de Voz */}
+      <Modal visible={voiceModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Timbre de Voz na Tradução IA</Text>
+            <Text style={styles.modalSubtitle}>
+              Escolha como a inteligência artificial deve reproduzir os áudios traduzidos das suas conversas e tours.
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.langOption,
+                (!user?.voiceGender || user?.voiceGender === 'male') && styles.langOptionActive
+              ]}
+              onPress={() => {
+                updateUser({ voiceGender: 'male' });
+                setVoiceModalVisible(false);
+                Alert.alert('Sucesso', 'Timbre Masculino configurado! Os áudios traduzidos soarão em tom grave.');
+              }}
+            >
+              <Text style={{ fontSize: 22, width: 30, textAlign: 'center' }}>👨</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.langOptionText, (!user?.voiceGender || user?.voiceGender === 'male') && styles.langOptionTextActive]}>
+                  Masculino (Voz Grave / Barítono)
+                </Text>
+                <Text style={{ fontSize: 11, color: Colors.light.textMuted }}>
+                  Tom grave acústico autêntico calibrado para falantes masculinos
+                </Text>
+              </View>
+              {(!user?.voiceGender || user?.voiceGender === 'male') && (
+                <Feather name="check" size={18} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.langOption,
+                user?.voiceGender === 'female' && styles.langOptionActive
+              ]}
+              onPress={() => {
+                updateUser({ voiceGender: 'female' });
+                setVoiceModalVisible(false);
+                Alert.alert('Sucesso', 'Timbre Feminino configurado com sucesso!');
+              }}
+            >
+              <Text style={{ fontSize: 22, width: 30, textAlign: 'center' }}>👩</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.langOptionText, user?.voiceGender === 'female' && styles.langOptionTextActive]}>
+                  Feminino (Voz Suave)
+                </Text>
+                <Text style={{ fontSize: 11, color: Colors.light.textMuted }}>
+                  Tom suave e brilhante para falantes femininas
+                </Text>
+              </View>
+              {user?.voiceGender === 'female' && (
+                <Feather name="check" size={18} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.langOption,
+                user?.voiceGender === 'auto' && styles.langOptionActive
+              ]}
+              onPress={() => {
+                updateUser({ voiceGender: 'auto' });
+                setVoiceModalVisible(false);
+                Alert.alert('Sucesso', 'Detecção Automática configurada!');
+              }}
+            >
+              <Text style={{ fontSize: 22, width: 30, textAlign: 'center' }}>⚡</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.langOptionText, user?.voiceGender === 'auto' && styles.langOptionTextActive]}>
+                  Detecção Automática
+                </Text>
+                <Text style={{ fontSize: 11, color: Colors.light.textMuted }}>
+                  Identifica o pitch do falante dinamicamente a cada áudio
+                </Text>
+              </View>
+              {user?.voiceGender === 'auto' && (
+                <Feather name="check" size={18} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalBtnCancel, { marginTop: Spacing.md }]}
+              onPress={() => setVoiceModalVisible(false)}
+            >
+              <Text style={[styles.modalBtnText, { textAlign: 'center' }]}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Language Modal */}

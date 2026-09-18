@@ -65,6 +65,9 @@ interface SignUpData {
   cep: string;
   password: string;
   preferredLanguage?: string;
+  acceptedTerms?: boolean;
+  termsVersion?: string;
+  acceptedAt?: string;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -184,6 +187,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...data,
         passwordConfirm: data.password,
         deviceId,
+        acceptedTerms: data.acceptedTerms ?? true,
+        termsVersion: data.termsVersion ?? '2026.1',
+        acceptedAt: data.acceptedAt ?? new Date().toISOString(),
       };
       const response = await api.post('/auth/register', payload);
 

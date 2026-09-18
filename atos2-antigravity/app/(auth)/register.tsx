@@ -43,6 +43,7 @@ export default function RegisterScreen() {
   const [showLangModal, setShowLangModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsType, setTermsType] = useState<'termos' | 'privacidade'>('termos');
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   // Campos principais simplificados (Zero Fricção)
   const [name, setName] = useState('');
@@ -107,6 +108,14 @@ export default function RegisterScreen() {
       return;
     }
 
+    if (!acceptTerms) {
+      Alert.alert(
+        'Termos e Privacidade (LGPD)',
+        'Para criar sua conta no AtoS2, é obrigatório ler e concordar com os Termos de Uso e a Política de Privacidade (LGPD).'
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       // Gera nickname limpo a partir do primeiro nome ou email
@@ -127,6 +136,9 @@ export default function RegisterScreen() {
         cep: '01001-000',
         password: generatedPassword,
         preferredLanguage: language,
+        acceptedTerms: true,
+        termsVersion: '2026.1',
+        acceptedAt: new Date().toISOString(),
       });
 
       if (res?.requiresVerification) {
@@ -243,7 +255,7 @@ export default function RegisterScreen() {
             <View style={[styles.modalContent, { height: '100%', paddingTop: Platform.OS === 'ios' ? 40 : 20 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
-                  {termsType === 'termos' ? 'Termos de Uso' : 'Política de Privacidade'}
+                  {termsType === 'termos' ? 'Termos de Uso' : 'Política de Privacidade (LGPD)'}
                 </Text>
                 <TouchableOpacity onPress={() => setShowTermsModal(false)}>
                   <Feather name="x" size={24} color={Colors.light.text} />
@@ -251,24 +263,79 @@ export default function RegisterScreen() {
               </View>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
                 {termsType === 'termos' ? (
-                  <Text style={{ color: Colors.light.text, lineHeight: 22 }}>
-                    Para utilizar o Atos2 (carteira Global, marketplace e chat), você concorda que: {'\n\n'}
-                    1. Fornecerá dados reais para viabilizar as conexões e transações. {'\n'}
-                    2. As transferências internas entre contas são instantâneas. {'\n'}
-                    3. É proibido qualquer tipo de spam, fraude ou comércio de produtos ilegais. {'\n'}
-                    4. As conversões da moeda (Global - G) acompanham as cotações internacionais.
-                  </Text>
+                  <View style={styles.legalSection}>
+                    <Text style={styles.legalHeading}>1. Plataforma e Finalidade</Text>
+                    <Text style={styles.legalParagraph}>
+                      O AtoS2 é uma plataforma de comunicação internacional com tradução neural simultânea por inteligência artificial, carteira digital multimoedas e serviços integrados ao ecossistema turístico.
+                    </Text>
+                    
+                    <Text style={styles.legalHeading}>2. Obrigações e Conduta do Usuário</Text>
+                    <Text style={styles.legalParagraph}>
+                      Você se compromete a fornecer dados verídicos. É expressamente proibido o uso da plataforma para fins ilícitos, fraudes financeiras, envio de spam, disseminação de malware ou violação de direitos autorais de terceiros.
+                    </Text>
+
+                    <Text style={styles.legalHeading}>3. Planos e Degustação Gratuita (90 Dias)</Text>
+                    <Text style={styles.legalParagraph}>
+                      Assinantes contam com período de degustação gratuita de 90 dias nos planos elegíveis. Após esse período, aplicam-se as tarifas contratadas conforme tabela oficial de precificação.
+                    </Text>
+
+                    <Text style={styles.legalHeading}>4. Carteira Digital e Transações Financeiras</Text>
+                    <Text style={styles.legalParagraph}>
+                      O uso de funcionalidades financeiras (PIX, cartões Pomelo e conversões de ativos) está sujeito a validação de identidade (KYC) e regras de conformidade regulatória perante as normas do Banco Central do Brasil.
+                    </Text>
+                  </View>
                 ) : (
-                  <Text style={{ color: Colors.light.text, lineHeight: 22 }}>
-                    Suas informações são tratadas de forma segura e confidencial (LGPD): {'\n\n'}
-                    1. Proteção de dados e criptografia de ponta a ponta. {'\n'}
-                    2. Senhas e autenticação recebem Hash de alta complexidade. {'\n'}
-                    3. Mídias e conversas são protegidas para seu uso exclusivo com seus contatos.
-                  </Text>
+                  <View style={styles.legalSection}>
+                    <Text style={styles.legalHeading}>1. Controlador e Compromisso com a LGPD</Text>
+                    <Text style={styles.legalParagraph}>
+                      O AtoS2 cumpre integralmente a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD) e o Marco Civil da Internet (Lei nº 12.965/2014), atuando como controlador dos seus dados pessoais.
+                    </Text>
+
+                    <Text style={styles.legalHeading}>2. Dados Coletados no Cadastro e Acesso</Text>
+                    <Text style={styles.legalParagraph}>
+                      • Dados de Cadastro: Nome completo, endereço de e-mail e telefone celular (WhatsApp).{'\n'}
+                      • Registros de Acesso à Aplicação: Endereço IP, data, horário (UTC) e porta lógica de conexão, mantidos pelo prazo legal mínimo de 6 meses (Art. 15 do Marco Civil da Internet).
+                    </Text>
+
+                    <Text style={styles.legalHeading}>3. Tratamento de Áudio, Voz e Tradução por IA</Text>
+                    <Text style={styles.legalParagraph}>
+                      Os fragmentos de áudio capturados durante o uso de chamadas e tradução simultânea são transmitidos via conexão criptografada exclusivamente para os motores de inteligência artificial de transcrição e tradução neural (Whisper/Groq e DeepL).{'\n\n'}
+                      🔒 Importante: Nenhum registro de voz ou áudio é armazenado permanentemente em nossos servidores. O processamento ocorre em tempo real (streaming) com descarte imediato dos dados de áudio após a tradução.
+                    </Text>
+
+                    <Text style={styles.legalHeading}>4. Serviços de Pagamentos e Terceiros</Text>
+                    <Text style={styles.legalParagraph}>
+                      Caso você decida ativar serviços de carteira, PIX ou cartões Visa/Mastercard, dados adicionais de validação (KYC) serão processados em conformidade com instituições financeiras parceiras regulamentadas pelo Banco Central do Brasil.
+                    </Text>
+
+                    <Text style={styles.legalHeading}>5. Direitos do Titular (Art. 18 da LGPD)</Text>
+                    <Text style={styles.legalParagraph}>
+                      Você tem o direito de solicitar a confirmação de tratamento, acesso aos seus dados, correção de dados incompletos ou inexatos, anonimização, bloqueio ou eliminação de dados tratados com consentimento e revogação a qualquer momento.
+                    </Text>
+
+                    <Text style={styles.legalHeading}>6. Canal do Encarregado de Dados (DPO)</Text>
+                    <Text style={styles.legalParagraph}>
+                      Para exercer qualquer direito previsto na LGPD ou esclarecer dúvidas sobre a privacidade dos seus dados, entre em contato diretamente com o nosso Encarregado através do e-mail: dpo@atos2.online.
+                    </Text>
+                  </View>
                 )}
-                <TouchableOpacity style={[styles.btnSubmit, { marginTop: 30 }]} onPress={() => setShowTermsModal(false)}>
-                  <Text style={styles.btnSubmitText}>Ciente e Voltar</Text>
-                </TouchableOpacity>
+                <View style={styles.modalActionButtons}>
+                  <TouchableOpacity
+                    style={[styles.btnSubmit, { flex: 1, marginTop: 0 }]}
+                    onPress={() => {
+                      setAcceptTerms(true);
+                      setShowTermsModal(false);
+                    }}
+                  >
+                    <Text style={styles.btnSubmitText}>Concordo e Aceito ✅</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.btnSecondary}
+                    onPress={() => setShowTermsModal(false)}
+                  >
+                    <Text style={styles.btnSecondaryText}>Fechar</Text>
+                  </TouchableOpacity>
+                </View>
               </ScrollView>
             </View>
           </Modal>
@@ -342,9 +409,59 @@ export default function RegisterScreen() {
               />
             </View>
 
+            {/* Checkbox de Aceite LGPD & Termos */}
+            <View style={styles.checkboxContainer}>
+              <TouchableOpacity
+                style={styles.checkboxTouch}
+                onPress={() => setAcceptTerms(!acceptTerms)}
+                activeOpacity={0.7}
+              >
+                <Feather
+                  name={acceptTerms ? "check-square" : "square"}
+                  size={22}
+                  color={acceptTerms ? Colors.primary : Colors.light.textMuted}
+                />
+              </TouchableOpacity>
+              <View style={styles.checkboxTextWrapper}>
+                <Text style={styles.checkboxLabel}>
+                  Li e concordo com os{' '}
+                  <Text
+                    style={styles.linkText}
+                    onPress={() => {
+                      setTermsType('termos');
+                      setShowTermsModal(true);
+                    }}
+                  >
+                    Termos de Uso
+                  </Text>{' '}
+                  e a{' '}
+                  <Text
+                    style={styles.linkText}
+                    onPress={() => {
+                      setTermsType('privacidade');
+                      setShowTermsModal(true);
+                    }}
+                  >
+                    Política de Privacidade (LGPD)
+                  </Text>.
+                </Text>
+              </View>
+            </View>
+
+            {/* Badge Informativo LGPD */}
+            <View style={styles.lgpdBadge}>
+              <Feather name="shield" size={13} color="#16a34a" />
+              <Text style={styles.lgpdBadgeText}>
+                Seus dados são protegidos e tratados conforme a LGPD (Lei nº 13.709/18).
+              </Text>
+            </View>
+
             {/* Botão Cadastrar */}
             <TouchableOpacity 
-              style={[styles.btnSubmit, loading && styles.buttonDisabled]} 
+              style={[
+                styles.btnSubmit, 
+                (!acceptTerms || loading || googleLoading) && styles.buttonDisabled
+              ]} 
               onPress={handleRegister}
               disabled={loading || googleLoading}
               activeOpacity={0.8}
@@ -355,18 +472,6 @@ export default function RegisterScreen() {
                 <Text style={styles.btnSubmitText}>Concluir e Entrar 🚀</Text>
               )}
             </TouchableOpacity>
-
-            {/* Aceite legal discreto */}
-            <Text style={styles.legalDisclaimer}>
-              Ao continuar, você concorda com nossos{' '}
-              <Text style={styles.linkText} onPress={() => { setTermsType('termos'); setShowTermsModal(true); }}>
-                Termos de Uso
-              </Text>{' '}
-              e{' '}
-              <Text style={styles.linkText} onPress={() => { setTermsType('privacidade'); setShowTermsModal(true); }}>
-                Política de Privacidade
-              </Text>.
-            </Text>
           </View>
 
           {/* Rodapé: Link para Login */}
@@ -506,12 +611,74 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: '700',
   },
-  legalDisclaimer: {
-    fontSize: FontSize.xs,
-    color: Colors.light.textMuted,
-    textAlign: 'center',
-    lineHeight: 18,
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     marginTop: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  checkboxTouch: {
+    paddingTop: 2,
+  },
+  checkboxTextWrapper: {
+    flex: 1,
+  },
+  checkboxLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.light.text,
+    lineHeight: 18,
+  },
+  lgpdBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#16a34a12',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#16a34a30',
+  },
+  lgpdBadgeText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#15803d',
+    fontWeight: '500',
+    lineHeight: 15,
+  },
+  legalSection: {
+    gap: Spacing.md,
+  },
+  legalHeading: {
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginTop: Spacing.xs,
+  },
+  legalParagraph: {
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+    lineHeight: 20,
+  },
+  modalActionButtons: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
+  },
+  btnSecondary: {
+    backgroundColor: Colors.light.surfaceLight || '#f1f5f9',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    justifyContent: 'center',
+  },
+  btnSecondaryText: {
+    color: Colors.light.text,
+    fontSize: FontSize.md,
+    fontWeight: '600',
   },
   linkText: {
     color: Colors.primary,

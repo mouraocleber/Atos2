@@ -43,6 +43,9 @@ yarn-error.*
 *.zip
 *.log
 
+# scratch and temp scripts
+scratch/
+
 # generated native folders
 /ios
 /android

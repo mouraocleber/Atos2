@@ -134,6 +134,25 @@ export const QuickChargeModal: React.FC<QuickChargeModalProps> = ({
                 Valor da Conta: R$ {getBaseAmount().toFixed(2).replace('.', ',')}
               </Text>
 
+              {/* Badges das 4 opções aceitas */}
+              <View style={styles.acceptedMethodsBox}>
+                <Text style={styles.acceptedMethodsTitle}>Opções disponíveis no checkout:</Text>
+                <View style={styles.badgesRow}>
+                  <View style={[styles.methodBadge, { borderColor: '#22C55E' }]}>
+                    <Text style={[styles.methodBadgeText, { color: '#22C55E' }]}>PIX</Text>
+                  </View>
+                  <View style={[styles.methodBadge, { borderColor: '#38BDF8' }]}>
+                    <Text style={[styles.methodBadgeText, { color: '#38BDF8' }]}>Cartão</Text>
+                  </View>
+                  <View style={[styles.methodBadge, { borderColor: '#A855F7' }]}>
+                    <Text style={[styles.methodBadgeText, { color: '#A855F7' }]}>Solana Pay</Text>
+                  </View>
+                  <View style={[styles.methodBadge, { borderColor: '#EAB308' }]}>
+                    <Text style={[styles.methodBadgeText, { color: '#EAB308' }]}>Atos2 P2P</Text>
+                  </View>
+                </View>
+              </View>
+
               <View style={styles.actionButtons}>
                 <TouchableOpacity style={styles.shareButton} onPress={handleShareLink}>
                   <Ionicons name="share-social-outline" size={18} color="#0284C7" />
@@ -333,5 +352,32 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: 'bold',
     fontSize: 13,
+  },
+  acceptedMethodsBox: {
+    alignItems: 'center',
+    marginVertical: 10,
+    width: '100%',
+  },
+  acceptedMethodsTitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  methodBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+  },
+  methodBadgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
   },
 });
