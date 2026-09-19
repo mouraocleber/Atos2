@@ -25,9 +25,8 @@ import {
   openSolanaWalletApp,
   checkSolanaTransactionStatus,
 } from '../services/solana';
-import { createBinanceBuyOrder } from '../services/binance';
 
-type PaymentMethodType = 'pix' | 'card_binance' | 'solana' | 'internal_p2p';
+type PaymentMethodType = 'pix' | 'solana' | 'card' | 'internal_p2p';
 type SupportedCurrency = 'BRL' | 'USD' | 'EUR' | 'GBP';
 
 const CURRENCY_RATES: Record<SupportedCurrency, { symbol: string; rateFromBrl: number; label: string }> = {
@@ -66,18 +65,36 @@ export default function CheckoutScreen() {
   const tipAmountBrl = (baseAmountBrl * selectedTip) / 100;
   const subtotalWithTipBrl = baseAmountBrl + tipAmountBrl;
 
-  // Regra da Taxa da Plataforma Atos2:
-  // Pix, Cartão/Binance e Solana = 2% de taxa
-  // Transferência entre usuários Atos2 P2P = 0% de taxa
-  const platformFeeRate = selectedMethod === 'internal_p2p' ? 0.0 : ATOS2_FEES.CHECKOUT_PLATFORM_FEE;
-  const platformFeeBrl = subtotalWithTipBrl * platformFeeRate;
-  const totalFinalBrl = subtotalWithTipBrl + platformFeeBrl;
+  // Novas Regras de Taxas do AtoS2:
+  // - PIX: 0% taxa do turista (Comerciante paga apenas 1%)
+  // - Solana Pay: +2% taxa do turista (+ 2% do comerciante = 4% total da plataforma)
+  // - Cartão Internacional: +3.9% taxa de processamento do turista (2% do comerciante)
+  // - Transferência entre usuários Atos2 P2P: TAXA ZERO (0%)
+  const touristFeeRate =
+    selectedMethod === 'solana'
+      ? ATOS2_FEES.TOURIST_FEE_SOLANA
+      : selectedMethod === 'card'
+      ? ATOS2_FEES.TOURIST_FEE_CARD
+      : 0.0;
+
+  const touristFeeBrl = subtotalWithTipBrl * touristFeeRate;
+  const totalFinalBrl = subtotalWithTipBrl + touristFeeBrl;
+
+  // Taxa descontada do estabelecimento/comerciante
+  const merchantFeeRate =
+    selectedMethod === 'pix'
+      ? ATOS2_FEES.MERCHANT_FEE_PIX
+      : selectedMethod === 'internal_p2p'
+      ? 0.0
+      : ATOS2_FEES.MERCHANT_FEE_SOLANA;
+  const merchantFeeBrl = subtotalWithTipBrl * merchantFeeRate;
+  const merchantNetBrl = subtotalWithTipBrl - merchantFeeBrl;
 
   // Conversões
   const currInfo = CURRENCY_RATES[selectedCurrency];
   const convertedTotal = (totalFinalBrl * currInfo.rateFromBrl).toFixed(2);
   const convertedSubtotal = (baseAmountBrl * currInfo.rateFromBrl).toFixed(2);
-  const convertedFee = (platformFeeBrl * currInfo.rateFromBrl).toFixed(2);
+  const convertedFee = (touristFeeBrl * currInfo.rateFromBrl).toFixed(2);
 
   // Valores Solana USDC e SOL
   const totalUsdc = convertBrlToUsdc(totalFinalBrl, 5.60);
@@ -111,7 +128,9 @@ export default function CheckoutScreen() {
         setReceiptData({
           methodName: 'Solana Pay (USDC)',
           txHash: solResult.txHash,
-          fee: platformFeeBrl,
+          fee: touristFeeBrl,
+          merchantFee: merchantFeeBrl,
+          merchantNet: merchantNetBrl,
           totalBrl: totalFinalBrl,
           totalConverted: `${totalUsdc.toFixed(2)} USDC`,
           merchant,
@@ -127,29 +146,19 @@ export default function CheckoutScreen() {
       }
     }
 
-    if (selectedMethod === 'card_binance') {
-      try {
-        // Tenta gerar pedido real no backend ou abre deep link
-        const buyOrder = await createBinanceBuyOrder(totalFinalBrl, 'USDC').catch(() => null);
-        if (buyOrder?.data?.payUrl) {
-          Linking.openURL(buyOrder.data.payUrl);
-        }
-      } catch (e) {
-        console.warn('Binance link fallback:', e);
-      }
-    }
-
     // Simulação de confirmação instantânea
     setTimeout(() => {
       let methodName = 'PIX Instantâneo';
-      if (selectedMethod === 'card_binance') methodName = 'Cartão / Carteira Digital (Binance Pay)';
+      if (selectedMethod === 'card') methodName = 'Cartão Internacional / Apple Pay';
       if (selectedMethod === 'solana') methodName = 'Solana Pay (USDC)';
       if (selectedMethod === 'internal_p2p') methodName = 'Transferência Direta Atos2 (Taxa Zero)';
 
       setReceiptData({
         methodName,
         txHash: `ATOS2-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-        fee: platformFeeBrl,
+        fee: touristFeeBrl,
+        merchantFee: merchantFeeBrl,
+        merchantNet: merchantNetBrl,
         totalBrl: totalFinalBrl,
         totalConverted: `${currInfo.symbol} ${convertedTotal}`,
         merchant,
@@ -199,14 +208,33 @@ export default function CheckoutScreen() {
               </View>
 
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Taxa Atos2 ({selectedMethod === 'internal_p2p' ? '0%' : '2%'}):</Text>
-                <Text style={[styles.receiptVal, { color: selectedMethod === 'internal_p2p' ? '#4ADE80' : '#F59E0B' }]}>
-                  {selectedMethod === 'internal_p2p' ? 'GRÁTIS (R$ 0,00)' : `+ R$ ${receiptData.fee.toFixed(2)}`}
+                <Text style={styles.receiptLabel}>
+                  {selectedMethod === 'pix' && 'Taxa Turista (PIX):'}
+                  {selectedMethod === 'solana' && 'Taxa Turista (Solana 2%):'}
+                  {selectedMethod === 'card' && 'Taxa Cartão (3.9%):'}
+                  {selectedMethod === 'internal_p2p' && 'Taxa Atos2 P2P:'}
+                </Text>
+                <Text style={[styles.receiptVal, { color: receiptData.fee === 0 ? '#4ADE80' : '#F59E0B' }]}>
+                  {receiptData.fee === 0 ? 'GRÁTIS (0%)' : `+ R$ ${receiptData.fee.toFixed(2)}`}
                 </Text>
               </View>
 
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabelBold}>Total Pago:</Text>
+                <Text style={styles.receiptLabel}>Taxa Estabelecimento ({selectedMethod === 'pix' ? '1%' : selectedMethod === 'internal_p2p' ? '0%' : '2%'}):</Text>
+                <Text style={[styles.receiptVal, { color: '#94A3B8' }]}>
+                  - R$ {receiptData.merchantFee.toFixed(2)}
+                </Text>
+              </View>
+
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Repasse Líquido ao Comerciante:</Text>
+                <Text style={[styles.receiptVal, { color: '#4ADE80', fontWeight: 'bold' }]}>
+                  R$ {receiptData.merchantNet.toFixed(2)}
+                </Text>
+              </View>
+
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabelBold}>Total Pago pelo Cliente:</Text>
                 <Text style={styles.receiptValBold}>
                   R$ {receiptData.totalBrl.toFixed(2)} ({receiptData.totalConverted})
                 </Text>
@@ -290,11 +318,22 @@ export default function CheckoutScreen() {
             <Text style={styles.amountBrl}>
               R$ {totalFinalBrl.toFixed(2)} BRL
             </Text>
-            {selectedMethod !== 'internal_p2p' ? (
-              <Text style={styles.feeNotice}>
-                Inclui taxa Atos2 de 2% (+ R$ {platformFeeBrl.toFixed(2)})
+            {selectedMethod === 'pix' && (
+              <Text style={styles.feeNoticeFree}>
+                ⚡ PIX: Taxa ZERO para o cliente (Comerciante paga apenas 1%)
               </Text>
-            ) : (
+            )}
+            {selectedMethod === 'solana' && (
+              <Text style={styles.feeNotice}>
+                ⚡ Solana Pay: +2% taxa turista (+ R$ {touristFeeBrl.toFixed(2)}) • 1s na blockchain
+              </Text>
+            )}
+            {selectedMethod === 'card' && (
+              <Text style={styles.feeNotice}>
+                💳 Cartão Internacional: +3.9% taxa de processamento (+ R$ {touristFeeBrl.toFixed(2)})
+              </Text>
+            )}
+            {selectedMethod === 'internal_p2p' && (
               <Text style={styles.feeNoticeFree}>
                 ⭐ Transferência entre Usuários Atos2: TAXA ZERO (0%)
               </Text>
@@ -333,35 +372,15 @@ export default function CheckoutScreen() {
             <View style={{ flex: 1 }}>
               <View style={styles.methodTitleRow}>
                 <Text style={styles.methodTitle}>1. PIX Instantâneo</Text>
-                <Text style={styles.tagFee}>Taxa 2%</Text>
+                <Text style={[styles.tagFee, { backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#4ADE80' }]}>Cliente 0% • Loja 1%</Text>
               </View>
-              <Text style={styles.methodSub}>QR Code Dinâmico + Copia e Cola para o restaurante</Text>
+              <Text style={styles.methodSub}>QR Code Dinâmico • Sem taxas para o pagador, 1% comerciante</Text>
             </View>
           </View>
           <View style={[styles.radio, selectedMethod === 'pix' && styles.radioActive]} />
         </TouchableOpacity>
 
-        {/* 2. Cartão & Carteiras Digitais via Binance */}
-        <TouchableOpacity
-          style={[styles.methodCard, selectedMethod === 'card_binance' && styles.methodCardActive]}
-          onPress={() => setSelectedMethod('card_binance')}
-        >
-          <View style={styles.methodLeft}>
-            <View style={[styles.methodIconBadge, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
-              <Ionicons name="card-outline" size={24} color="#38BDF8" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.methodTitleRow}>
-                <Text style={styles.methodTitle}>2. Cartão / Carteira Digital</Text>
-                <Text style={styles.tagFee}>Taxa 2%</Text>
-              </View>
-              <Text style={styles.methodSub}>Apple Pay, Google Pay ou Cartão via Binance Pay</Text>
-            </View>
-          </View>
-          <View style={[styles.radio, selectedMethod === 'card_binance' && styles.radioActive]} />
-        </TouchableOpacity>
-
-        {/* 3. Solana Pay */}
+        {/* 2. Solana Pay */}
         <TouchableOpacity
           style={[styles.methodCard, selectedMethod === 'solana' && styles.methodCardActive]}
           onPress={() => setSelectedMethod('solana')}
@@ -372,13 +391,33 @@ export default function CheckoutScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <View style={styles.methodTitleRow}>
-                <Text style={styles.methodTitle}>3. Solana Pay (USDC / SOL)</Text>
-                <Text style={styles.tagFee}>Taxa 2%</Text>
+                <Text style={styles.methodTitle}>2. Solana Pay (USDC / SOL)</Text>
+                <Text style={styles.tagFee}>Taxa +2%</Text>
               </View>
-              <Text style={styles.methodSub}>Pix Cripto Global • Liquidação em 1s na rede Solana</Text>
+              <Text style={styles.methodSub}>Pix Cripto Global • Liquidação em 1s direto na carteira Solana</Text>
             </View>
           </View>
           <View style={[styles.radio, selectedMethod === 'solana' && styles.radioActive]} />
+        </TouchableOpacity>
+
+        {/* 3. Cartão Internacional / Apple Pay */}
+        <TouchableOpacity
+          style={[styles.methodCard, selectedMethod === 'card' && styles.methodCardActive]}
+          onPress={() => setSelectedMethod('card')}
+        >
+          <View style={styles.methodLeft}>
+            <View style={[styles.methodIconBadge, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+              <Ionicons name="card-outline" size={24} color="#38BDF8" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.methodTitleRow}>
+                <Text style={styles.methodTitle}>3. Cartão Internacional / Apple Pay</Text>
+                <Text style={[styles.tagFee, { color: '#38BDF8' }]}>Taxa +3.9%</Text>
+              </View>
+              <Text style={styles.methodSub}>Apple Pay, Google Pay e Cartões Visa / Mastercard globais</Text>
+            </View>
+          </View>
+          <View style={[styles.radio, selectedMethod === 'card' && styles.radioActive]} />
         </TouchableOpacity>
 
         {/* 4. Transferência entre Usuários Atos2 */}
@@ -430,8 +469,8 @@ export default function CheckoutScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {selectedMethod === 'pix' && 'Pagamento via PIX'}
-                {selectedMethod === 'card_binance' && 'Cartão & Carteira Digital'}
                 {selectedMethod === 'solana' && 'Pagamento via Solana Pay'}
+                {selectedMethod === 'card' && 'Cartão Internacional / Apple Pay'}
                 {selectedMethod === 'internal_p2p' && 'Transferência Direta Atos2'}
               </Text>
               <TouchableOpacity
@@ -450,7 +489,7 @@ export default function CheckoutScreen() {
                   {currInfo.symbol} {convertedTotal}
                 </Text>
                 <Text style={styles.modalAmountBrl}>
-                  R$ {totalFinalBrl.toFixed(2)} BRL • Taxa Atos2: {selectedMethod === 'internal_p2p' ? '0%' : '2% (R$ ' + platformFeeBrl.toFixed(2) + ')'}
+                  R$ {totalFinalBrl.toFixed(2)} BRL • Taxa Turista: {touristFeeBrl === 0 ? '0% (Grátis)' : '+ R$ ' + touristFeeBrl.toFixed(2) + ' (' + (touristFeeRate * 100).toFixed(1) + '%)'}
                 </Text>
               </View>
 
@@ -479,24 +518,7 @@ export default function CheckoutScreen() {
                 </View>
               )}
 
-              {/* 2. CONTEÚDO DO CARTÃO / BINANCE */}
-              {selectedMethod === 'card_binance' && (
-                <View style={styles.methodDetailContainer}>
-                  <Text style={styles.methodInstruction}>
-                    Você será direcionado para o checkout seguro da Binance Pay com suporte a Apple Pay, Google Pay e Cartão de Crédito Internacional.
-                  </Text>
-                  <View style={styles.binanceBadgeBox}>
-                    <Ionicons name="logo-apple" size={28} color="#FFF" />
-                    <Ionicons name="logo-google" size={28} color="#FFF" />
-                    <Ionicons name="card" size={28} color="#F59E0B" />
-                  </View>
-                  <Text style={styles.binanceNote}>
-                    A taxa de 2% da plataforma já está embutida na cotação calculada.
-                  </Text>
-                </View>
-              )}
-
-              {/* 3. CONTEÚDO DA SOLANA */}
+              {/* 2. CONTEÚDO DA SOLANA */}
               {selectedMethod === 'solana' && (
                 <View style={styles.methodDetailContainer}>
                   <Text style={styles.methodInstruction}>
@@ -547,6 +569,28 @@ export default function CheckoutScreen() {
                 </View>
               )}
 
+              {/* 3. CONTEÚDO DO CARTÃO / APPLE PAY */}
+              {selectedMethod === 'card' && (
+                <View style={styles.methodDetailContainer}>
+                  <Text style={styles.methodInstruction}>
+                    Pagamento seguro com suporte a Apple Pay, Google Pay e Cartões de Crédito Internacionais (Visa, Mastercard, Amex).
+                  </Text>
+                  <View style={styles.binanceBadgeBox}>
+                    <Ionicons name="logo-apple" size={28} color="#FFF" />
+                    <Ionicons name="logo-google" size={28} color="#FFF" />
+                    <Ionicons name="card" size={28} color="#38BDF8" />
+                  </View>
+                  <View style={{ backgroundColor: '#0F172A', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#334155', width: '100%', gap: 6 }}>
+                    <Text style={{ color: '#F8FAFC', fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
+                      🔒 Proteção Antifraude 3D Secure
+                    </Text>
+                    <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center' }}>
+                      Taxa de processamento de cartão internacional de 3.9% inclusa no total.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* 4. CONTEÚDO DA TRANSFERÊNCIA ATOS2 P2P */}
               {selectedMethod === 'internal_p2p' && (
                 <View style={styles.methodDetailContainer}>
@@ -585,8 +629,8 @@ export default function CheckoutScreen() {
                     <Ionicons name="checkmark-done" size={20} color="#FFF" />
                     <Text style={styles.modalConfirmButtonText}>
                       {selectedMethod === 'pix' && 'Já paguei o Pix / Confirmar'}
-                      {selectedMethod === 'card_binance' && 'Prosseguir para Binance Pay'}
                       {selectedMethod === 'solana' && 'Confirmar Pagamento Solana'}
+                      {selectedMethod === 'card' && 'Pagar com Cartão / Apple Pay'}
                       {selectedMethod === 'internal_p2p' && 'Confirmar Transferência P2P'}
                     </Text>
                   </>
