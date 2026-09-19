@@ -70,7 +70,7 @@ const globalLimiter = rateLimit({
 app.use(globalLimiter);
 
 // Middleware de parsing (Reduzido para 5mb proteger a memória de JSON injection massivo)
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '5mb', verify: (req: any, _res: any, buf: Buffer) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
 // Servir arquivos estáticos (Uploads) com MIME types corretos
@@ -301,4 +301,5 @@ httpServer.listen(Number(port), '0.0.0.0', async () => {
 });
 
 export default app;
+
 

@@ -146,6 +146,31 @@ export default function CheckoutScreen() {
       }
     }
 
+    if (selectedMethod === 'card') {
+      try {
+        const response = await fetch('https://api.atos2.online/api/payments/stripe/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: totalFinalBrl,
+            currency: selectedCurrency.toLowerCase(),
+            table,
+            merchantName: merchant,
+          }),
+        });
+
+        const json = await response.json();
+        if (json.success && json.data?.sessionUrl) {
+          await Linking.openURL(json.data.sessionUrl);
+          setIsProcessing(false);
+          setPaymentModalVisible(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('[Stripe Checkout] Falha ao gerar sessão de pagamento:', err);
+      }
+    }
+
     // Simulação de confirmação instantânea
     setTimeout(() => {
       let methodName = 'PIX Instantâneo';
