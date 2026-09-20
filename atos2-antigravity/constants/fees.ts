@@ -23,7 +23,7 @@ export const ATOS2_FEES = {
 
 export const SOLANA_CONFIG = {
   // Carteira mestre oficial da Atos2 na rede Solana
-  WALLET_ADDRESS: 'Atos2MstR64R1yWzXmN8pT3q7X2K9mU6jQ93aK25f8jY',
+  WALLET_ADDRESS: '26i1C86h7NHd3C6U1Mbpiuroo8NR3sjzmEtFrrX4WiBi',
   // Endereço oficial do contrato do token USDC na rede Solana (Mainnet SPL Token)
   USDC_MINT: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   NETWORK_LABEL: 'Solana Mainnet',

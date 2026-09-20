@@ -38,7 +38,7 @@ export const convertBrlToSol = (amountBrl: number, solPriceUsd: number = 150, us
 
 /**
  * Gera a URL padronizada do protocolo Solana Pay
- * Exemplo: solana:Atos2MstR64R1yWzXmN8pT3q7X2K9mU6jQ93aK25f8jY?amount=20.40&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&label=Atos2%20Checkout&message=Mesa%2001
+ * Exemplo: solana:26i1C86h7NHd3C6U1Mbpiuroo8NR3sjzmEtFrrX4WiBi?amount=20.40&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&label=Atos2%20Checkout&message=Mesa%2001
  */
 export const generateSolanaPayUri = (params: SolanaPayParams): string => {
   const recipient = params.recipient || SOLANA_CONFIG.WALLET_ADDRESS;
