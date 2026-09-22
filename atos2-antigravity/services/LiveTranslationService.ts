@@ -1,9 +1,9 @@
 import { AudioModule, createAudioPlayer, RecordingPresets } from 'expo-audio';
 import api from './api';
 
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY || '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';
-const DEEPGRAM_API_KEY = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
-const DEEPL_API_KEY = process.env.EXPO_PUBLIC_DEEPL_API_KEY || 'd9ff4b5f-45f9-402a-a1e8-c75920389d34:fx';
+const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
+const DEEPGRAM_API_KEY = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '';
+const DEEPL_API_KEY = process.env.EXPO_PUBLIC_DEEPL_API_KEY || '';
 
 export type TranslationState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 

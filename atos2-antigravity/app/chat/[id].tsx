@@ -771,7 +771,7 @@ export default function ChatRoomScreen() {
       // 2. Fallback Groq Whisper caso Deepgram não retorne
       if (!transcript && process.env.EXPO_PUBLIC_GROQ_API_KEY) {
         try {
-          const groqKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || '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';
+          const groqKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
           const formData = new FormData();
           formData.append('file', audioBlob as any, 'audio.webm');
           formData.append('model', 'whisper-large-v3-turbo');
