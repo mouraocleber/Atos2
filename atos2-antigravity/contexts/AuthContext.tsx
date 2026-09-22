@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       GoogleSignin.configure({
-        webClientId: '399781155509-82nebimrcr62redp0q0o782jajc6uimg.apps.googleusercontent.com',
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '399781155509-5pqjv0ufm0veoqpbb24n9qqv96r09g7a.apps.googleusercontent.com',
         offlineAccess: false,
       });
     } catch (e) {
