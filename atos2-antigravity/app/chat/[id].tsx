@@ -21,7 +21,7 @@ import * as Location from 'expo-location';
 import { getWebRtcHtml } from '../../services/webrtcHtml';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { ringtoneService } from '../../services/RingtoneService';
-import { liveTranslationService } from '../../services/LiveTranslationService';
+import { liveTranslationService, translateText } from '../../services/LiveTranslationService';
 
 import { getConversation, sendMessage, deleteMessage } from '../../services/chat';
 import api, { SERVER_URL } from '../../services/api';
@@ -746,32 +746,12 @@ export default function ChatRoomScreen() {
       if (!audioBlob || audioBlob.size < 500) return;
 
       let transcript = '';
+      const groqKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
       const dgKey = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
 
-      // 1. Tenta transcrição via Deepgram Nova-2 (super rápida, ~180ms)
-      try {
-        const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
-        const dgResp = await fetch(dgUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${dgKey}`,
-            'Content-Type': audioBlob.type || data.mimeType || 'audio/webm',
-          },
-          body: audioBlob,
-        });
-
-        if (dgResp.ok) {
-          const dgData = await dgResp.json();
-          transcript = dgData.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
-        }
-      } catch (dgErr) {
-        console.warn('[VoIP Deepgram Chunk] Erro:', dgErr);
-      }
-
-      // 2. Fallback Groq Whisper caso Deepgram não retorne
-      if (!transcript && process.env.EXPO_PUBLIC_GROQ_API_KEY) {
+      // 1. Tenta transcrição ultrarrápida via Groq Whisper Turbo (Gratuito)
+      if (groqKey) {
         try {
-          const groqKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
           const formData = new FormData();
           formData.append('file', audioBlob as any, 'audio.webm');
           formData.append('model', 'whisper-large-v3-turbo');
@@ -790,6 +770,28 @@ export default function ChatRoomScreen() {
           }
         } catch (groqErr) {
           console.warn('[VoIP Groq Chunk] Erro:', groqErr);
+        }
+      }
+
+      // 2. Fallback Deepgram Nova-2 caso Groq não retorne
+      if (!transcript && dgKey) {
+        try {
+          const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
+          const dgResp = await fetch(dgUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Token ${dgKey}`,
+              'Content-Type': audioBlob.type || data.mimeType || 'audio/webm',
+            },
+            body: audioBlob,
+          });
+
+          if (dgResp.ok) {
+            const dgData = await dgResp.json();
+            transcript = dgData.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
+          }
+        } catch (dgErr) {
+          console.warn('[VoIP Deepgram Chunk] Erro:', dgErr);
         }
       }
 
@@ -1147,51 +1149,75 @@ export default function ChatRoomScreen() {
         let transcribedText = '';
         let detectedLang = 'pt';
 
-        // 1. Transcrição com Deepgram STT
+        // 1. Transcrição com Groq Whisper Turbo (Primária / Gratuita) e fallback Deepgram
         try {
           const fileResp = await fetch(uri);
           const audioBlob = await fileResp.blob();
+          const groqKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
 
-          const dgKey = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
-          const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
-          const dgResponse = await fetch(dgUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Token ${dgKey}`,
-              'Content-Type': audioBlob.type || 'audio/m4a',
-            },
-            body: audioBlob,
-          });
+          if (groqKey) {
+            try {
+              const formData = new FormData();
+              formData.append('file', audioBlob as any, 'audio.m4a');
+              formData.append('model', 'whisper-large-v3-turbo');
+              formData.append('response_format', 'verbose_json');
 
-          if (dgResponse.ok) {
-            const dgData = await dgResponse.json();
-            const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
-            transcribedText = alternative?.transcript?.trim() || '';
-            detectedLang = dgData.results?.channels?.[0]?.detected_language || 'pt';
-            console.log(`[Audio STT Deepgram] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
-          } else {
-            console.warn('[Audio STT Deepgram] Status de erro:', dgResponse.status);
+              const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${groqKey}`,
+                },
+                body: formData,
+              });
+
+              if (groqResponse.ok) {
+                const groqData = await groqResponse.json();
+                transcribedText = groqData.text?.trim() || '';
+                detectedLang = groqData.language || 'pt';
+                console.log(`[Audio STT Groq] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
+              }
+            } catch (groqErr) {
+              console.warn('[Audio STT Groq] Erro:', groqErr);
+            }
+          }
+
+          // Fallback Deepgram se a Groq não transcrever
+          if (!transcribedText) {
+            const dgKey = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
+            const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
+            const dgResponse = await fetch(dgUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Token ${dgKey}`,
+                'Content-Type': audioBlob.type || 'audio/m4a',
+              },
+              body: audioBlob,
+            });
+
+            if (dgResponse.ok) {
+              const dgData = await dgResponse.json();
+              const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
+              transcribedText = alternative?.transcript?.trim() || '';
+              detectedLang = dgData.results?.channels?.[0]?.detected_language || 'pt';
+              console.log(`[Audio STT Deepgram] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
+            } else {
+              console.warn('[Audio STT Deepgram] Status de erro:', dgResponse.status);
+            }
           }
         } catch (sttErr) {
-          console.warn('[Chat] Erro na transcrição Deepgram do áudio:', sttErr);
+          console.warn('[Chat] Erro na transcrição do áudio:', sttErr);
         }
 
-        // 2. Tradução para o idioma do destinatário
+        // 2. Tradução para o idioma do destinatário via translateText (DeepL + Groq)
         let translatedText = '';
         const targetLang = (remoteUserLanguage || (user?.preferredLanguage || language || 'pt-BR')).split('-')[0];
         const sourceLangShort = detectedLang.split('-')[0];
 
         if (transcribedText && sourceLangShort !== targetLang) {
           try {
-            const myMemoryResp = await fetch(
-              `https://api.mymemory.translated.net/get?q=${encodeURIComponent(transcribedText)}&langpair=${sourceLangShort}|${targetLang}`
-            );
-            const mmData = await myMemoryResp.json();
-            if (mmData.responseData?.translatedText) {
-              translatedText = mmData.responseData.translatedText;
-            }
+            translatedText = await translateText(transcribedText, targetLang);
           } catch (transErr) {
-            console.warn('[Chat] Erro na tradução do áudio:', transErr);
+            console.warn('[Chat] Erro na tradução do áudio via translateText:', transErr);
           }
         }
 
