@@ -18,11 +18,15 @@ import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { clearMediaCache, getMediaCacheSize } from '../../services/MediaCacheService';
 import { LANGUAGES } from '../../constants/translations';
+import { PixConfigModal } from '../../components/PixConfigModal';
+import { getMerchantPixConfig, MerchantPixConfig, PIX_TYPE_LABELS } from '../../services/pixService';
 
 export default function SettingsScreen() {
   const { user, signOut, updateUser, refreshUser } = useAuth();
   const { isBiometricSupported, isBiometricEnabled, setBiometricEnabled } = useBiometric();
   const { setAppLanguage, t } = useLocalization();
+  const [pixConfigVisible, setPixConfigVisible] = useState(false);
+  const [merchantPixConfig, setMerchantPixConfig] = useState<MerchantPixConfig | null>(null);
   const { isCoachDone, markCoachDone, resetAll } = useOnboarding();
   const [coachVisible, setCoachVisible] = useState(false);
 
@@ -61,6 +65,7 @@ export default function SettingsScreen() {
   useFocusEffect(
     React.useCallback(() => {
       getMediaCacheSize().then(setCacheSize);
+      getMerchantPixConfig().then(setMerchantPixConfig);
     }, [])
   );
 
@@ -355,6 +360,16 @@ export default function SettingsScreen() {
         <View style={styles.menuGroup}>
           <MenuItem icon="user" title={t('edit_profile') || 'Editar Perfil'} subtitle="Nome e apelido" onPress={() => { setEditName(user?.name || ''); setEditNickname(user?.nickname || ''); setEditVisible(true); }} />
           <MenuItem icon="key" title={t('change_password') || 'Alterar Senha'} onPress={() => setPwVisible(true)} />
+          <MenuItem
+            icon="dollar-sign"
+            title="Chave PIX de Recebimento"
+            subtitle={
+              merchantPixConfig
+                ? `${PIX_TYPE_LABELS[merchantPixConfig.type]}: ${merchantPixConfig.key}`
+                : 'Cadastrar CNPJ / chave para receber'
+            }
+            onPress={() => setPixConfigVisible(true)}
+          />
         </View>
       </View>
 
@@ -946,6 +961,16 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Configuração de Chave PIX */}
+      <PixConfigModal
+        visible={pixConfigVisible}
+        onClose={() => setPixConfigVisible(false)}
+        onSaved={(cfg) => setMerchantPixConfig(cfg)}
+        defaultHolderName={user?.name}
+        defaultEmail={user?.email}
+        defaultPhone={user?.phone}
+      />
 
       {/* Coach Marks */}
       <CoachMark

@@ -7,11 +7,14 @@ class RingtoneService {
 
   public async configureVoipAudioMode() {
     try {
+      // allowsRecording DEVE ser false para que a gravação nativa não retenha o hardware do microfone,
+      // deixando-o 100% liberado para o WebView capturar o áudio da chamada WebRTC
       await AudioModule.setAudioModeAsync({
         playsInSilentMode: true,
-        allowsRecording: true,
+        allowsRecording: false,
         defaultToSpeaker: true,
       } as any);
+      console.log('[RingtoneService] VoIP audio mode configurado: allowsRecording=false (microfone liberado para WebView).');
     } catch (e) {
       console.warn('[RingtoneService] Error setting audio mode:', e);
     }
@@ -21,7 +24,15 @@ class RingtoneService {
     if (this.isRinging) return;
     this.isRinging = true;
 
-    await this.configureVoipAudioMode();
+    try {
+      await AudioModule.setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: false,
+        defaultToSpeaker: true,
+      } as any);
+    } catch (e) {
+      console.warn('[RingtoneService] Error setting audio mode for incoming ringtone:', e);
+    }
 
     // Start vibration pattern: wait 0ms, vibrate 1000ms, pause 1000ms, repeat
     try {
@@ -49,7 +60,15 @@ class RingtoneService {
     if (this.isRinging) return;
     this.isRinging = true;
 
-    await this.configureVoipAudioMode();
+    try {
+      await AudioModule.setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: false,
+        defaultToSpeaker: true,
+      } as any);
+    } catch (e) {
+      console.warn('[RingtoneService] Error setting audio mode for outgoing ringtone:', e);
+    }
 
     try {
       if (this.player) {
@@ -80,6 +99,9 @@ class RingtoneService {
     } catch (e) {
       console.warn('[RingtoneService] Error stopping ringtone sound:', e);
     }
+
+    // Libera a gravação nativa imediatamente para desobstruir o microfone para o WebView
+    this.configureVoipAudioMode();
   }
 }
 

@@ -29,6 +29,9 @@ interface User {
   planExpiresAt?: Date;
   isEmailVerified?: boolean;
   isPhoneVerified?: boolean;
+  pixKey?: string;
+  pixKeyType?: 'cnpj' | 'cpf' | 'email' | 'phone' | 'random';
+  pixHolderName?: string;
 }
 
 interface PendingAuthData {

@@ -1,4 +1,6 @@
 import { AudioModule, createAudioPlayer, RecordingPresets } from 'expo-audio';
+import * as Speech from 'expo-speech';
+import { Platform } from 'react-native';
 import api from './api';
 
 const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
@@ -51,6 +53,74 @@ class LiveTranslationService {
   private audioLevelInterval: NodeJS.Timeout | null = null;
   private isLiveModeActive: boolean = false;
   private isProcessingChunk: boolean = false;
+  private availableVoices: Speech.Voice[] = [];
+  private voicesLoaded: boolean = false;
+
+  constructor() {
+    this.ensureVoicesLoaded();
+  }
+
+  public async ensureVoicesLoaded() {
+    if (this.voicesLoaded) return;
+    try {
+      this.availableVoices = await Speech.getAvailableVoicesAsync();
+      this.voicesLoaded = true;
+    } catch (e) {
+      console.warn('[LiveTranslationService] Erro ao carregar vozes expo-speech:', e);
+    }
+  }
+
+  private findBestVoice(langShort: string, gender: 'male' | 'female'): string | undefined {
+    if (!this.availableVoices || this.availableVoices.length === 0) return undefined;
+    const matching = this.availableVoices.filter(v => v.language && v.language.toLowerCase().startsWith(langShort));
+    if (matching.length === 0) return undefined;
+
+    if (gender === 'male') {
+      const maleVoice = matching.find(v => {
+        const n = (v.name || '').toLowerCase();
+        const id = (v.identifier || '').toLowerCase();
+        return (
+          n.includes('antonio') ||
+          n.includes('david') ||
+          n.includes('jorge') ||
+          n.includes('guy') ||
+          n.includes('male') ||
+          n.includes('daniel') ||
+          n.includes('ricardo') ||
+          n.includes('felipe') ||
+          n.includes('alvaro') ||
+          n.includes('homem') ||
+          n.includes('masculin') ||
+          id.includes('male') ||
+          id.includes('afs') ||
+          id.includes('ptm') ||
+          (v as any).gender === 'male' ||
+          (v as any).gender === 'VoiceGender.MALE'
+        );
+      });
+      return maleVoice ? maleVoice.identifier : matching[0]?.identifier;
+    } else {
+      const femaleVoice = matching.find(v => {
+        const n = (v.name || '').toLowerCase();
+        const id = (v.identifier || '').toLowerCase();
+        return (
+          n.includes('francisca') ||
+          n.includes('zira') ||
+          n.includes('maria') ||
+          n.includes('luciana') ||
+          n.includes('female') ||
+          n.includes('helena') ||
+          n.includes('dalia') ||
+          n.includes('mulher') ||
+          n.includes('feminin') ||
+          id.includes('female') ||
+          (v as any).gender === 'female' ||
+          (v as any).gender === 'VoiceGender.FEMALE'
+        );
+      });
+      return femaleVoice ? femaleVoice.identifier : matching[0]?.identifier;
+    }
+  }
 
   public setCallbacks(callbacks: LiveTranslationCallbacks) {
     this.callbacks = callbacks;
@@ -285,31 +355,78 @@ class LiveTranslationService {
   }
 
   /**
-   * Síntese de voz com suporte a Web Speech API e controle de pitch acústico
-   * Garante tom masculino autêntico (grave/barítono, pitch 0.78) ou feminino (pitch 1.18)
+   * Síntese de voz com suporte nativo expo-speech nos celulares e Web Speech API nos navegadores
+   * Garante tom masculino autêntico de Cleber (grave/barítono, pitch 0.75) ou feminino (pitch 1.15)
    */
   public speakWithNativeTts(text: string, langCode: string, gender: 'male' | 'female' | 'auto' = 'male'): boolean {
     if (!text || !text.trim()) return false;
 
+    const langShort = (langCode || 'pt-BR').split('-')[0].toLowerCase();
+    const effectiveGender = gender === 'female' ? 'female' : 'male';
+    const langMap: Record<string, string> = {
+      pt: 'pt-BR',
+      en: 'en-US',
+      es: 'es-ES',
+      fr: 'fr-FR',
+      de: 'de-DE',
+      it: 'it-IT',
+      ja: 'ja-JP',
+      zh: 'zh-CN',
+      ru: 'ru-RU',
+    };
+    const targetLangFull = langMap[langShort] || langCode || 'pt-BR';
+
+    // 1. Mobile nativo (Android e iOS): usa expo-speech com timbre masculino do Cleber (pitch: 0.75 encorpado/grave)
+    if (Platform.OS === 'android' || Platform.OS === 'ios') {
+      try {
+        Speech.stop().catch(() => {});
+        this.ensureVoicesLoaded();
+        const selectedVoiceId = this.findBestVoice(langShort, effectiveGender);
+
+        this.setState('speaking');
+
+        Speech.speak(text, {
+          language: targetLangFull,
+          // Pitch 0.75 encorpado/grave do Cleber para voz masculina, 1.15 para feminina
+          pitch: effectiveGender === 'male' ? 0.75 : 1.15,
+          rate: 0.95,
+          voice: selectedVoiceId,
+          onDone: () => {
+            if (this.isLiveModeActive) {
+              this.setState('listening');
+            } else {
+              this.setState('idle');
+            }
+          },
+          onStopped: () => {
+            if (this.isLiveModeActive) {
+              this.setState('listening');
+            } else {
+              this.setState('idle');
+            }
+          },
+          onError: () => {
+            if (this.isLiveModeActive) {
+              this.setState('listening');
+            } else {
+              this.setState('idle');
+            }
+          },
+        });
+
+        console.log(`[LiveTranslationService] expo-speech nativo acionado (${Platform.OS}) | Tom: ${effectiveGender.toUpperCase()} (Pitch: ${effectiveGender === 'male' ? 0.75 : 1.15}) | Voz: ${selectedVoiceId || 'padrão SO'}`);
+        return true;
+      } catch (expoErr) {
+        console.warn('[LiveTranslationService] Erro no expo-speech nativo:', expoErr);
+      }
+    }
+
+    // 2. Web fallback via Web Speech API
     try {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        const langShort = (langCode || 'pt-BR').split('-')[0].toLowerCase();
-        const effectiveGender = gender === 'female' ? 'female' : 'male';
-
-        const langMap: Record<string, string> = {
-          pt: 'pt-BR',
-          en: 'en-US',
-          es: 'es-ES',
-          fr: 'fr-FR',
-          de: 'de-DE',
-          it: 'it-IT',
-          ja: 'ja-JP',
-          zh: 'zh-CN',
-          ru: 'ru-RU',
-        };
-        utterance.lang = langMap[langShort] || langCode || 'pt-BR';
+        utterance.lang = targetLangFull;
 
         // Seleciona voz disponível por idioma e gênero
         const allVoices = window.speechSynthesis.getVoices();
@@ -359,10 +476,10 @@ class LiveTranslationService {
         }
 
         // Calibração de Pitch Acústico F0:
-        // 0.78 = tom masculino encorpado/grave (barítono natural)
-        // 1.18 = tom feminino brilhante e suave
-        utterance.pitch = effectiveGender === 'male' ? 0.78 : 1.18;
-        utterance.rate = 1.0;
+        // 0.75 = tom masculino encorpado/grave (barítono natural de Cleber)
+        // 1.15 = tom feminino brilhante e suave
+        utterance.pitch = effectiveGender === 'male' ? 0.75 : 1.15;
+        utterance.rate = 0.95;
 
         this.setState('speaking');
         utterance.onend = () => {

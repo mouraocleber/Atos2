@@ -562,7 +562,6 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     let speechRecognitionInstance = null;
     let mediaRecorderInstance = null;
     let mediaRecorderTimer = null;
-    let remoteAudioContext = null;
 
     function showAudioUnlockBanner() {
       const banner = document.getElementById('audioUnlockBanner');
@@ -575,13 +574,8 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     }
 
     function unlockAllAudio() {
-      log('Touch/Click detectado: Destravando canais de áudio...');
+      log('Touch/Click detectado: Destravando canais de áudio direto...');
       hideAudioUnlockBanner();
-      if (remoteAudioContext) {
-        if (remoteAudioContext.state === 'suspended') {
-          remoteAudioContext.resume().then(() => log('AudioContext retomado com sucesso.')).catch(e => log('AudioContext resume err: ' + e.message));
-        }
-      }
       const remoteAudio = document.getElementById('remoteAudio');
       if (remoteAudio) {
         remoteAudio.muted = false;
@@ -932,12 +926,14 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     // Main setup
     async function startCall() {
       try {
-        log('Requesting local media streams...');
+        log('Requesting local media streams com prioridade de voz humana...');
         const constraints = {
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: true
+            autoGainControl: true,
+            channelCount: 1, // Canal mono direto para priorizar voz humana sem cancelamento cruzado
+            sampleRate: { ideal: 48000 }
           },
           video: callType === 'video' ? { facingMode: facingMode } : false
         };
@@ -946,7 +942,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
           throw new Error("navigator.mediaDevices is undefined. Origin is not secure (requires HTTPS or localhost baseUrl in WebView).");
         }
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        log('Acquired local media stream with audio/video tracks.');
+        log('Acquired local media stream with voice-prioritized audio tracks.');
 
         if (callType === 'video') {
           const localVideo = document.getElementById('localVideo');
@@ -957,9 +953,11 @@ export const getWebRtcHtml = (initialConfig?: any) => {
         log('Creating RTCPeerConnection with ' + iceServers.length + ' ICE servers.');
         peerConnection = new RTCPeerConnection({ iceServers: iceServers });
 
-        // Add local tracks to PeerConnection
+        // Add local tracks to PeerConnection garantindo tracks ativas
         localStream.getTracks().forEach(track => {
+          track.enabled = true;
           peerConnection.addTrack(track, localStream);
+          log('Local track adicionada: ' + track.kind + ' (enabled: ' + track.enabled + ')');
         });
 
         // Setup handlers
@@ -1007,6 +1005,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
             }
           }
           
+          // Canal direto de mídia para áudio remoto: sem interceptação de AudioContext suspenso
           const remoteAudio = document.getElementById('remoteAudio');
           if (remoteAudio) {
             remoteAudio.srcObject = stream;
@@ -1016,34 +1015,16 @@ export const getWebRtcHtml = (initialConfig?: any) => {
             const playPromise = remoteAudio.play();
             if (playPromise !== undefined) {
               playPromise.then(() => {
-                log('Remote audio playback started successfully.');
+                log('Remote audio reproduzindo diretamente com prioridade de voz.');
                 hideAudioUnlockBanner();
                 checkConnectedAndStartTimer();
                 startTimer();
               }).catch(e => {
-                log('Remote audio play error: ' + e.message + '. Exibindo banner para toque de desbloqueio...');
+                log('Remote audio autoplay pendente: ' + e.message + '. Banner exibido para toque do usuário.');
                 showAudioUnlockBanner();
                 startTimer();
               });
             }
-          }
-
-          // Web Audio API para roteamento direto ao mixer de som do sistema
-          try {
-            const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtxClass) {
-              if (!remoteAudioContext || remoteAudioContext.state === 'closed') {
-                remoteAudioContext = new AudioCtxClass();
-              }
-              if (remoteAudioContext.state === 'suspended') {
-                remoteAudioContext.resume().catch(() => showAudioUnlockBanner());
-              }
-              const audioSource = remoteAudioContext.createMediaStreamSource(stream);
-              audioSource.connect(remoteAudioContext.destination);
-              log('Web Audio API AudioContext conectado com sucesso à stream remota.');
-            }
-          } catch (acErr) {
-            log('Erro ao inicializar AudioContext para stream remota: ' + acErr.message);
           }
         };
 

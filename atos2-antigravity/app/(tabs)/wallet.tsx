@@ -20,6 +20,8 @@ import * as Linking from 'expo-linking';
 import { getBinanceQuote, createBinanceBuyOrder, checkBinanceOrderStatus } from '../../services/binance';
 import { getVirtualCard, issueVirtualCard, toggleCardLock, requestPhysicalCard, getCardTokenForWallet, PomeloCard } from '../../services/pomelo';
 import { QuickChargeModal } from '../../components/QuickChargeModal';
+import { PixConfigModal } from '../../components/PixConfigModal';
+import { getMerchantPixConfig, MerchantPixConfig, PIX_TYPE_LABELS } from '../../services/pixService';
 
 
 interface Transaction {
@@ -71,6 +73,8 @@ export default function WalletScreen() {
   const [depositLoading, setDepositLoading] = useState(false);
   const [generatedPixCode, setGeneratedPixCode] = useState('');
   const [depositStep, setDepositStep] = useState<'input' | 'qr'>('input');
+  const [pixConfigVisible, setPixConfigVisible] = useState(false);
+  const [merchantPixConfig, setMerchantPixConfig] = useState<MerchantPixConfig | null>(null);
 
   // Conversão BRL ⇄ USDC
   const [convertModalVisible, setConvertModalVisible] = useState(false);
@@ -122,6 +126,7 @@ export default function WalletScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      getMerchantPixConfig().then(setMerchantPixConfig);
       if (walletUnlocked && !isCoachDone('wallet')) {
         const t = setTimeout(() => setCoachVisible(true), 500);
         return () => clearTimeout(t);
@@ -986,54 +991,159 @@ export default function WalletScreen() {
               </>
             ) : (
               <>
-                <Text style={styles.modalSubtitle}>Mostre o QR Code abaixo ou compartilhe sua chave PIX para receber pagamentos.</Text>
+                {merchantPixConfig ? (
+                  <View style={{ width: '100%', alignItems: 'center' }}>
+                    {/* Badge da Chave Oficial */}
+                    <View style={{
+                      backgroundColor: '#064E3B',
+                      borderRadius: 12,
+                      padding: 12,
+                      width: '100%',
+                      marginBottom: 14,
+                      borderWidth: 1,
+                      borderColor: '#10B981',
+                    }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ color: '#A7F3D0', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
+                          🏦 Chave PIX Oficial ({PIX_TYPE_LABELS[merchantPixConfig.type]})
+                        </Text>
+                        <TouchableOpacity onPress={() => setPixConfigVisible(true)}>
+                          <Text style={{ color: '#38BDF8', fontSize: 12, fontWeight: '600' }}>Alterar</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 'bold' }}>
+                        {merchantPixConfig.key}
+                      </Text>
+                      {merchantPixConfig.holderName ? (
+                        <Text style={{ color: '#D1FAE5', fontSize: 12, marginTop: 2 }}>
+                          Titular: {merchantPixConfig.holderName}
+                        </Text>
+                      ) : null}
+                    </View>
 
-                {/* Seletor de tipo de chave PIX */}
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                  {(['email', 'phone', 'cpf'] as const).map(k => (
+                    {/* QR Code */}
+                    <View style={{ padding: 18, backgroundColor: '#fff', borderRadius: 12, marginBottom: 14 }}>
+                      <QRCode value={merchantPixConfig.key} size={180} />
+                    </View>
+
+                    {/* Chave copiavel */}
                     <TouchableOpacity
-                      key={k}
-                      style={[{
-                        paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
-                        borderColor: pixKeyType === k ? Colors.success : Colors.light.border,
-                        backgroundColor: pixKeyType === k ? Colors.success + '15' : 'transparent'
-                      }]}
-                      onPress={() => setPixKeyType(k)}
+                      style={{
+                        backgroundColor: Colors.success + '10', borderRadius: 10, padding: 12, width: '100%',
+                        borderWidth: 1, borderColor: Colors.success + '40', alignItems: 'center', marginBottom: 12
+                      }}
+                      onPress={() => {
+                        Clipboard.setStringAsync(merchantPixConfig.key);
+                        Alert.alert('Copiado! 🎉', 'Chave PIX copiada para a área de transferência.');
+                      }}
                     >
-                      <Text style={{ color: pixKeyType === k ? Colors.success : Colors.light.textMuted, fontSize: 12, fontWeight: '600' }}>
-                        {k === 'email' ? 'E-mail' : k === 'phone' ? 'Telefone' : 'CPF/CNPJ'}
+                      <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 14 }}>
+                        {merchantPixConfig.key}
+                      </Text>
+                      <Text style={{ color: Colors.light.textMuted, fontSize: 11, marginTop: 4 }}>📋 Toque para copiar a chave</Text>
+                    </TouchableOpacity>
+
+                    {/* Botão de Ajustar Chave */}
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        paddingVertical: 10,
+                        width: '100%',
+                        marginBottom: 10,
+                      }}
+                      onPress={() => setPixConfigVisible(true)}
+                    >
+                      <Feather name="settings" size={14} color={Colors.primary} />
+                      <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600' }}>
+                        Editar Dados Bancários / Chave PIX
                       </Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
+                  </View>
+                ) : (
+                  <>
+                    <View style={{
+                      backgroundColor: Colors.primary + '10',
+                      borderRadius: 12,
+                      padding: 12,
+                      width: '100%',
+                      marginBottom: 14,
+                      borderWidth: 1,
+                      borderColor: Colors.primary + '30',
+                    }}>
+                      <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
+                        💡 É um Hotel ou Restaurante?
+                      </Text>
+                      <Text style={{ color: Colors.light.textSecondary, fontSize: 12, lineHeight: 17, marginBottom: 8 }}>
+                        Cadastre o CNPJ da sua empresa para que os pagamentos e liquidações caiam direto na conta jurídica.
+                      </Text>
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: Colors.primary,
+                          borderRadius: 8,
+                          paddingVertical: 8,
+                          alignItems: 'center',
+                        }}
+                        onPress={() => setPixConfigVisible(true)}
+                      >
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                          Cadastrar Chave PIX (CNPJ)
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
 
-                {/* QR Code */}
-                <View style={{ padding: 20, backgroundColor: '#fff', borderRadius: 12, marginBottom: 16 }}>
-                  {user?.id ? (
-                    <QRCode
-                      value={pixKeyType === 'email' ? (user?.email || user?.id) :
-                        pixKeyType === 'phone' ? (user?.phone || user?.id) : (user?.id)}
-                      size={190}
-                    />
-                  ) : <ActivityIndicator color={Colors.primary} />}
-                </View>
+                    <Text style={styles.modalSubtitle}>Ou utilize seus dados de cadastro:</Text>
 
-                {/* Chave copiavel */}
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: Colors.success + '10', borderRadius: 10, padding: 12, width: '100%',
-                    borderWidth: 1, borderColor: Colors.success + '40', alignItems: 'center', marginBottom: 16
-                  }}
-                  onPress={() => {
-                    const key = pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id;
-                    if (key) { Clipboard.setStringAsync(key); Alert.alert('Copiado!', 'Chave PIX copiada.'); }
-                  }}
-                >
-                  <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 13 }}>
-                    {pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id}
-                  </Text>
-                  <Text style={{ color: Colors.light.textMuted, fontSize: 11, marginTop: 4 }}>📋 Toque para copiar a chave</Text>
-                </TouchableOpacity>
+                    {/* Seletor de tipo de chave PIX */}
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                      {(['email', 'phone', 'cpf'] as const).map(k => (
+                        <TouchableOpacity
+                          key={k}
+                          style={[{
+                            paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
+                            borderColor: pixKeyType === k ? Colors.success : Colors.light.border,
+                            backgroundColor: pixKeyType === k ? Colors.success + '15' : 'transparent'
+                          }]}
+                          onPress={() => setPixKeyType(k)}
+                        >
+                          <Text style={{ color: pixKeyType === k ? Colors.success : Colors.light.textMuted, fontSize: 12, fontWeight: '600' }}>
+                            {k === 'email' ? 'E-mail' : k === 'phone' ? 'Telefone' : 'CPF/CNPJ'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* QR Code */}
+                    <View style={{ padding: 18, backgroundColor: '#fff', borderRadius: 12, marginBottom: 14 }}>
+                      {user?.id ? (
+                        <QRCode
+                          value={pixKeyType === 'email' ? (user?.email || user?.id) :
+                            pixKeyType === 'phone' ? (user?.phone || user?.id) : (user?.id)}
+                          size={180}
+                        />
+                      ) : <ActivityIndicator color={Colors.primary} />}
+                    </View>
+
+                    {/* Chave copiavel */}
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: Colors.success + '10', borderRadius: 10, padding: 12, width: '100%',
+                        borderWidth: 1, borderColor: Colors.success + '40', alignItems: 'center', marginBottom: 14
+                      }}
+                      onPress={() => {
+                        const key = pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id;
+                        if (key) { Clipboard.setStringAsync(key); Alert.alert('Copiado!', 'Chave PIX copiada.'); }
+                      }}
+                    >
+                      <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 13 }}>
+                        {pixKeyType === 'email' ? user?.email : pixKeyType === 'phone' ? user?.phone : user?.id}
+                      </Text>
+                      <Text style={{ color: Colors.light.textMuted, fontSize: 11, marginTop: 4 }}>📋 Toque para copiar a chave</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </>
             )}
 
@@ -1560,6 +1670,15 @@ export default function WalletScreen() {
         tableNumber="01"
       />
 
+      {/* Modal de Configuração de Chave PIX do Estabelecimento */}
+      <PixConfigModal
+        visible={pixConfigVisible}
+        onClose={() => setPixConfigVisible(false)}
+        onSaved={(cfg) => setMerchantPixConfig(cfg)}
+        defaultHolderName={user?.name}
+        defaultEmail={user?.email}
+        defaultPhone={user?.phone}
+      />
 
     </View>
   );

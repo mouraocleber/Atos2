@@ -487,7 +487,20 @@ export default function ChatRoomScreen() {
       }
     };
 
-    const handleWebRtcPlayTranslatedAudio = (data: { audioUrl: string }) => {
+    const handleWebRtcPlayTranslatedAudio = (data: { audioUrl: string; translatedText?: string; targetLanguage?: string; language?: string; gender?: 'male' | 'female' }) => {
+      // Prioridade no celular: síntese nativa via expo-speech com timbre masculino grave do Cleber (pitch 0.75)
+      if (data.translatedText) {
+        const spoken = liveTranslationService.speakWithNativeTts(
+          data.translatedText,
+          data.targetLanguage || data.language || user?.preferredLanguage || 'pt-BR',
+          data.gender || 'male'
+        );
+        if (spoken) {
+          console.log('[VoIP] Tradução reproduzida com sucesso no celular via expo-speech nativo!');
+          return;
+        }
+      }
+
       const msg = JSON.stringify({
         type: 'signal',
         signal: {
@@ -670,12 +683,17 @@ export default function ChatRoomScreen() {
       speakerLanguage: sourceLang,
       originalText: data.text,
       translatedText: translatedText,
+      targetLanguage: targetLang,
+      gender: detectedGender,
     });
 
     socketRef.current?.emit('webrtcPlayTranslatedAudio', {
       to: id,
       roomId: currentRoomId,
       audioUrl: audioUrl,
+      translatedText: translatedText,
+      targetLanguage: targetLang,
+      gender: detectedGender,
     });
   };
 
@@ -1123,7 +1141,7 @@ export default function ChatRoomScreen() {
           ? user.voiceGender
           : 'male';
 
-      // 1. Tenta Web Speech API nativa calibrada para tom masculino autêntico (pitch 0.78)
+      // 1. Tenta expo-speech nativo nos celulares ou Web Speech API calibrada para tom masculino autêntico de Cleber (pitch 0.75)
       const spoken = liveTranslationService.speakWithNativeTts(text, langOnly, gender);
       if (spoken) return;
 
