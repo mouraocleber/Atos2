@@ -9,7 +9,7 @@ Este documento detalha o modelo de negócios, custos operacionais por usuário (
 O **AtoS2** opera sob um modelo híbrido **SaaS Freemium (Assinatura Recorrente B2B/B2C)** + **Receitas Transacionais (Fintech/Marketplace)**:
 
 1. **Assinaturas SaaS (Planos B2B & B2C)**: Licenciamento de inteligência artificial de tradução em tempo real para atendimento ao cliente, pontos de venda, recepção, guia de passeios, comércio e serviços turísticos. Todos os novos assinantes possuem **90 dias sem cobrança de assinatura (90 Days Free Trial)**.
-2. **Receitas Transacionais FinTech**: Spreads sobre conversão de câmbio/cripto (BRL <-> USDC), taxas de saque PIX e emissão de cartões físicos.
+2. **Receitas Transacionais FinTech (Split Automático sem Custódia)**: Take-rate sobre vendas via **Stripe Connect** (Global), taxas de intermediação de **PIX Dinâmico** (Brasil) e spreads sobre liquidação automática via **Solana Pay** (USDC -> fiduciário direto na conta corrente).
 
 ---
 
@@ -35,9 +35,9 @@ Estimativa para um usuário ativo em uso regular consumindo em média **5 horas 
 
 | Plano | Preço Brasil (BRL) | Preço Global (USD) | Escopo, Benefícios e Licenças |
 | :--- | :--- | :--- | :--- |
-| **Freemium (Degustação)** | **R$ 0,00** | **$0.00** | Chat em tempo real, Carteira PIX/Cripto, degustação de 15 min de tradução de voz. |
+| **Freemium (Degustação)** | **R$ 0,00** | **$0.00** | Chat em tempo real, degustação de 15 min de tradução de voz, leitura de pagamentos. |
 | **PRO 1 Usuário (Atendente)** | **R$ 99,90 /mês** | **$19.99 /mês** | 1 Licença de Usuário / Atendente, Push-to-Talk, Tradução em tempo real no balcão/ponto. ⭐ **90 Dias Grátis sem cobrança**. |
-| **BUSINESS 5 Usuários** | **R$ 299,90 /mês** | **$59.99 /mês** | 5 Licenças de Usuários / Atendentes, QR Code de Cobrança / Ponto de Venda Dinâmico, Bloqueio de Carteira Master no Caixa. ⭐ **90 Dias Grátis sem cobrança**. |
+| **BUSINESS 5 Usuários** | **R$ 299,90 /mês** | **$59.99 /mês** | 5 Licenças de Usuários / Atendentes, QR Code de Cobrança / Ponto de Venda Dinâmico. ⭐ **90 Dias Grátis sem cobrança**. |
 | **ENTERPRISE 15 Usuários**| **R$ 499,90 /mês** | **$99.99 /mês** | 15 Licenças para equipes e estabelecimentos, Suporte VIP 24/7, Relatórios Analíticos de Vendas e Tradução. ⭐ **90 Dias Grátis sem cobrança**. |
 | **CORPORATE (Redes/Hotéis)**| **Sob Consulta** | **Custom** | Para redes de hotéis, resorts, atrativos e grandes redes turísticas acima de 15 dispositivos. |
 
@@ -45,12 +45,12 @@ Estimativa para um usuário ativo em uso regular consumindo em média **5 horas 
 
 ### 3.2. Receitas Transacionais Integradas (`constants/fees.ts`)
 
-| Serviço / Operação | Valor / Taxa | Variável no Código (`constants/fees.ts`) |
+| Serviço / Operação | Valor / Taxa | Descrição & Liquidação |
 | :--- | :--- | :--- |
-| **Spread de Conversão BRL <-> USDC** | **2,0%** sobre o valor convertido | `CRYPTO_CONVERSION_SPREAD = 0.02` |
-| **Taxa de Saque PIX Externo** | **R$ 1,99** por operação | `PIX_WITHDRAWAL = 1.99` |
-| **Emissão de Cartão Físico** | **R$ 39,90** taxa única | `PHYSICAL_CARD_ISSUE = 39.90` |
-| **Transferência Interna entre Usuários** | **GRÁTIS (R$ 0,00)** | `INTERNAL_TRANSFER = 0` |
+| **Solana Pay (USDC -> Conta Corrente)** | **1,5% a 2,0%** spread/taxa | Liquidação e off-ramp automático para a conta bancária do restaurante |
+| **Stripe Connect Split (Global)** | **1,5% a 2,5%** take-rate | Split direto na liquidação para a conta do estabelecimento no exterior |
+| **PIX Dinâmico com Split (Brasil)** | **0,99% a 1,49%** | Liquidação direta na chave PIX / conta corrente do estabelecimento |
+| **Transferência Interna entre Usuários** | **GRÁTIS (R$ 0,00)** | Comunicação e orquestração no app |
 
 ---
 
@@ -98,3 +98,20 @@ Estimativa para um usuário ativo em uso regular consumindo em média **5 horas 
 * **LTV Estimado (Lifetime Value - 12 meses de retenção no Plano PRO)**: 
   $$\text{LTV} = 12 \times \text{R\$ 88,70} = \mathbf{R\$ 1.064,40}$$
 * **Escalabilidade Tecnológica**: Arquitetura P2P via WebRTC com STT/NMT ultrarrápido otimiza significativamente o custo operacional à medida que a base escala.
+
+---
+
+## 7. Diretriz Arquitetural de Risco Zero de Custódia (Zero Custody Architecture)
+
+Para evitar invasão, fraudes e rombos financeiros, o **Atos2 opera sob política de Zero Custódia**:
+
+1. **Cripto via Solana Pay**:
+   - Turistas realizam pagamentos em cripto/stablecoin (USDC) através do protocolo **Solana Pay**.
+   - A liquidação é instantânea e convertida automaticamente via off-ramp direto para a **conta corrente bancária do restaurante**.
+   - O Atos2 nunca custodia chaves privadas, wallets de terceiros ou saldos fiduciários intermediários.
+2. **Global via Stripe Connect**:
+   - Pagamentos com cartões internacionais, Apple Pay e Google Pay utilizam o split de marketplace da Stripe. O repasse é creditado diretamente no domicílio bancário do estabelecimento parceiro no país de origem.
+3. **Brasil via PIX Dinâmico**:
+   - O QR Code gerado liquida diretamente na chave PIX / conta corrente do parceiro no Brasil, retendo a comissão do Atos2 na fonte.
+4. **Cadastro de Usuário**:
+   - Coleta e validação de dados de transferência bancária e chave PIX para repasse automático das vendas.
