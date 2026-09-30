@@ -15,7 +15,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.atos2.app",
-      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "O app precisa da câmera para escanear documentos e QR codes.",
         "NSMicrophoneUsageDescription": "O app precisa do microfone para gravação de áudio e chamadas.",

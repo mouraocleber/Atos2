@@ -18,6 +18,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useAuth } from '../contexts/AuthContext';
 import { ATOS2_FEES, SOLANA_CONFIG } from '../constants/fees';
+import api from '../services/api';
 import {
   convertBrlToUsdc,
   convertBrlToSol,
@@ -60,6 +61,8 @@ export default function CheckoutScreen() {
   const [isPaid, setIsPaid] = useState<boolean>(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const [copiedKey, setCopiedKey] = useState<boolean>(false);
+  const [dynamicPixCode, setDynamicPixCode] = useState<string>('');
+  const [isGeneratingPix, setIsGeneratingPix] = useState<boolean>(false);
 
   // Cálculos financeiros
   const tipAmountBrl = (baseAmountBrl * selectedTip) / 100;
@@ -102,6 +105,36 @@ export default function CheckoutScreen() {
 
   // Geração de chaves e links
   const simulatedPixCode = `00020126580014br.gov.bcb.pix0136atos2-checkout-${table}-${Date.now()}520400005303986540${totalFinalBrl.toFixed(2)}5802BR5925ATOS2 MEIOS DE PAGAMENTO6009SAO PAULO62070503***6304`;
+  const activePixCode = dynamicPixCode || simulatedPixCode;
+
+  // Busca código PIX dinâmico real da API quando o modal abre para PIX
+  useEffect(() => {
+    if (paymentModalVisible && selectedMethod === 'pix') {
+      let isSubscribed = true;
+      setIsGeneratingPix(true);
+      api.post('/payments/deposit/pix', {
+        amount: totalFinalBrl,
+        currency: 'BRL',
+        description: `Mesa ${table} - ${merchant}`,
+      })
+        .then((res) => {
+          if (isSubscribed && res.data?.success && res.data?.data?.pix?.qr_code) {
+            setDynamicPixCode(res.data.data.pix.qr_code);
+          }
+        })
+        .catch((err) => {
+          console.warn('[Checkout PIX] Gateway offline ou sem token, usando fallback local:', err?.message);
+        })
+        .finally(() => {
+          if (isSubscribed) setIsGeneratingPix(false);
+        });
+
+      return () => {
+        isSubscribed = false;
+      };
+    }
+  }, [paymentModalVisible, selectedMethod, totalFinalBrl]);
+
   const solanaUri = generateSolanaPayUri({
     amountUsdc: totalUsdc,
     label: `AtoS2 - ${merchant}`,
@@ -522,14 +555,21 @@ export default function CheckoutScreen() {
               {selectedMethod === 'pix' && (
                 <View style={styles.methodDetailContainer}>
                   <Text style={styles.methodInstruction}>
-                    Escaneie o QR Code abaixo no app do seu banco ou copie a chave Pix:
+                    {isGeneratingPix
+                      ? 'Gerando QR Code PIX dinâmico oficial...'
+                      : 'Escaneie o QR Code abaixo no app do seu banco ou copie o código Pix:'}
                   </Text>
                   <View style={styles.qrCodeWrapper}>
-                    <QRCode value={simulatedPixCode} size={180} color="#0F172A" />
+                    {isGeneratingPix ? (
+                      <ActivityIndicator size="large" color="#38BDF8" style={{ padding: 40 }} />
+                    ) : (
+                      <QRCode value={activePixCode} size={180} color="#0F172A" />
+                    )}
                   </View>
                   <TouchableOpacity
                     style={styles.copyButton}
-                    onPress={() => handleCopy(simulatedPixCode)}
+                    onPress={() => handleCopy(activePixCode)}
+                    disabled={isGeneratingPix}
                   >
                     <Ionicons
                       name={copiedKey ? 'checkmark' : 'copy-outline'}
