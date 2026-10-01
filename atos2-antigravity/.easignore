@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+dist.tar.gz
+dist.zip
+web-build/
+scratch/
+expo_output.txt
+android/
+ios/
+Atos2_Executive_Pitch_Deck.pptx
+*.log
+*.tar.gz
+*.zip
