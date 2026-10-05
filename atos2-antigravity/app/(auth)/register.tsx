@@ -49,6 +49,8 @@ export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [language, setLanguage] = useState<LanguageCode>('pt-BR');
 
   const filteredLanguages = useMemo(() => {
@@ -122,9 +124,9 @@ export default function RegisterScreen() {
       const rawNickname = trimmedName.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
       const nickname = (rawNickname || trimmedEmail.split('@')[0].slice(0, 8)) + Math.floor(100 + Math.random() * 900);
 
-      // Gera senha segura padrão para acesso inicial com base no celular
+      // Senha definida pelo usuário ou padrão seguro com base no celular
       const phoneDigits = trimmedPhone.replace(/\D/g, '');
-      const generatedPassword = `Atos2@${phoneDigits.slice(-6) || '2026'}`;
+      const generatedPassword = password.trim() ? password.trim() : `Atos2@${phoneDigits.slice(-6) || '2026'}`;
 
       const res = await signUp({
         email: trimmedEmail,
@@ -404,9 +406,31 @@ export default function RegisterScreen() {
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
-                returnKeyType="done"
-                onSubmitEditing={handleRegister}
+                returnKeyType="next"
               />
+            </View>
+
+            {/* 4. Senha (Opcional) */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>🔒 Senha (Opcional - padrão seguro será gerado)</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  placeholder="Mínimo 8 caracteres (ou deixe em branco)"
+                  placeholderTextColor={Colors.light.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  returnKeyType="done"
+                  onSubmitEditing={handleRegister}
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Checkbox de Aceite LGPD & Termos */}
@@ -797,5 +821,22 @@ const styles = StyleSheet.create({
   emptyText: {
     color: Colors.light.textMuted,
     fontSize: FontSize.sm,
+  },
+  passwordContainer: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: Spacing.md,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  eyeIcon: {
+    fontSize: 20,
   },
 });

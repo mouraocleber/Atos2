@@ -11,14 +11,17 @@ import {
   Platform,
   Alert,
   Image,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons, FontAwesome } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import api, { SERVER_URL } from '../services/api';
 import { getRoomDetails } from '../services/group';
 
 import { useAuth } from '../contexts/AuthContext';
+import { useLocalization } from '../contexts/LocalizationContext';
 
 interface UserProfile {
   id: string;
@@ -28,10 +31,41 @@ interface UserProfile {
   role?: string;
 }
 
+export const POPULAR_LANGUAGES = [
+  { code: 'pt-BR', name: 'Português', flag: '🇧🇷' },
+  { code: 'en-US', name: 'English', flag: '🇺🇸' },
+  { code: 'es-ES', name: 'Español', flag: '🇪🇸' },
+  { code: 'fr-FR', name: 'Français', flag: '🇫🇷' },
+  { code: 'de-DE', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'it-IT', name: 'Italiano', flag: '🇮🇹' },
+  { code: 'zh-CN', name: '中文', flag: '🇨🇳' },
+  { code: 'ja-JP', name: '日本語', flag: '🇯🇵' },
+  { code: 'ru-RU', name: 'Русский', flag: '🇷🇺' },
+  { code: 'ar-SA', name: 'العربية', flag: '🇸🇦' },
+];
+
+function detectVisitorLanguage(): string {
+  if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.language) {
+    const nav = navigator.language.toLowerCase();
+    if (nav.startsWith('en')) return 'en-US';
+    if (nav.startsWith('es')) return 'es-ES';
+    if (nav.startsWith('fr')) return 'fr-FR';
+    if (nav.startsWith('de')) return 'de-DE';
+    if (nav.startsWith('it')) return 'it-IT';
+    if (nav.startsWith('zh')) return 'zh-CN';
+    if (nav.startsWith('ja')) return 'ja-JP';
+    if (nav.startsWith('ru')) return 'ru-RU';
+    if (nav.startsWith('ar')) return 'ar-SA';
+    if (nav.startsWith('pt')) return 'pt-BR';
+  }
+  return 'pt-BR';
+}
+
 export default function ConnectScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { user: currentUser, setLinkAccess } = useAuth();
+  const { user: currentUser, setLinkAccess, signInAsGuest, signInWithGoogle } = useAuth();
+  const { setAppLanguage } = useLocalization();
 
   const roomId =
     (params.room as string) ||
@@ -52,6 +86,12 @@ export default function ConnectScreen() {
   const [recipient, setRecipient] = useState<UserProfile | null>(null);
   const [roomDetails, setRoomDetails] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Estados de Conexão Rápida / Zero Fricção para Visitantes
+  const [guestName, setGuestName] = useState('');
+  const [guestLoading, setGuestLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(detectVisitorLanguage);
 
   useEffect(() => {
     let isMounted = true;
@@ -153,6 +193,89 @@ export default function ConnectScreen() {
         roomType: roomTypeParam,
       },
     });
+  };
+
+  const handleQuickGuestConnect = async () => {
+    setGuestLoading(true);
+    try {
+      await signInAsGuest(guestName.trim() || 'Visitante', selectedLanguage);
+      await setAppLanguage(selectedLanguage as any);
+      if (roomId) {
+        const title = roomNameParam || roomDetails?.name || 'Tour com Guia';
+        router.replace({
+          pathname: '/chat/[id]',
+          params: {
+            id: roomId,
+            name: title,
+            isRoom: 'true',
+            roomType: roomTypeParam,
+          },
+        });
+      } else if (userId) {
+        router.replace({
+          pathname: '/chat/[id]',
+          params: {
+            id: userId,
+            name: recipient?.name || 'Contato',
+          },
+        });
+      }
+    } catch (e: any) {
+      Alert.alert('Erro ao Conectar', e.message || 'Falha ao iniciar conversa rápida.');
+    } finally {
+      setGuestLoading(false);
+    }
+  };
+
+  const handleGoogleConnect = async () => {
+    setGoogleLoading(true);
+    try {
+      const res = await signInWithGoogle();
+      if (selectedLanguage && selectedLanguage !== 'pt-BR') {
+        try {
+          await api.put('/users/me', { preferredLanguage: selectedLanguage });
+          await setAppLanguage(selectedLanguage as any);
+        } catch (e) {}
+      }
+      const returnPath = roomId
+        ? `/chat/${roomId}?name=${encodeURIComponent(roomNameParam || roomDetails?.name || 'Tour com Guia')}&isRoom=true&roomType=${roomTypeParam}`
+        : `/chat/${userId}?name=${encodeURIComponent(recipient?.name || 'Contato')}`;
+
+      if (res?.requires2FA) {
+        router.push({
+          pathname: '/(auth)/verify-otp',
+          params: { mode: 'new_device', redirectUrl: returnPath },
+        });
+        return;
+      }
+
+      if (roomId) {
+        const title = roomNameParam || roomDetails?.name || 'Tour com Guia';
+        router.replace({
+          pathname: '/chat/[id]',
+          params: {
+            id: roomId,
+            name: title,
+            isRoom: 'true',
+            roomType: roomTypeParam,
+          },
+        });
+      } else if (userId) {
+        router.replace({
+          pathname: '/chat/[id]',
+          params: {
+            id: userId,
+            name: recipient?.name || 'Contato',
+          },
+        });
+      }
+    } catch (e: any) {
+      if (e.message !== 'Login cancelado') {
+        Alert.alert('Google Sign-In', e.message || 'Não foi possível entrar com Google.');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleStartChat = () => {
@@ -350,28 +473,140 @@ export default function ConnectScreen() {
 
             <View style={styles.divider} />
 
-            {/* Ações principais */}
-            <Text style={styles.sectionTitle}>O que você deseja fazer?</Text>
+            {/* Ações principais / Zero Fricção */}
+            {!currentUser ? (
+              <View style={{ width: '100%', alignItems: 'center' }}>
+                <Text style={styles.sectionTitle}>Conexão Instantânea Sem Fricção</Text>
 
-            <TouchableOpacity
-              style={[styles.actionBtnPrimary, { backgroundColor: Colors.secondary }]}
-              onPress={handleStartChat}
-            >
-              <Ionicons name="chatbubbles" size={20} color="#041527" />
-              <Text style={[styles.actionBtnText, { color: '#041527' }]}>
-                Iniciar Chat com Tradução ao Vivo
-              </Text>
-            </TouchableOpacity>
+                {/* Seletor de Idioma do Visitante */}
+                <View style={styles.langSelectorBox}>
+                  <View style={styles.langSelectorHeader}>
+                    <Text style={styles.langSelectorTitle}>🌐 Seu Idioma Nativo:</Text>
+                    <Text style={styles.langSelectorActive}>
+                      {POPULAR_LANGUAGES.find(l => l.code === selectedLanguage)?.flag}{' '}
+                      {POPULAR_LANGUAGES.find(l => l.code === selectedLanguage)?.name}
+                    </Text>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.langScrollContent}
+                  >
+                    {POPULAR_LANGUAGES.map((lang) => {
+                      const isSelected = selectedLanguage === lang.code;
+                      return (
+                        <TouchableOpacity
+                          key={lang.code}
+                          style={[styles.langChip, isSelected && styles.langChipSelected]}
+                          onPress={() => {
+                            setSelectedLanguage(lang.code);
+                            setAppLanguage(lang.code as any);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.langChipFlag}>{lang.flag}</Text>
+                          <Text style={[styles.langChipText, isSelected && styles.langChipTextSelected]}>
+                            {lang.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+                
+                {/* Botão Google (1 Toque) */}
+                <TouchableOpacity
+                  style={styles.googleActionBtn}
+                  onPress={handleGoogleConnect}
+                  disabled={googleLoading || guestLoading}
+                  activeOpacity={0.85}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator color="#333" />
+                  ) : (
+                    <>
+                      <FontAwesome name="google" size={18} color="#DB4437" />
+                      <Text style={styles.googleActionBtnText}>Continuar com o Google (1 Toque)</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.actionBtnSecondary, { borderColor: Colors.secondary }]}
-              onPress={handleSendPayment}
-            >
-              <Ionicons name="wallet-outline" size={20} color={Colors.secondary} />
-              <Text style={[styles.actionBtnText, { color: Colors.secondary }]}>
-                Enviar Pagamento / Transferência
-              </Text>
-            </TouchableOpacity>
+                <View style={styles.orDivider}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>ou entrar como visitante</Text>
+                  <View style={styles.orLine} />
+                </View>
+
+                {/* Nome Opcional do Visitante */}
+                <TextInput
+                  style={styles.guestInput}
+                  placeholder="Seu nome ou apelido (Opcional)"
+                  placeholderTextColor="#64748b"
+                  value={guestName}
+                  onChangeText={setGuestName}
+                  maxLength={40}
+                />
+
+                {/* Botão Conectar com 1 Clique */}
+                <TouchableOpacity
+                  style={[styles.actionBtnPrimary, { backgroundColor: Colors.secondary }]}
+                  onPress={handleQuickGuestConnect}
+                  disabled={guestLoading || googleLoading}
+                  activeOpacity={0.85}
+                >
+                  {guestLoading ? (
+                    <ActivityIndicator color="#041527" />
+                  ) : (
+                    <>
+                      <Feather name="zap" size={20} color="#041527" />
+                      <Text style={[styles.actionBtnText, { color: '#041527', fontWeight: '800' }]}>
+                        ⚡ Iniciar Conversa com 1 Clique
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* Link para quem já tem conta */}
+                <TouchableOpacity
+                  style={styles.alreadyHaveAccountBtn}
+                  onPress={() => {
+                    const returnPath = `/chat/${userId}?name=${encodeURIComponent(recipient?.name || 'Contato')}`;
+                    router.push({
+                      pathname: '/(auth)/login',
+                      params: { redirectUrl: returnPath },
+                    });
+                  }}
+                >
+                  <Text style={styles.alreadyHaveAccountText}>
+                    Já tem conta no AtoS2? <Text style={{ color: Colors.secondary, fontWeight: '700' }}>Entrar com E-mail</Text>
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ width: '100%', alignItems: 'center' }}>
+                <Text style={styles.sectionTitle}>Conectado como {currentUser.name}</Text>
+
+                <TouchableOpacity
+                  style={[styles.actionBtnPrimary, { backgroundColor: Colors.secondary }]}
+                  onPress={handleStartChat}
+                >
+                  <Ionicons name="chatbubbles" size={20} color="#041527" />
+                  <Text style={[styles.actionBtnText, { color: '#041527' }]}>
+                    Iniciar Chat com Tradução ao Vivo
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionBtnSecondary, { borderColor: Colors.secondary }]}
+                  onPress={handleSendPayment}
+                >
+                  <Ionicons name="wallet-outline" size={20} color={Colors.secondary} />
+                  <Text style={[styles.actionBtnText, { color: Colors.secondary }]}>
+                    Enviar Pagamento / Transferência
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {Platform.OS === 'web' && (
               <TouchableOpacity
@@ -560,5 +795,116 @@ const styles = StyleSheet.create({
     color: Colors.dark.textMuted,
     fontSize: FontSize.md,
     textAlign: 'center',
+  },
+  guestInput: {
+    width: '100%',
+    backgroundColor: '#07182C',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#1e3a5f',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    color: '#FFF',
+    fontSize: FontSize.md,
+    marginBottom: Spacing.sm,
+  },
+  googleActionBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: '#FFF',
+    paddingVertical: 14,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+  },
+  googleActionBtnText: {
+    color: '#1F2937',
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: Spacing.sm,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#1e3a5f',
+  },
+  orText: {
+    color: '#64748b',
+    fontSize: FontSize.xs,
+    marginHorizontal: Spacing.sm,
+  },
+  alreadyHaveAccountBtn: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  alreadyHaveAccountText: {
+    color: '#94a3b8',
+    fontSize: FontSize.xs,
+    textAlign: 'center',
+  },
+  langSelectorBox: {
+    width: '100%',
+    backgroundColor: '#07182C',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#1e3a5f',
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  langSelectorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+    paddingHorizontal: 4,
+  },
+  langSelectorTitle: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  langSelectorActive: {
+    color: Colors.secondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  langScrollContent: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  langChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0E2849',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1e3a5f',
+  },
+  langChipSelected: {
+    backgroundColor: 'rgba(255, 200, 87, 0.18)',
+    borderColor: Colors.secondary,
+  },
+  langChipFlag: {
+    fontSize: 15,
+  },
+  langChipText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  langChipTextSelected: {
+    color: Colors.secondary,
+    fontWeight: '800',
   },
 });

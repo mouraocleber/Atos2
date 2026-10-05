@@ -38,8 +38,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    if (
+      error.response?.status === 401 ||
+      (error.response?.status === 403 && (error.response?.data?.error === 'INVALID_TOKEN' || error.response?.data?.message?.includes('Token')))
+    ) {
       await deleteSecureItem('token');
+      await deleteSecureItem('refreshToken');
       await AsyncStorage.removeItem('user');
     }
     return Promise.reject(error);

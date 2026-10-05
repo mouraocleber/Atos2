@@ -113,7 +113,7 @@ interface Message {
 
 export default function ChatRoomScreen() {
   const { id, name, status, autoAcceptCall, profileImage, isRoom, roomType } = useLocalSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { socket } = useSocket();   // Socket global — conectado desde o login
   const { language } = useLocalization();
 
@@ -162,38 +162,58 @@ export default function ChatRoomScreen() {
   const flatListRef = useRef<FlatList>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const webViewRef = useRef<WebView>(null);
+  const iframeRef = useRef<any>(null);
+  const signalQueueRef = useRef<string[]>([]);
+  const isWebViewReadyRef = useRef<boolean>(false);
+
   const sendToCallBridge = (msg: string) => {
     if (Platform.OS === 'web') {
       try {
         iframeRef.current?.contentWindow?.postMessage(msg, '*');
       } catch (e) {}
     } else {
-      sendToCallBridge(msg);
+      try {
+        webViewRef.current?.postMessage(msg);
+      } catch (e) {}
     }
   };
 
-  const iframeRef = useRef<any>(null);
-  const signalQueueRef = useRef<string[]>([]);
-  const isWebViewReadyRef = useRef<boolean>(false);
+  const isCallBridgeReady = () => {
+    if (Platform.OS === 'web') {
+      return isWebViewReadyRef.current && !!iframeRef.current;
+    }
+    return isWebViewReadyRef.current && !!webViewRef.current;
+  };
   const DEFAULT_ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:stun.services.mozilla.com:3478' }
+    { urls: 'stun:stun.services.mozilla.com:3478' },
+    {
+      urls: [
+        'stun:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:80?transport=tcp',
+        'turn:openrelay.metered.ca:443',
+        'turns:openrelay.metered.ca:443?transport=tcp'
+      ],
+      username: 'openrelay',
+      credential: 'openrelay'
+    }
   ];
   const [iceServers, setIceServers] = useState<any[]>(DEFAULT_ICE_SERVERS);
 
-  // Redireciona para login se o turista/usuário não estiver logado
+  // Redireciona para login apenas após o término do carregamento da sessão caso não haja usuário
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       router.replace({
         pathname: '/(auth)/login',
         params: { redirectUrl: `/chat/${id}?name=${encodeURIComponent(Array.isArray(name) ? name[0] : (name || 'Contato'))}` },
       });
     }
-  }, [user, id, name]);
+  }, [user, authLoading, id, name]);
 
   // Estado do Papel do Usuário no Grupo / Palestra (SPEAKER vs LISTENER)
   const [myRole, setMyRole] = useState<MemberRole>('SPEAKER');
@@ -416,12 +436,10 @@ export default function ChatRoomScreen() {
       ringtoneService.startIncomingRingtone();
       if (data.callerLanguage) {
         setRemoteUserLanguage(data.callerLanguage);
-        if (webViewRef.current) {
-          webViewRef.current.postMessage(JSON.stringify({
-            type: 'signal',
-            signal: { type: 'set_remote_language', remoteLanguage: data.callerLanguage }
-          }));
-        }
+        sendToCallBridge(JSON.stringify({
+          type: 'signal',
+          signal: { type: 'set_remote_language', remoteLanguage: data.callerLanguage }
+        }));
       }
       setCallStatus('calling');
       setCallModalVisible(true);
@@ -432,12 +450,10 @@ export default function ChatRoomScreen() {
       ringtoneService.configureVoipAudioMode();
       if (data?.remoteLanguage) {
         setRemoteUserLanguage(data.remoteLanguage);
-        if (webViewRef.current) {
-          webViewRef.current.postMessage(JSON.stringify({
-            type: 'signal',
-            signal: { type: 'set_remote_language', remoteLanguage: data.remoteLanguage }
-          }));
-        }
+        sendToCallBridge(JSON.stringify({
+          type: 'signal',
+          signal: { type: 'set_remote_language', remoteLanguage: data.remoteLanguage }
+        }));
       }
       await fetchIceServers();
       setCallStatus('in-call');
@@ -446,11 +462,9 @@ export default function ChatRoomScreen() {
     const handleHangUp = () => {
       ringtoneService.stopRingtone();
       setCallStatus('ended');
-      if (webViewRef.current) {
-        webViewRef.current.postMessage(JSON.stringify({
-          type: 'hangup'
-        }));
-      }
+      sendToCallBridge(JSON.stringify({
+        type: 'hangup'
+      }));
       setTimeout(() => setCallModalVisible(false), 2000);
     };
 
@@ -459,10 +473,10 @@ export default function ChatRoomScreen() {
         type: 'signal',
         signal: data.signal
       });
-      if (isWebViewReadyRef.current && webViewRef.current) {
+      if (isCallBridgeReady()) {
         sendToCallBridge(msg);
       } else {
-        console.log('[VoIP Signal Queue] Armazenando sinal recebido antes do WebView estar pronto:', data.signal?.type);
+        console.log('[VoIP Signal Queue] Armazenando sinal recebido antes do WebView/Iframe estar pronto:', data.signal?.type);
         signalQueueRef.current.push(msg);
       }
     };
@@ -480,7 +494,7 @@ export default function ChatRoomScreen() {
           roomId: data.roomId
         }
       });
-      if (isWebViewReadyRef.current && webViewRef.current) {
+      if (isCallBridgeReady()) {
         sendToCallBridge(msg);
       } else {
         signalQueueRef.current.push(msg);
@@ -508,7 +522,7 @@ export default function ChatRoomScreen() {
           audioUrl: data.audioUrl
         }
       });
-      if (isWebViewReadyRef.current && webViewRef.current) {
+      if (isCallBridgeReady()) {
         sendToCallBridge(msg);
       } else {
         signalQueueRef.current.push(msg);

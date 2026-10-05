@@ -4,6 +4,28 @@ import api, { SERVER_URL } from '../services/api';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { setSecureItem, getSecureItem, deleteSecureItem } from '../utils/secureStorage';
 import { getOrCreateDeviceId } from '../utils/deviceId';
+import { Platform } from 'react-native';
+
+// Carrega Google Identity Services no ambiente Web de forma assíncrona
+function loadGsiScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') return resolve();
+    if ((window as any).google?.accounts?.id) return resolve();
+    const existing = document.getElementById('google-gsi-client');
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'google-gsi-client';
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Falha ao carregar Google Identity Services'));
+    document.head.appendChild(script);
+  });
+}
 
 // Normaliza URLs relativas de foto de perfil para URL completa
 function normalizeProfileImage(user: any): any {
@@ -50,6 +72,7 @@ interface AuthContextData {
   pendingAuthData: PendingAuthData | null;
   signIn: (email: string, password: string) => Promise<{ requires2FA?: boolean }>;
   signInWithGoogle: () => Promise<{ requires2FA?: boolean }>;
+  signInAsGuest: (name?: string, preferredLanguage?: string) => Promise<void>;
   signUp: (data: SignUpData) => Promise<{ requiresVerification?: boolean }>;
   verifyOtp: (emailCode: string, smsCode: string) => Promise<void>;
   resendOtp: () => Promise<void>;
@@ -227,6 +250,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signInWithGoogle(): Promise<{ requires2FA?: boolean }> {
     try {
       const deviceId = await getOrCreateDeviceId();
+
+      if (Platform.OS === 'web') {
+        await loadGsiScript();
+        return new Promise<{ requires2FA?: boolean }>((resolve, reject) => {
+          try {
+            const google = (window as any).google;
+            if (!google?.accounts?.id) {
+              return reject(new Error('Google Identity Services não disponível no navegador.'));
+            }
+
+            const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '399781155509-5pqjv0ufm0veoqpbb24n9qqv96r09g7a.apps.googleusercontent.com';
+
+            google.accounts.id.initialize({
+              client_id: clientId,
+              auto_select: false,
+              callback: async (response: any) => {
+                try {
+                  const idToken = response.credential;
+                  if (!idToken) throw new Error('Google não retornou credenciais válidas.');
+                  const apiRes = await api.post('/auth/google-signin', { idToken, deviceId });
+
+                  if (apiRes.data?.requires2FA || apiRes.data?.data?.requires2FA) {
+                    setPendingAuthData({
+                      email: apiRes.data?.data?.email || '',
+                      phone: apiRes.data?.data?.phone || '',
+                      mode: 'new_device',
+                    });
+                    return resolve({ requires2FA: true });
+                  }
+
+                  const { token: newToken, refreshToken, user: rawUserData } = apiRes.data.data;
+                  const userData = normalizeProfileImage(rawUserData);
+
+                  await setSecureItem('token', newToken);
+                  if (refreshToken) {
+                    await setSecureItem('refreshToken', refreshToken);
+                  }
+                  await AsyncStorage.setItem('user', JSON.stringify(userData));
+
+                  setToken(newToken);
+                  setUser(userData);
+                  setPendingAuthData(null);
+                  resolve({ requires2FA: false });
+                } catch (err: any) {
+                  reject(err);
+                }
+              },
+            });
+
+            // Tenta abrir o seletor do Google
+            google.accounts.id.prompt((notification: any) => {
+              if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                console.log('[GSI] One-tap not displayed, reason:', notification.getNotDisplayedReason?.());
+                // Fallback para botão renderizado
+                const tempDiv = document.createElement('div');
+                tempDiv.style.position = 'fixed';
+                tempDiv.style.top = '-9999px';
+                document.body.appendChild(tempDiv);
+                google.accounts.id.renderButton(tempDiv, { theme: 'outline', size: 'large' });
+                const btn = tempDiv.querySelector('div[role="button"]') as HTMLElement;
+                if (btn) btn.click();
+                setTimeout(() => {
+                  try { document.body.removeChild(tempDiv); } catch (e) {}
+                }, 5000);
+              }
+            });
+          } catch (e: any) {
+            reject(e);
+          }
+        });
+      }
+
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const signInResult = await GoogleSignin.signIn();
       const idToken = (signInResult as any).data?.idToken || (signInResult as any).idToken;
@@ -258,16 +353,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { requires2FA: false };
     } catch (error: any) {
       console.error('Erro no Google Sign-In:', error);
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+      if (error.code === statusCodes?.SIGN_IN_CANCELLED) {
         throw new Error('Login cancelado');
-      } else if (error.code === statusCodes.IN_PROGRESS) {
+      } else if (error.code === statusCodes?.IN_PROGRESS) {
         throw new Error('Login já em andamento');
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+      } else if (error.code === statusCodes?.PLAY_SERVICES_NOT_AVAILABLE) {
         throw new Error('Google Play Services não disponível');
       } else {
         const msg = error.response?.data?.message || error.message || 'Erro ao fazer login com Google';
         throw new Error(msg);
       }
+    }
+  }
+
+  async function signInAsGuest(guestName?: string, preferredLanguage?: string): Promise<void> {
+    try {
+      const response = await api.post('/auth/guest-login', {
+        name: guestName || 'Visitante',
+        preferredLanguage: preferredLanguage || 'pt-BR',
+      });
+
+      const { token: newToken, refreshToken, user: rawUserData } = response.data.data;
+      const userData = normalizeProfileImage(rawUserData);
+
+      await setSecureItem('token', newToken);
+      if (refreshToken) {
+        await setSecureItem('refreshToken', refreshToken);
+      }
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+
+      setToken(newToken);
+      setUser(userData);
+      setPendingAuthData(null);
+    } catch (error: any) {
+      console.error('Erro no signInAsGuest:', error);
+      const msg = error.response?.data?.message || error.message || 'Erro ao conectar como visitante';
+      throw new Error(msg);
     }
   }
 
@@ -358,6 +479,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         pendingAuthData,
         signIn,
         signInWithGoogle,
+        signInAsGuest,
         signUp,
         verifyOtp,
         resendOtp,

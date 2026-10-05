@@ -384,9 +384,8 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     </div>
   </div>
 
-  <!-- Dedicated Remote Audio Element for VoIP audio playback -->
   <!-- Dedicated Remote Audio Element for VoIP audio playback with proper sizing to avoid WebKit suspension -->
-  <audio id="remoteAudio" autoplay playsinline style="position: absolute; width: 40px; height: 40px; opacity: 0.01; bottom: 5px; right: 5px; z-index: -1;"></audio>
+  <audio id="remoteAudio" autoplay playsinline style="position: fixed; width: 2px; height: 2px; top: 0; left: 0; opacity: 0.1; pointer-events: none;"></audio>
 
   <!-- Banner flutuante para desbloquear áudio no mobile caso a política de autoplay bloqueie -->
   <div id="audioUnlockBanner" onclick="unlockAllAudio()" style="display: none; position: absolute; top: 90px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #FFC857 0%, #E9A825 100%); color: #041527; font-weight: 700; font-size: 13px; padding: 10px 18px; border-radius: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.6); z-index: 999; cursor: pointer;">
@@ -402,61 +401,8 @@ export const getWebRtcHtml = (initialConfig?: any) => {
   <!-- Captions Overlay Container -->
   <div id="captionsContainer" class="captions-container"></div>
 
-  <!-- Informativo de Cobrança Modal -->
-  <div id="billingModal" class="lang-modal" style="display: none;">
-    <div class="lang-modal-title">✨ Tradução Simultânea IA</div>
-    <div style="font-size: 13px; color: #94A3B8; text-align: center; margin-top: -6px;">Informativo de Tarifa de Chamada:</div>
-    <div style="background: rgba(6, 214, 160, 0.1); border: 1px solid rgba(6, 214, 160, 0.35); border-radius: 16px; padding: 16px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px;">
-      <div style="font-size: 26px; font-weight: 800; color: #06d6a0; letter-spacing: -0.5px;">$ 0.30 USD <span style="font-size: 13px; font-weight: 600; color: #CBD5E1;">/ minuto</span></div>
-      <div style="font-size: 12px; color: #CBD5E1; font-weight: 600;">Cobrança por minuto de ligação traduzida</div>
-      <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">Idioma detectado automaticamente do seu cadastro:</div>
-      <div id="billingLangText" style="font-size: 14px; font-weight: 700; color: #FFC857;">🇧🇷 Português (Brasil)</div>
-    </div>
-    <div style="display: flex; gap: 10px; margin-top: 4px;">
-      <button class="btn" style="flex: 1; border-radius: 12px; background: rgba(255,255,255,0.15); color: #fff; font-size: 13px; font-weight: 600;" onclick="closeBillingModal()">Cancelar</button>
-      <button id="btnConfirmBilling" class="btn" style="flex: 1.4; border-radius: 12px; background: linear-gradient(135deg, #FFC857 0%, #E9A825 100%); color: #041527; font-weight: 700; font-size: 13px;" onclick="confirmBillingToggle()">Ativar ($0.30/min)</button>
-    </div>
-  </div>
-
-  <!-- Controls overlay -->
-  <div class="controls-overlay">
-    <!-- Mute mic -->
-    <button id="btnMute" class="btn" onclick="toggleMute()">
-      <svg viewBox="0 0 24 24">
-        <!-- Mic Icon -->
-        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
-      </svg>
-    </button>
-
-    <!-- AI Live Translation Toggle Button -->
-    <button id="btnTranslate" class="btn btn-translate" onclick="openBillingModal()" title="Informativo de Cobrança Tradução IA ($0.30 USD/minuto)">
-      ✨ IA
-    </button>
-
-    <!-- Toggle Camera (Only for video calls) -->
-    <button id="btnVideo" class="btn" onclick="toggleVideo()" style="display: none;">
-      <svg viewBox="0 0 24 24">
-        <!-- Video Camera Icon -->
-        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4zM14 13h-3v3H9v-3H6v-2h3V8h2v3h3v2z"/>
-      </svg>
-    </button>
-
-    <!-- Flip Camera (Only for video calls) -->
-    <button id="btnFlip" class="btn" onclick="flipCamera()" style="display: none;">
-      <svg viewBox="0 0 24 24">
-        <!-- Switch Camera Icon -->
-        <path d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z"/>
-      </svg>
-    </button>
-
-    <!-- Hang up -->
-    <button class="btn btn-hangup" onclick="hangUp()">
-      <svg viewBox="0 0 24 24">
-        <!-- Phone Off Icon -->
-        <path d="M12 9c-2.2 0-4.3.3-6.2.9v3c0 .4-.3.7-.6.8-1.5.3-3 .1-4.3-.3-.4-.1-.6-.5-.6-.9V8.6c0-.4.2-.8.5-1 2.7-1.7 5.8-2.6 9.2-2.6s6.5.9 9.2 2.6c.3.2.5.6.5 1v3.9c0 .4-.2.8-.6.9-1.3.4-2.8.6-4.3.3-.3-.1-.6-.4-.6-.8v-3c-1.9-.6-4-.9-6.2-.9z"/>
-      </svg>
-    </button>
-  </div>
+  <!-- Captions Overlay Container -->
+  <div id="captionsContainer" class="captions-container"></div>
 
   <script>
     let localStream = null;
@@ -514,28 +460,6 @@ export const getWebRtcHtml = (initialConfig?: any) => {
       { code: 'el', name: 'Ελληνικά', flag: '🇬🇷' }
     ];
 
-    // Informativo de Cobrança e Alternador de Tradução IA ($0.30 USD)
-    function openBillingModal() {
-      const modal = document.getElementById('billingModal');
-      const langText = document.getElementById('billingLangText');
-      const btnConfirm = document.getElementById('btnConfirmBilling');
-
-      if (langText) {
-        langText.innerText = selectedLangFlag + ' ' + selectedLangName;
-      }
-
-      if (btnConfirm) {
-        if (isTranslationActive) {
-          btnConfirm.innerText = 'Desativar Tradução';
-          btnConfirm.style.background = 'linear-gradient(135deg, #ef476f 0%, #d63f63 100%)';
-          btnConfirm.style.color = '#ffffff';
-        } else {
-          btnConfirm.innerText = 'Confirmar ($0.30/min)';
-          btnConfirm.style.background = 'linear-gradient(135deg, #FFC857 0%, #E9A825 100%)';
-          btnConfirm.style.color = '#041527';
-        }
-      }
-
     // Utility function to escape HTML special characters and prevent DOM XSS vulnerabilities
     function escapeHtml(str) {
       if (!str) return '';
@@ -545,18 +469,6 @@ export const getWebRtcHtml = (initialConfig?: any) => {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
-    }
-
-    function closeBillingModal() {
-      const modal = document.getElementById('billingModal');
-      if (modal) {
-        modal.style.display = 'none';
-      }
-    }
-
-    function confirmBillingToggle() {
-      closeBillingModal();
-      toggleTranslation();
     }
 
     let speechRecognitionInstance = null;
@@ -848,7 +760,18 @@ export const getWebRtcHtml = (initialConfig?: any) => {
         { urls: 'stun:stun2.l.google.com:19302' },
         { urls: 'stun:stun3.l.google.com:19302' },
         { urls: 'stun:stun4.l.google.com:19302' },
-        { urls: 'stun:stun.services.mozilla.com:3478' }
+        { urls: 'stun:stun.services.mozilla.com:3478' },
+        {
+          urls: [
+            'stun:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:80?transport=tcp',
+            'turn:openrelay.metered.ca:443',
+            'turns:openrelay.metered.ca:443?transport=tcp'
+          ],
+          username: 'openrelay',
+          credential: 'openrelay'
+        }
       ];
 
       const config = window.webRtcConfig || {};
@@ -959,6 +882,15 @@ export const getWebRtcHtml = (initialConfig?: any) => {
           peerConnection.addTrack(track, localStream);
           log('Local track adicionada: ' + track.kind + ' (enabled: ' + track.enabled + ')');
         });
+
+        if (!isCaller && typeof peerConnection.addTransceiver === 'function') {
+          try {
+            peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+            if (callType === 'video') {
+              peerConnection.addTransceiver('video', { direction: 'sendrecv' });
+            }
+          } catch (e) {}
+        }
 
         // Setup handlers
         peerConnection.onicecandidate = (event) => {
