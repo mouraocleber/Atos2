@@ -18,7 +18,7 @@ import CachedImage from '../../components/CachedImage';
 import { ATOS2_FEES } from '../../constants/fees';
 import * as Linking from 'expo-linking';
 import { getBinanceQuote, createBinanceBuyOrder, checkBinanceOrderStatus } from '../../services/binance';
-import { getVirtualCard, issueVirtualCard, toggleCardLock, requestPhysicalCard, getCardTokenForWallet, PomeloCard } from '../../services/pomelo';
+import { startStripeOnboarding, getStripeConnectBalance, requestStripePayout, StripeBalanceResponse } from '../../services/stripe';
 import { QuickChargeModal } from '../../components/QuickChargeModal';
 import { PixConfigModal } from '../../components/PixConfigModal';
 import { getMerchantPixConfig, MerchantPixConfig, PIX_TYPE_LABELS } from '../../services/pixService';
@@ -115,10 +115,9 @@ export default function WalletScreen() {
   const [fetchingQuote, setFetchingQuote] = useState(false);
   const [checkingBinanceStatus, setCheckingBinanceStatus] = useState(false);
 
-  // Pomelo Card BaaS State
-  const [pomeloCard, setPomeloCard] = useState<PomeloCard | null>(null);
-  const [pomeloLoading, setPomeloLoading] = useState(false);
-  const [showCardDetails, setShowCardDetails] = useState(false);
+  // Stripe Connect State (Zero Custódia / Split Global)
+  const [stripeBalance, setStripeBalance] = useState<StripeBalanceResponse | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
 
   // Quick Charge (Cobrança Rápida / Concierge) State
   const [quickChargeModalVisible, setQuickChargeModalVisible] = useState(false);
@@ -319,10 +318,10 @@ export default function WalletScreen() {
 
   const loadData = async () => {
     try {
-      const [balRes, histRes, cardRes] = await Promise.allSettled([
+      const [balRes, histRes, stripeRes] = await Promise.allSettled([
         getBalance(),
         getTransactionHistory(),
-        getVirtualCard(),
+        getStripeConnectBalance(),
       ]);
 
       if (balRes.status === 'fulfilled') {
@@ -332,8 +331,8 @@ export default function WalletScreen() {
         const hist = histRes.value;
         setTransactions(Array.isArray(hist) ? hist : (hist as any).data || []);
       }
-      if (cardRes.status === 'fulfilled' && cardRes.value?.data) {
-        setPomeloCard(cardRes.value.data);
+      if (stripeRes.status === 'fulfilled' && stripeRes.value) {
+        setStripeBalance(stripeRes.value);
       }
     } catch (e: any) {
       console.error(e);
@@ -344,51 +343,19 @@ export default function WalletScreen() {
     }
   };
 
-  // Pomelo BaaS: Emissão de Cartão Virtual
-  const handleIssuePomeloCard = async () => {
-    setPomeloLoading(true);
+  // Stripe Connect: Iniciar Onboarding / Configurar Conta Bancária
+  const handleStripeOnboarding = async () => {
+    setStripeLoading(true);
     try {
-      const res = await issueVirtualCard();
-      if (res.data) {
-        setPomeloCard(res.data);
-        Alert.alert('Sucesso 🎉', 'Seu Cartão Virtual Atos2 (Pomelo BaaS) foi emitido com sucesso!');
-      }
+      await startStripeOnboarding(true);
+      Alert.alert(
+        'Stripe Connect 🌐',
+        'Abrimos o portal oficial da Stripe no seu navegador para vincular sua conta bancária de repasse direto. Conclua o cadastro para receber vendas com cartões globais.'
+      );
     } catch (e: any) {
-      Alert.alert('Erro', e?.response?.data?.message || 'Não foi possível emitir o cartão virtual agora.');
+      Alert.alert('Erro', e?.message || 'Não foi possível iniciar o onboarding da Stripe.');
     } finally {
-      setPomeloLoading(false);
-    }
-  };
-
-  // Pomelo BaaS: Bloqueio / Desbloqueio de Cartão
-  const handleTogglePomeloLock = async () => {
-    if (!pomeloCard) return;
-    const willLock = pomeloCard.status === 'ACTIVE';
-    setPomeloLoading(true);
-    try {
-      const res = await toggleCardLock(pomeloCard.id, willLock);
-      setPomeloCard((prev) => prev ? { ...prev, status: res.status } : null);
-      Alert.alert('Cartão Atualizado', `Cartão ${willLock ? 'bloqueado' : 'desbloqueado'} com sucesso.`);
-    } catch (e: any) {
-      Alert.alert('Erro', e?.response?.data?.message || 'Não foi possível alterar o status do cartão.');
-    } finally {
-      setPomeloLoading(false);
-    }
-  };
-
-  // Pomelo BaaS: Tokenização Apple Pay / Google Pay
-  const handleProvisionWalletToken = async (walletType: 'APPLE_PAY' | 'GOOGLE_PAY') => {
-    if (!pomeloCard) return;
-    try {
-      const res = await getCardTokenForWallet(pomeloCard.id, walletType);
-      if (res.data?.provisioningToken) {
-        Alert.alert(
-          `${walletType === 'APPLE_PAY' ? 'Apple Pay' : 'Google Pay'} 🎉`,
-          `Token de provisionamento gerado com sucesso para o cartão •••• ${res.data.lastFourDigits}. Adicione diretamente na sua carteira nativa!`
-        );
-      }
-    } catch (e: any) {
-      Alert.alert('Tokenização', e?.response?.data?.message || 'Em breve: Provisionamento direto via Apple/Google Wallet SDK.');
+      setStripeLoading(false);
     }
   };
 
@@ -806,80 +773,84 @@ export default function WalletScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Meu Cartão Atos2 (Pomelo BaaS) Widget */}
+        {/* Stripe Connect & Split Global (Zero Custódia) Widget */}
         <View style={styles.cardWidgetContainer}>
           <View style={styles.cardWidgetHeader}>
-            <Text style={styles.cardWidgetTitle}>Meu Cartão Atos2 (Pomelo BaaS)</Text>
-            {pomeloCard && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <TouchableOpacity onPress={handleTogglePomeloLock} disabled={pomeloLoading}>
-                  <Feather
-                    name={pomeloCard.status === 'ACTIVE' ? 'unlock' : 'lock'}
-                    size={18}
-                    color={pomeloCard.status === 'ACTIVE' ? Colors.success : Colors.error}
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Feather name="globe" size={18} color={Colors.primary} />
+              <Text style={styles.cardWidgetTitle}>Recebimento Global & Cartões (Stripe Connect)</Text>
+            </View>
+            <View style={{
+              backgroundColor: user?.stripeAccountId || user?.stripe_account_id ? '#E8F5E9' : '#FFF3E0',
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 12,
+            }}>
+              <Text style={{
+                color: user?.stripeAccountId || user?.stripe_account_id ? Colors.success : '#E65100',
+                fontSize: 10,
+                fontWeight: '700',
+              }}>
+                {user?.stripeAccountId || user?.stripe_account_id ? 'CONECTADO' : 'PENDENTE'}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.cardWidgetBody}>
-            {pomeloCard ? (
-              <>
-                <View style={[styles.virtualCardGraphic, pomeloCard.status === 'BLOCKED' && { opacity: 0.6 }]}>
-                  <View style={styles.virtualCardChip} />
-                  <View style={styles.virtualCardNetwork}>
-                    <Text style={{ color: '#fff', fontWeight: '900', fontStyle: 'italic', fontSize: 16 }}>
-                      {pomeloCard.brand || 'VISA'}
+            {user?.stripeAccountId || user?.stripe_account_id ? (
+              <View style={{ gap: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View>
+                    <Text style={{ color: Colors.light.textSecondary, fontSize: 12 }}>Saldo Disponível para Repasse</Text>
+                    <Text style={{ fontSize: 20, fontWeight: '800', color: Colors.light.text, marginTop: 2 }}>
+                      {stripeBalance?.available?.[0]
+                        ? `${(stripeBalance.available[0].amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: stripeBalance.available[0].currency.toUpperCase() })}`
+                        : '$ 0,00'}
                     </Text>
                   </View>
-                  <Text style={styles.virtualCardNumber}>
-                    {showCardDetails
-                      ? pomeloCard.cardNumber || pomeloCard.maskedCardNumber
-                      : pomeloCard.maskedCardNumber || '•••• •••• •••• 4092'}
-                  </Text>
-                  {showCardDetails && pomeloCard.expirationDate && (
-                    <Text style={{ color: '#fff', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
-                      EXP: {pomeloCard.expirationDate} {pomeloCard.cvv ? `• CVV: ${pomeloCard.cvv}` : ''}
-                    </Text>
-                  )}
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ color: Colors.light.textMuted, fontSize: 10 }}>Liquidação Automática</Text>
+                    <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '700' }}>Direto na Conta Bancária</Text>
+                  </View>
                 </View>
 
                 <View style={styles.cardWidgetActions}>
                   <TouchableOpacity
                     style={styles.cardActionBtn}
-                    onPress={() => handleProvisionWalletToken(Platform.OS === 'ios' ? 'APPLE_PAY' : 'GOOGLE_PAY')}
+                    onPress={handleStripeOnboarding}
+                    disabled={stripeLoading}
                   >
-                    <Feather name="smartphone" size={18} color={Colors.primary} />
-                    <Text style={styles.cardActionBtnText}>Apple / Google Wallet</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.cardActionBtn}
-                    onPress={() => setShowCardDetails(!showCardDetails)}
-                  >
-                    <Feather name={showCardDetails ? 'eye-off' : 'eye'} size={18} color={Colors.primary} />
-                    <Text style={styles.cardActionBtnText}>
-                      {showCardDetails ? 'Ocultar Dados' : 'Ver Dados'}
-                    </Text>
+                    {stripeLoading ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <>
+                        <Feather name="external-link" size={16} color={Colors.primary} />
+                        <Text style={styles.cardActionBtnText}>Gerenciar Conta Bancária / Portal Stripe</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
-              </>
+              </View>
             ) : (
-              <View style={{ alignItems: 'center', paddingVertical: 16, gap: 12 }}>
-                <Feather name="credit-card" size={36} color={Colors.light.textMuted} />
-                <Text style={{ color: Colors.light.textSecondary, fontSize: 13, textAlign: 'center' }}>
-                  Você ainda não possui um cartão ativo. Emita seu cartão virtual instantâneo na rede Pomelo.
+              <View style={{ alignItems: 'center', paddingVertical: 14, gap: 10 }}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="credit-card" size={24} color={Colors.primary} />
+                </View>
+                <Text style={{ color: Colors.light.text, fontWeight: '700', fontSize: 14, textAlign: 'center' }}>
+                  Habilitar Recebimentos Internacionais
+                </Text>
+                <Text style={{ color: Colors.light.textSecondary, fontSize: 12, textAlign: 'center', paddingHorizontal: 16 }}>
+                  Receba turistas com cartões globais, Apple Pay e Google Pay. O split é automático e cai direto na sua conta bancária sem custódia no Atos2.
                 </Text>
                 <TouchableOpacity
-                  style={[styles.modalBtnSubmit, { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }]}
-                  onPress={handleIssuePomeloCard}
-                  disabled={pomeloLoading}
+                  style={[styles.modalBtnSubmit, { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 10, marginTop: 4 }]}
+                  onPress={handleStripeOnboarding}
+                  disabled={stripeLoading}
                 >
-                  {pomeloLoading ? (
+                  {stripeLoading ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
-                    <Text style={styles.modalBtnSubmitText}>+ Emitir Cartão Virtual Pomelo</Text>
+                    <Text style={styles.modalBtnSubmitText}>+ Conectar com Stripe Connect</Text>
                   )}
                 </TouchableOpacity>
               </View>

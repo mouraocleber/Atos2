@@ -283,7 +283,7 @@ export default function RegisterScreen() {
 
                     <Text style={styles.legalHeading}>4. Carteira Digital e Transações Financeiras</Text>
                     <Text style={styles.legalParagraph}>
-                      O uso de funcionalidades financeiras (PIX, cartões Pomelo e conversões de ativos) está sujeito a validação de identidade (KYC) e regras de conformidade regulatória perante as normas do Banco Central do Brasil.
+                      O uso de funcionalidades financeiras (PIX Dinâmico, Stripe Connect e liquidação Solana Pay) está sujeito a validação de identidade (KYC) e regras de conformidade regulatória perante as normas do Banco Central do Brasil e diretrizes internacionais de Zero Custódia.
                     </Text>
                   </View>
                 ) : (

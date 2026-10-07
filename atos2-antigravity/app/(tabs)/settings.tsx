@@ -20,6 +20,7 @@ import { clearMediaCache, getMediaCacheSize } from '../../services/MediaCacheSer
 import { LANGUAGES } from '../../constants/translations';
 import { PixConfigModal } from '../../components/PixConfigModal';
 import { getMerchantPixConfig, MerchantPixConfig, PIX_TYPE_LABELS } from '../../services/pixService';
+import { startStripeOnboarding } from '../../services/stripe';
 
 export default function SettingsScreen() {
   const { user, signOut, updateUser, refreshUser } = useAuth();
@@ -27,6 +28,7 @@ export default function SettingsScreen() {
   const { setAppLanguage, t } = useLocalization();
   const [pixConfigVisible, setPixConfigVisible] = useState(false);
   const [merchantPixConfig, setMerchantPixConfig] = useState<MerchantPixConfig | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
   const { isCoachDone, markCoachDone, resetAll } = useOnboarding();
   const [coachVisible, setCoachVisible] = useState(false);
 
@@ -192,6 +194,21 @@ export default function SettingsScreen() {
       }
     } catch(e) {
       Alert.alert('Erro', 'Ocorreu um problema ao acessar a galeria');
+    }
+  }
+
+  async function handleStripeConnect() {
+    setStripeLoading(true);
+    try {
+      await startStripeOnboarding(true);
+      Alert.alert(
+        'Stripe Connect 🌐',
+        'Abrimos o portal seguro da Stripe no seu navegador para vincular ou atualizar sua conta bancária de repasse direto (Zero Custódia).'
+      );
+    } catch (e: any) {
+      Alert.alert('Erro', e?.message || 'Não foi possível conectar com a Stripe no momento.');
+    } finally {
+      setStripeLoading(false);
     }
   }
 
@@ -369,6 +386,36 @@ export default function SettingsScreen() {
                 : 'Cadastrar CNPJ / chave para receber'
             }
             onPress={() => setPixConfigVisible(true)}
+          />
+          <MenuItem
+            icon="globe"
+            title="Conta Global (Stripe Connect)"
+            subtitle={
+              user?.stripeAccountId || user?.stripe_account_id
+                ? 'Conta bancária conectada para repasse direto'
+                : 'Conectar dados bancários para receber cartões globais'
+            }
+            rightComponent={
+              stripeLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <View style={{
+                  backgroundColor: user?.stripeAccountId || user?.stripe_account_id ? '#E8F5E9' : '#FFF3E0',
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 10,
+                }}>
+                  <Text style={{
+                    color: user?.stripeAccountId || user?.stripe_account_id ? Colors.success : '#E65100',
+                    fontSize: 10,
+                    fontWeight: '700',
+                  }}>
+                    {user?.stripeAccountId || user?.stripe_account_id ? 'CONECTADO' : 'CONFIGURAR'}
+                  </Text>
+                </View>
+              )
+            }
+            onPress={handleStripeConnect}
           />
         </View>
       </View>

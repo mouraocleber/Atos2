@@ -1,3 +1,7 @@
+/**
+ * @deprecated DESCONTINUADO: O BaaS Pomelo foi definitivamente substituído pela Stripe Connect.
+ * Consulte AGENTS.md e services/stripe.ts para o fluxo oficial de Zero Custódia.
+ */
 import api from './api';
 
 export interface PomeloCard {

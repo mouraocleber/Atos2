@@ -54,6 +54,8 @@ interface User {
   pixKey?: string;
   pixKeyType?: 'cnpj' | 'cpf' | 'email' | 'phone' | 'random';
   pixHolderName?: string;
+  stripeAccountId?: string;
+  stripe_account_id?: string;
 }
 
 interface PendingAuthData {

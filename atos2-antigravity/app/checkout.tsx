@@ -26,6 +26,7 @@ import {
   openSolanaWalletApp,
   checkSolanaTransactionStatus,
 } from '../services/solana';
+import { createStripeCheckoutSession } from '../services/stripe';
 
 type PaymentMethodType = 'pix' | 'solana' | 'card' | 'internal_p2p';
 type SupportedCurrency = 'BRL' | 'USD' | 'EUR' | 'GBP';
@@ -181,26 +182,24 @@ export default function CheckoutScreen() {
 
     if (selectedMethod === 'card') {
       try {
-        const response = await fetch('https://api.atos2.online/api/payments/stripe/create-checkout-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: totalFinalBrl,
-            currency: selectedCurrency.toLowerCase(),
-            table,
-            merchantName: merchant,
-          }),
+        const session = await createStripeCheckoutSession({
+          amount: totalFinalBrl,
+          currency: selectedCurrency.toLowerCase(),
+          table,
+          merchantName: merchant,
         });
 
-        const json = await response.json();
-        if (json.success && json.data?.sessionUrl) {
-          await Linking.openURL(json.data.sessionUrl);
+        if (session?.sessionUrl) {
+          await Linking.openURL(session.sessionUrl);
           setIsProcessing(false);
           setPaymentModalVisible(false);
           return;
         }
-      } catch (err) {
-        console.warn('[Stripe Checkout] Falha ao gerar sessão de pagamento:', err);
+      } catch (err: any) {
+        console.warn('[Stripe Checkout] Falha ao gerar sessão de pagamento:', err?.message || err);
+        Alert.alert('Checkout Internacional', 'Não foi possível iniciar a sessão Stripe. Tente novamente ou selecione PIX.');
+        setIsProcessing(false);
+        return;
       }
     }
 
