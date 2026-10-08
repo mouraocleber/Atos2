@@ -3,7 +3,9 @@ import { SOLANA_CONFIG } from '../constants/fees';
 
 export interface SolanaPayParams {
   recipient?: string;
-  amountUsdc: number;
+  amountUsdc?: number;
+  amountSol?: number;
+  currency?: 'USDC' | 'SOL';
   reference?: string;
   label?: string;
   message?: string;
@@ -14,7 +16,8 @@ export interface SolanaPaymentResult {
   success: boolean;
   txHash: string;
   confirmedAt: string;
-  amountUsdc: number;
+  amount: number;
+  currency: 'USDC' | 'SOL';
   recipient: string;
 }
 
@@ -38,14 +41,23 @@ export const convertBrlToSol = (amountBrl: number, solPriceUsd: number = 150, us
 
 /**
  * Gera a URL padronizada do protocolo Solana Pay
- * Exemplo: solana:26i1C86h7NHd3C6U1Mbpiuroo8NR3sjzmEtFrrX4WiBi?amount=20.40&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&label=Atos2%20Checkout&message=Mesa%2001
+ * - Se currency === 'SOL': não inclui spl-token (transferência nativa de SOL)
+ * - Se currency === 'USDC': inclui spl-token com o mint do USDC
  */
 export const generateSolanaPayUri = (params: SolanaPayParams): string => {
   const recipient = params.recipient || SOLANA_CONFIG.WALLET_ADDRESS;
   const searchParams = new URLSearchParams();
+  const currency = params.currency || (params.amountSol !== undefined && !params.amountUsdc ? 'SOL' : 'USDC');
 
-  searchParams.append('amount', params.amountUsdc.toFixed(2));
-  searchParams.append('spl-token', SOLANA_CONFIG.USDC_MINT);
+  if (currency === 'SOL') {
+    const amount = params.amountSol !== undefined ? params.amountSol : (params.amountUsdc ? params.amountUsdc / 150 : 0.01);
+    searchParams.append('amount', amount.toFixed(4));
+    // No protocolo Solana Pay, omitir spl-token significa transferência nativa de SOL
+  } else {
+    const amount = params.amountUsdc !== undefined ? params.amountUsdc : 1.0;
+    searchParams.append('amount', amount.toFixed(2));
+    searchParams.append('spl-token', SOLANA_CONFIG.USDC_MINT);
+  }
 
   if (params.label) {
     searchParams.append('label', params.label);
@@ -92,7 +104,8 @@ export const openSolanaWalletApp = async (solanaUri: string): Promise<boolean> =
  */
 export const checkSolanaTransactionStatus = async (
   referenceId: string,
-  amountUsdc: number
+  amount: number,
+  currency: 'USDC' | 'SOL' = 'SOL'
 ): Promise<SolanaPaymentResult> => {
   // Simulação de confirmação em 1.5s na Solana Mainnet
   return new Promise((resolve) => {
@@ -105,7 +118,8 @@ export const checkSolanaTransactionStatus = async (
         success: true,
         txHash: `${randomHex.substring(0, 16)}...${randomHex.substring(48)}`,
         confirmedAt: new Date().toISOString(),
-        amountUsdc,
+        amount,
+        currency,
         recipient: SOLANA_CONFIG.WALLET_ADDRESS,
       });
     }, 1500);

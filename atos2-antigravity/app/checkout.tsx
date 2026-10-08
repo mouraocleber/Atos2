@@ -64,6 +64,7 @@ export default function CheckoutScreen() {
   const [copiedKey, setCopiedKey] = useState<boolean>(false);
   const [dynamicPixCode, setDynamicPixCode] = useState<string>('');
   const [isGeneratingPix, setIsGeneratingPix] = useState<boolean>(false);
+  const [solanaToken, setSolanaToken] = useState<'SOL' | 'USDC'>('SOL');
 
   // Cálculos financeiros
   const tipAmountBrl = (baseAmountBrl * selectedTip) / 100;
@@ -137,7 +138,9 @@ export default function CheckoutScreen() {
   }, [paymentModalVisible, selectedMethod, totalFinalBrl]);
 
   const solanaUri = generateSolanaPayUri({
+    currency: solanaToken,
     amountUsdc: totalUsdc,
+    amountSol: totalSol,
     label: `AtoS2 - ${merchant}`,
     message: `Conta Mesa/Ref ${table}`,
     reference: `atos2_${Date.now()}`,
@@ -158,15 +161,19 @@ export default function CheckoutScreen() {
 
     if (selectedMethod === 'solana') {
       try {
-        const solResult = await checkSolanaTransactionStatus(`ref_${table}`, totalUsdc);
+        const solResult = await checkSolanaTransactionStatus(
+          `ref_${table}`,
+          solanaToken === 'SOL' ? totalSol : totalUsdc,
+          solanaToken
+        );
         setReceiptData({
-          methodName: 'Solana Pay (USDC)',
+          methodName: `Solana Pay (${solanaToken})`,
           txHash: solResult.txHash,
           fee: touristFeeBrl,
           merchantFee: merchantFeeBrl,
           merchantNet: merchantNetBrl,
           totalBrl: totalFinalBrl,
-          totalConverted: `${totalUsdc.toFixed(2)} USDC`,
+          totalConverted: solanaToken === 'SOL' ? `${totalSol.toFixed(4)} SOL` : `${totalUsdc.toFixed(2)} USDC`,
           merchant,
           table,
           date: new Date().toLocaleString(),
@@ -586,14 +593,36 @@ export default function CheckoutScreen() {
               {selectedMethod === 'solana' && (
                 <View style={styles.methodDetailContainer}>
                   <Text style={styles.methodInstruction}>
-                    Pague instantaneamente via Solana Pay usando qualquer carteira Solana (Phantom, Solflare, etc.):
+                    Pague instantaneamente via Solana Pay usando sua carteira Phantom, Solflare ou qualquer carteira Solana:
                   </Text>
+
+                  {/* Seletor Cripto: SOL Nativo ou USDC */}
+                  <View style={styles.solanaTokenToggleRow}>
+                    <TouchableOpacity
+                      style={[styles.solanaTokenBtn, solanaToken === 'SOL' && styles.solanaTokenBtnActive]}
+                      onPress={() => setSolanaToken('SOL')}
+                    >
+                      <Text style={[styles.solanaTokenBtnText, solanaToken === 'SOL' && styles.solanaTokenBtnTextActive]}>
+                        🟣 Pagar em SOL ({totalSol.toFixed(4)} SOL)
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.solanaTokenBtn, solanaToken === 'USDC' && styles.solanaTokenBtnActive]}
+                      onPress={() => setSolanaToken('USDC')}
+                    >
+                      <Text style={[styles.solanaTokenBtnText, solanaToken === 'USDC' && styles.solanaTokenBtnTextActive]}>
+                        💵 Pagar em USDC (${totalUsdc.toFixed(2)})
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
                   <View style={styles.solanaAmountBadge}>
                     <Text style={styles.solanaAmountText}>
-                      {totalUsdc.toFixed(2)} USDC (~ {totalSol.toFixed(4)} SOL)
+                      {solanaToken === 'SOL'
+                        ? `${totalSol.toFixed(4)} SOL (~ US$ ${totalUsdc.toFixed(2)})`
+                        : `${totalUsdc.toFixed(2)} USDC (~ ${totalSol.toFixed(4)} SOL)`}
                     </Text>
-                    <Text style={styles.solanaNetText}>Rede: {SOLANA_CONFIG.NETWORK_LABEL}</Text>
+                    <Text style={styles.solanaNetText}>Moeda: {solanaToken} • Rede: {SOLANA_CONFIG.NETWORK_LABEL}</Text>
                   </View>
 
                   <View style={styles.qrCodeWrapper}>
@@ -621,7 +650,7 @@ export default function CheckoutScreen() {
                     >
                       <Ionicons name="open-outline" size={16} color="#FFF" />
                       <Text style={[styles.solanaActionBtnText, { color: '#FFF' }]}>
-                        Abrir Carteira
+                        Abrir Phantom
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -1047,6 +1076,35 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontSize: 12,
     textAlign: 'center',
+  },
+  solanaTokenToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    width: '100%',
+    marginBottom: 8,
+  },
+  solanaTokenBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  solanaTokenBtnActive: {
+    backgroundColor: 'rgba(168, 85, 247, 0.25)',
+    borderColor: '#A855F7',
+  },
+  solanaTokenBtnText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  solanaTokenBtnTextActive: {
+    color: '#E9D5FF',
+    fontWeight: 'bold',
   },
   solanaAmountBadge: {
     backgroundColor: 'rgba(168, 85, 247, 0.15)',
