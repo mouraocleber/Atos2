@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import api from './api';
 
 export interface MessagePayload {
@@ -6,6 +7,9 @@ export interface MessagePayload {
   content: string;
   mediaUrl?: string;
   scheduledAt?: string;
+  translatedContent?: string;
+  translatedLanguage?: string;
+  senderVoiceGender?: 'male' | 'female';
 }
 
 export interface SendMessageResponse {
@@ -32,7 +36,7 @@ const getMimeType = (type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE', uri: string): s
     return map[ext] || 'video/mp4';
   }
   if (type === 'AUDIO') {
-    const map: Record<string, string> = { mp3: 'audio/mpeg', m4a: 'audio/m4a', wav: 'audio/wav', ogg: 'audio/ogg' };
+    const map: Record<string, string> = { mp3: 'audio/mpeg', m4a: 'audio/m4a', wav: 'audio/wav', ogg: 'audio/ogg', webm: 'audio/webm' };
     return map[ext] || 'audio/m4a';
   }
   // FILE — documentos genéricos
@@ -59,14 +63,40 @@ export const sendMessage = async (payload: MessagePayload, mediaUri?: string): P
     if (payload.scheduledAt) {
       formData.append('scheduledAt', payload.scheduledAt);
     }
+    if (payload.translatedContent) {
+      formData.append('translatedContent', payload.translatedContent);
+    }
+    if (payload.translatedLanguage) {
+      formData.append('translatedLanguage', payload.translatedLanguage);
+    }
+    if (payload.senderVoiceGender) {
+      formData.append('senderVoiceGender', payload.senderVoiceGender);
+    }
 
     const mime = getMimeType(payload.type, mediaUri);
     const ext = mediaUri.split('.').pop() || (payload.type === 'FILE' ? 'bin' : 'm4a');
-    formData.append('media', {
-      uri: mediaUri,
-      type: mime,
-      name: `media_${Date.now()}.${ext}`
-    } as any);
+    const filename = `media_${Date.now()}.${ext}`;
+
+    if (Platform.OS === 'web') {
+      try {
+        const fetchRes = await fetch(mediaUri);
+        const blob = await fetchRes.blob();
+        formData.append('media', blob, filename);
+      } catch (err) {
+        console.warn('[chat.ts] Falha ao converter mediaUri em Blob no Web, usando fallback:', err);
+        formData.append('media', {
+          uri: mediaUri,
+          type: mime,
+          name: filename,
+        } as any);
+      }
+    } else {
+      formData.append('media', {
+        uri: mediaUri,
+        type: mime,
+        name: filename,
+      } as any);
+    }
 
     const response = await api.post('/messages', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

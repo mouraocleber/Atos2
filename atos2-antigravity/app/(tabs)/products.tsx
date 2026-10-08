@@ -282,7 +282,6 @@ function ProductGallery({ images, onImagePress }: {
 function MarketplaceScreenInner() {
   const { user } = useAuth();
   const { language } = useLocalization();
-  const [translatedFields, setTranslatedFields] = useState<Record<string, { group?: string; subgroup?: string }>>({});
   const { isCoachDone, markCoachDone } = useOnboarding();
   const [coachVisible, setCoachVisible] = useState(false);
 
@@ -320,6 +319,10 @@ function MarketplaceScreenInner() {
   // Detail modal
   const [productModal, setProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [translatedFields, setTranslatedFields] = useState<Record<string, { name?: string; category?: string; description?: string }>>({});
+
+  const viewerLanguage = user?.preferredLanguage || language || 'pt-BR';
+  const isPortuguese = viewerLanguage.toLowerCase().startsWith('pt');
 
   // Lightbox
   const [lightboxVisible, setLightboxVisible] = useState(false);
@@ -352,23 +355,27 @@ function MarketplaceScreenInner() {
   const [isCreating, setIsCreating] = useState(false);
 
 
-  // Tradução automática em tempo real para o idioma do usuário:
-  // - Nome do Produto: NUNCA é traduzido (mantém nome próprio comercial)
-  // - Grupo (category): Traduzido
-  // - Subgrupo (description): Traduzido
-  // - Valor (price): Formatado na moeda e idioma do usuário
+  // Tradução automática em tempo real para o idioma do usuário visualizador
   useEffect(() => {
     const list = mode === 'vitrine' ? products : myProducts;
     if (!list || list.length === 0) return;
-    if (!language || language.startsWith('pt')) return;
+    if (isPortuguese) {
+      setTranslatedFields({});
+      return;
+    }
 
     let isMounted = true;
     const translateCatalog = async () => {
-      const updates: Record<string, { group?: string; subgroup?: string }> = {};
+      const updates: Record<string, { name?: string; category?: string; description?: string }> = {};
       for (const p of list) {
-        const g = p.category ? await translateText(p.category, language) : '';
-        const s = p.description ? await translateText(p.description, language) : '';
-        updates[p.id] = { group: g, subgroup: s };
+        try {
+          const n = p.name ? (await translateText(p.name, viewerLanguage)) : (p.name || undefined);
+          const c = p.category ? (await translateText(p.category, viewerLanguage)) : (p.category || undefined);
+          const d = p.description ? (await translateText(p.description, viewerLanguage)) : (p.description || undefined);
+          updates[p.id] = { name: n || undefined, category: c || undefined, description: d || undefined };
+        } catch (_) {
+          updates[p.id] = { name: p.name || undefined, category: p.category || undefined, description: p.description || undefined };
+        }
       }
       if (isMounted) {
         setTranslatedFields(prev => ({ ...prev, ...updates }));
@@ -376,7 +383,7 @@ function MarketplaceScreenInner() {
     };
     translateCatalog();
     return () => { isMounted = false; };
-  }, [products, myProducts, mode, language]);
+  }, [products, myProducts, mode, viewerLanguage, isPortuguese]);
 
   // ─── Carregamento ────────────────────────────────────────────────────────────
   const loadMarketplace = useCallback(async () => {
@@ -605,6 +612,12 @@ function MarketplaceScreenInner() {
   // ─── Renderização de cards ───────────────────────────────────────────────────
   const renderProduct = ({ item }: { item: Product }) => {
     const sellerName = getSellerName(item);
+    const trans = translatedFields[item.id];
+    const displayName = trans?.name || item.name;
+    const displayCategory = trans?.category || item.category;
+    const displayDesc = trans?.description || item.description;
+    const displayPrice = formatLocalizedPrice(item.price, viewerLanguage);
+
     return (
       <TouchableOpacity
         style={styles.productCard}
@@ -614,12 +627,12 @@ function MarketplaceScreenInner() {
         <ProductThumb product={item} size={72} />
 
         <View style={styles.productInfo}>
-          <Text style={styles.productName}>{item.name}</Text>
+          <Text style={styles.productName}>{displayName}</Text>
 
           {/* Categoria + vendedor */}
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            {!!item.category && (
-              <Text style={styles.productCategory}>{item.category}</Text>
+            {!!displayCategory && (
+              <Text style={styles.productCategory}>{displayCategory}</Text>
             )}
             {!!sellerName && mode === 'vitrine' && (
               <View style={styles.sellerBadge}>
@@ -629,18 +642,13 @@ function MarketplaceScreenInner() {
             )}
           </View>
 
-          {!!item.description && (
-            <Text style={styles.productDescription} numberOfLines={1}>{item.description}</Text>
+          {!!displayDesc && (
+            <Text style={styles.productDescription} numberOfLines={1}>{displayDesc}</Text>
           )}
 
           <View style={styles.productFooter}>
             <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-              <Text style={styles.productPrice}>R$ {Number(item.price).toFixed(2)}</Text>
-              <View style={{ backgroundColor: Colors.secondary + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                <Text style={{ color: Colors.secondaryDark, fontWeight: '800', fontSize: 11 }}>
-                  G {(Number(item.price) / 0.5037).toFixed(2)}
-                </Text>
-              </View>
+              <Text style={styles.productPrice}>{displayPrice}</Text>
             </View>
             <Text style={styles.productStock}>Estoque: {item.stock ?? item.quantity ?? 1}</Text>
           </View>
@@ -789,8 +797,12 @@ function MarketplaceScreenInner() {
 
               <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
                 {/* Nome e categoria */}
-                <Text style={[styles.modalTitle, { marginBottom: 2 }]}>{selectedProduct?.name}</Text>
-                <Text style={styles.productCategory}>{selectedProduct?.category || 'Gerais'}</Text>
+                <Text style={[styles.modalTitle, { marginBottom: 2 }]}>
+                  {selectedProduct ? (translatedFields[selectedProduct.id]?.name || selectedProduct.name) : ''}
+                </Text>
+                <Text style={styles.productCategory}>
+                  {selectedProduct ? (translatedFields[selectedProduct.id]?.category || selectedProduct.category || 'Gerais') : 'Gerais'}
+                </Text>
 
                 {/* Vendedor */}
                 {getSellerName(selectedProduct) && (
@@ -802,20 +814,18 @@ function MarketplaceScreenInner() {
 
                 {/* Descrição */}
                 {!!selectedProduct?.description && (
-                  <Text style={styles.detailDescription}>{selectedProduct.description}</Text>
+                  <Text style={styles.detailDescription}>
+                    {translatedFields[selectedProduct.id]?.description || selectedProduct.description}
+                  </Text>
                 )}
 
                 {/* Preços */}
                 <View style={styles.priceRow}>
                   <View style={styles.priceBox}>
-                    <Text style={styles.priceBoxValue}>R$ {Number(selectedProduct?.price ?? 0).toFixed(2)}</Text>
-                    <Text style={styles.priceBoxLabel}>Preço Local</Text>
-                  </View>
-                  <View style={[styles.priceBox, { backgroundColor: Colors.secondaryDark + '12' }]}>
-                    <Text style={[styles.priceBoxValue, { color: Colors.secondaryDark }]}>
-                      G {(selectedProduct?.price ? Number(selectedProduct.price) / 0.5037 : 0).toFixed(2)}
+                    <Text style={styles.priceBoxValue}>
+                      {selectedProduct ? formatLocalizedPrice(selectedProduct.price, viewerLanguage) : 'R$ 0,00'}
                     </Text>
-                    <Text style={styles.priceBoxLabel}>Base Global</Text>
+                    <Text style={styles.priceBoxLabel}>Preço do Produto</Text>
                   </View>
                 </View>
 
@@ -828,7 +838,7 @@ function MarketplaceScreenInner() {
                         onPress={() => { setProductModal(false); setReserveModal(true); }}
                       >
                         <Feather name="shopping-cart" size={18} color="#fff" style={{ marginRight: 8 }} />
-                        <Text style={styles.modalBtnSubmitText}>Reservar com G (-1.03x)</Text>
+                        <Text style={styles.modalBtnSubmitText}>Reservar Produto</Text>
                       </TouchableOpacity>
 
                       <View style={{ flexDirection: 'row', gap: 10 }}>

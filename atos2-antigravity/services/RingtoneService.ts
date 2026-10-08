@@ -34,6 +34,8 @@ class RingtoneService {
       console.warn('[RingtoneService] Error setting audio mode for incoming ringtone:', e);
     }
 
+    if (!this.isRinging) return;
+
     // Start vibration pattern: wait 0ms, vibrate 1000ms, pause 1000ms, repeat
     try {
       Vibration.vibrate([0, 1000, 1000], true);
@@ -44,13 +46,15 @@ class RingtoneService {
     // Play ringtone audio loop
     try {
       if (this.player) {
-        this.player.release();
+        try { this.player.pause(); this.player.release(); } catch (_) {}
         this.player = null;
       }
       const source = require('../assets/sounds/ruash.wav');
       this.player = createAudioPlayer(source);
       this.player.loop = true;
-      this.player.play();
+      if (this.isRinging) {
+        this.player.play();
+      }
     } catch (e) {
       console.warn('[RingtoneService] Error playing incoming ringtone sound:', e);
     }
@@ -70,15 +74,19 @@ class RingtoneService {
       console.warn('[RingtoneService] Error setting audio mode for outgoing ringtone:', e);
     }
 
+    if (!this.isRinging) return;
+
     try {
       if (this.player) {
-        this.player.release();
+        try { this.player.pause(); this.player.release(); } catch (_) {}
         this.player = null;
       }
       const source = require('../assets/sounds/ruash.wav');
       this.player = createAudioPlayer(source);
       this.player.loop = true;
-      this.player.play();
+      if (this.isRinging) {
+        this.player.play();
+      }
     } catch (e) {
       console.warn('[RingtoneService] Error playing outgoing ringtone sound:', e);
     }

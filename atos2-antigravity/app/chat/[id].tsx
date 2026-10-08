@@ -23,6 +23,8 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { ringtoneService } from '../../services/RingtoneService';
 import { liveTranslationService, translateText } from '../../services/LiveTranslationService';
 
+import * as Clipboard from 'expo-clipboard';
+import SendChargeChatModal from '../../components/SendChargeChatModal';
 import { getConversation, sendMessage, deleteMessage } from '../../services/chat';
 import api, { SERVER_URL } from '../../services/api';
 import { useLocalization } from '../../contexts/LocalizationContext';
@@ -109,6 +111,7 @@ interface Message {
   mediaUrl?: string;
   media_url?: string;
   createdAt: string;
+  senderVoiceGender?: 'male' | 'female' | string;
 }
 
 export default function ChatRoomScreen() {
@@ -129,6 +132,7 @@ export default function ChatRoomScreen() {
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [chargeModalVisible, setChargeModalVisible] = useState(false);
 
   // Call / VoIP Modal & Moderation
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
@@ -155,9 +159,39 @@ export default function ChatRoomScreen() {
   const [callerName, setCallerName] = useState<string>('');
   const [remoteUserLanguage, setRemoteUserLanguage] = useState<string>('');
 
+  // Tradução dinâmica em tempo real para o idioma nativo de cada participante (Modo Guia)
+  const [nativeTranslations, setNativeTranslations] = useState<Record<string, string>>({});
+
   // Som nativo de RUASH
   const ruashPlayer = useAudioPlayer(require('../../assets/sounds/ruash.wav'));
   const prevMessagesLength = useRef(0);
+
+  // Efeito: cada participante no Modo Guia recebe o texto e áudio traduzidos para seu próprio idioma nativo
+  useEffect(() => {
+    if (!messages.length) return;
+    const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
+    const myLangShort = myLang.split('-')[0].toLowerCase();
+
+    messages.forEach(async (msg) => {
+      if (msg.senderId === user?.id) return;
+      if (!msg.content || msg.content === '[Áudio]' || msg.content === 'Áudio') return;
+      if (nativeTranslations[msg.id]) return;
+
+      const existingLang = (msg.translatedLanguage || '').split('-')[0].toLowerCase();
+      if (msg.translatedContent && existingLang === myLangShort) {
+        return;
+      }
+
+      try {
+        const translated = await translateText(msg.content, myLang);
+        if (translated && translated.trim().toLowerCase() !== msg.content.trim().toLowerCase()) {
+          setNativeTranslations(prev => ({ ...prev, [msg.id]: translated }));
+        }
+      } catch (e) {
+        // Fallback silencioso
+      }
+    });
+  }, [messages, user?.preferredLanguage, language]);
 
   const flatListRef = useRef<FlatList>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -340,6 +374,7 @@ export default function ChatRoomScreen() {
     status: msg.status || 'SENT',
     mediaUrl: msg.mediaUrl || msg.media_url || undefined,
     createdAt: msg.createdAt || msg.created_at || new Date().toISOString(),
+    senderVoiceGender: msg.senderVoiceGender || msg.sender_voice_gender || 'male',
   });
 
   const loadLiveMessages = useCallback(async (forceScroll = false) => {
@@ -397,11 +432,12 @@ export default function ChatRoomScreen() {
 
     const handleNewMessage = (incoming: any) => {
       const newMsg = normalizeMessage(incoming);
-      // Filtro preciso: mensagem do outro usuário OU minha mensagem para este usuário
-      const isThisConversation =
-        newMsg.senderId === (id as string) ||
-        (newMsg.senderId === user?.id &&
-          ((incoming.recipientId || incoming.recipient_id) === (id as string)));
+      // Filtro preciso: na sala verifica o roomId; no 1-a-1 verifica o sender/recipient
+      const isThisConversation = isRoomBool
+        ? ((incoming.roomId || incoming.room_id || incoming.recipientId || incoming.recipient_id || (newMsg as any).recipientId) === (id as string))
+        : (newMsg.senderId === (id as string) ||
+          (newMsg.senderId === user?.id &&
+            ((incoming.recipientId || incoming.recipient_id) === (id as string))));
 
       if (!isThisConversation) return;
 
@@ -423,6 +459,40 @@ export default function ChatRoomScreen() {
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         return out;
       });
+
+      // Modo Guia: Reprodução instantânea do áudio no idioma nativo do participante
+      if (newMsg.senderId !== user?.id && newMsg.type === 'AUDIO') {
+        const myNativeLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
+        const senderGender = newMsg.senderVoiceGender || (incoming as any).senderVoiceGender || 'male';
+
+        const autoPlayIncomingAudio = async () => {
+          let textToSpeak = newMsg.translatedContent;
+          const myShort = myNativeLang.split('-')[0].toLowerCase();
+          const msgTransLang = (newMsg.translatedLanguage || '').split('-')[0].toLowerCase();
+
+          if (!textToSpeak || msgTransLang !== myShort) {
+            if (newMsg.content && newMsg.content !== '[Áudio]' && newMsg.content !== 'Áudio') {
+              try {
+                textToSpeak = await translateText(newMsg.content, myNativeLang);
+                if (textToSpeak) {
+                  setNativeTranslations(prev => ({ ...prev, [newMsg.id]: textToSpeak! }));
+                }
+              } catch (e) {
+                textToSpeak = newMsg.content;
+              }
+            }
+          }
+
+          if (textToSpeak && textToSpeak !== '[Áudio]' && textToSpeak !== 'Áudio') {
+            console.log(`[Modo Guia] Reproduzindo áudio traduzido automaticamente em ${myNativeLang}: "${textToSpeak}"`);
+            playTranslatedAudioTts(textToSpeak, myNativeLang, senderGender);
+          } else if (newMsg.mediaUrl) {
+            playAudio(newMsg.id, newMsg.mediaUrl);
+          }
+        };
+
+        setTimeout(autoPlayIncomingAudio, 400);
+      }
     };
 
     const handleStatusUpdate = (data: { messageId: string, status: 'DELIVERED' | 'READ' }) => {
@@ -501,16 +571,28 @@ export default function ChatRoomScreen() {
       }
     };
 
-    const handleWebRtcPlayTranslatedAudio = (data: { audioUrl: string; translatedText?: string; targetLanguage?: string; language?: string; gender?: 'male' | 'female' }) => {
-      // Prioridade no celular: síntese nativa via expo-speech com timbre masculino grave do Cleber (pitch 0.75)
-      if (data.translatedText) {
+    const handleWebRtcPlayTranslatedAudio = async (data: { audioUrl: string; translatedText?: string; targetLanguage?: string; language?: string; gender?: 'male' | 'female'; originalText?: string }) => {
+      const myNativeLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
+      let textToSpeak = data.translatedText || data.originalText;
+
+      // Se a transmissão estiver em outro idioma, traduz para o idioma nativo deste participante
+      if (data.originalText && (data.language || 'pt').split('-')[0].toLowerCase() !== myNativeLang.split('-')[0].toLowerCase()) {
+        try {
+          textToSpeak = await translateText(data.originalText, myNativeLang);
+        } catch (e) {
+          textToSpeak = data.translatedText || data.originalText;
+        }
+      }
+
+      // Prioridade no celular: síntese nativa via expo-speech no idioma nativo do usuário
+      if (textToSpeak) {
         const spoken = liveTranslationService.speakWithNativeTts(
-          data.translatedText,
-          data.targetLanguage || data.language || user?.preferredLanguage || 'pt-BR',
+          textToSpeak,
+          myNativeLang,
           data.gender || 'male'
         );
         if (spoken) {
-          console.log('[VoIP] Tradução reproduzida com sucesso no celular via expo-speech nativo!');
+          console.log('[VoIP Modo Guia] Tradução reproduzida com sucesso no idioma nativo via expo-speech!');
           return;
         }
       }
@@ -555,20 +637,6 @@ export default function ChatRoomScreen() {
       socket.off('webrtcPlayTranslatedAudio', handleWebRtcPlayTranslatedAudio);
     };
   }, [loadLiveMessages, user?.id, id, socket]);
-
-  // Atendimento automático de chamada quando aberto via notificação com param autoAcceptCall
-  useEffect(() => {
-    if (autoAcceptCall) {
-      setCallDirection('incoming');
-      setCallType((autoAcceptCall as 'video' | 'audio') || 'audio');
-      setCallStatus('calling');
-      setCallModalVisible(true);
-      const timer = setTimeout(() => {
-        handleAcceptCall();
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [autoAcceptCall]);
 
   const currentRoomId = useMemo(() => {
     if (!user?.id || !id) return '';
@@ -717,7 +785,9 @@ export default function ChatRoomScreen() {
       const data = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
       if (!data || !data.type) return;
 
-      if (data.type === 'ready') {
+      if (data.type === 'ready' || data.type === 'call_connected') {
+        ringtoneService.stopRingtone();
+        ringtoneService.configureVoipAudioMode();
         isWebViewReadyRef.current = true;
         if (signalQueueRef.current.length > 0) {
           console.log(`[VoIP Signal Queue] Descarregando ${signalQueueRef.current.length} sinais acumulados...`);
@@ -1128,6 +1198,38 @@ export default function ChatRoomScreen() {
     }
   };
 
+  const handleSendPaymentRequest = async (data: { amount: number; table: string; description: string }) => {
+    setChargeModalVisible(false);
+    setIsSending(true);
+
+    const checkoutId = Math.random().toString(36).substring(2, 9);
+    const merchantName = user?.name || user?.nickname || 'Atendimento';
+    const checkoutUrl = `https://atos2.online/checkout/${checkoutId}?amount=${data.amount.toFixed(2)}&table=${encodeURIComponent(data.table)}&merchant=${encodeURIComponent(merchantName)}`;
+
+    const paymentPayload = {
+      isPaymentRequest: true,
+      amount: data.amount,
+      table: data.table,
+      description: data.description,
+      merchantName,
+      checkoutUrl,
+    };
+
+    try {
+      await sendMessage({
+        recipientId: id as string,
+        type: 'TEXT',
+        content: `[PAYMENT_REQUEST]${JSON.stringify(paymentPayload)}`,
+      });
+      loadLiveMessages(true);
+    } catch (e: any) {
+      console.error('Erro ao enviar cobrança:', e);
+      Alert.alert('Erro', 'Não foi possível enviar a cobrança na conversa.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   // ─── AUDIO RECORDING ─────────────────────────────────────────────────────────
   const startRecording = async () => {
     try {
@@ -1148,7 +1250,7 @@ export default function ChatRoomScreen() {
 
   const playTranslatedAudioTts = async (text: string, lang: string, speakerGender?: 'male' | 'female' | 'auto') => {
     try {
-      const langOnly = (lang || 'pt').split('-')[0];
+      const effectiveLang = lang || user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
       const gender: 'male' | 'female' = (speakerGender && speakerGender !== 'auto')
         ? speakerGender
         : (user?.voiceGender && user.voiceGender !== 'auto')
@@ -1156,11 +1258,11 @@ export default function ChatRoomScreen() {
           : 'male';
 
       // 1. Tenta expo-speech nativo nos celulares ou Web Speech API calibrada para tom masculino autêntico de Cleber (pitch 0.75)
-      const spoken = liveTranslationService.speakWithNativeTts(text, langOnly, gender);
+      const spoken = liveTranslationService.speakWithNativeTts(text, effectiveLang, gender);
       if (spoken) return;
 
       // 2. Fallback para player com URL sintetizada
-      const ttsUrl = liveTranslationService.getTtsAudioUrl(text, langOnly, gender);
+      const ttsUrl = liveTranslationService.getTtsAudioUrl(text, effectiveLang, gender);
       const { createAudioPlayer } = await import('expo-audio');
       const player = createAudioPlayer({ uri: ttsUrl });
       player.play();
@@ -1333,8 +1435,10 @@ export default function ChatRoomScreen() {
     const mediaUrl = rawMediaUrl
       ? (rawMediaUrl.startsWith('http') ? rawMediaUrl : `${SERVER_MEDIA_BASE}${rawMediaUrl}`)
       : null;
-    const transContent = item.translatedContent || (item as any).translated_content;
-    const transLanguage = item.translatedLanguage || (item as any).translated_language;
+    const userPreferredLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
+    const myLangShort = userPreferredLang.split('-')[0].toUpperCase();
+    const transContent = (!isMe && nativeTranslations[item.id]) ? nativeTranslations[item.id] : (item.translatedContent || (item as any).translated_content);
+    const transLanguage = (!isMe && nativeTranslations[item.id]) ? myLangShort : (item.translatedLanguage || (item as any).translated_language);
 
     return (
       <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}>
@@ -1401,10 +1505,17 @@ export default function ChatRoomScreen() {
 
             {/* AUDIO */}
             {item.type === 'AUDIO' && (
-              <View style={{ gap: 6, width: 220 }}>
+              <View style={{ gap: 6, width: 230 }}>
+                {/* Bolha Principal de Áudio */}
                 <TouchableOpacity
                   style={styles.audioBubble}
-                  onPress={() => playAudio(item.id, rawMediaUrl || '')}
+                  onPress={() => {
+                    if (!isMe && transContent && transContent !== item.content) {
+                      playTranslatedAudioTts(transContent, transLanguage || myLangShort, (item as any).senderVoiceGender || 'male');
+                    } else {
+                      playAudio(item.id, rawMediaUrl || '');
+                    }
+                  }}
                 >
                   <View style={[styles.audioIconCircle, playingAudioId === item.id && styles.audioIconCirclePlaying]}>
                     <Feather name={playingAudioId === item.id ? 'pause' : 'play'} size={18} color="#fff" />
@@ -1418,7 +1529,7 @@ export default function ChatRoomScreen() {
                     ))}
                   </View>
                   <Text style={[styles.audioLabel, isMe ? styles.messageTextMe : styles.messageTextOther]}>
-                    {item.content && item.content !== '[Áudio]' ? item.content : 'Áudio'}
+                    {!isMe && transContent && transContent !== item.content ? `Ouvir (${transLanguage || myLangShort})` : (item.content && item.content !== '[Áudio]' ? item.content : 'Áudio')}
                   </Text>
                 </TouchableOpacity>
 
@@ -1432,31 +1543,71 @@ export default function ChatRoomScreen() {
                   </View>
                 )}
 
-                {/* Tradução simultânea do texto do áudio */}
+                {/* Tradução simultânea do texto do áudio com Botões de Ação */}
                 {transContent && transContent !== item.content && (
                   <View style={{
                     marginTop: 4,
-                    padding: 8,
-                    borderRadius: 8,
+                    padding: 10,
+                    borderRadius: 10,
                     backgroundColor: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(34, 197, 94, 0.12)',
                     borderLeftWidth: 3,
                     borderLeftColor: isMe ? '#fff' : '#22c55e',
-                    gap: 4
+                    gap: 6
                   }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Feather name="globe" size={12} color={isMe ? '#fff' : '#22c55e'} />
                         <Text style={{ fontSize: 10, fontWeight: '700', color: isMe ? '#fff' : '#22c55e', textTransform: 'uppercase' }}>
-                          Tradução IA ({transLanguage || 'PT'})
+                          Tradução IA ({transLanguage || myLangShort})
                         </Text>
                       </View>
-                      <TouchableOpacity onPress={() => playTranslatedAudioTts(transContent, transLanguage || 'pt', isMe ? (user?.voiceGender || 'male') : ((item as any).senderVoiceGender || 'male'))}>
-                        <Feather name="volume-2" size={14} color={isMe ? '#fff' : '#22c55e'} />
-                      </TouchableOpacity>
                     </View>
                     <Text style={[{ fontSize: 13, fontWeight: '600' }, isMe ? styles.messageTextMe : styles.messageTextOther]}>
                       {transContent}
                     </Text>
+
+                    {/* Botões de Ouvir Voz IA no Idioma do Usuário e Áudio Original */}
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                      <TouchableOpacity
+                        onPress={() => playTranslatedAudioTts(transContent, transLanguage || myLangShort, isMe ? (user?.voiceGender || 'male') : ((item as any).senderVoiceGender || 'male'))}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 5,
+                          backgroundColor: '#22c55e',
+                          paddingVertical: 5,
+                          paddingHorizontal: 8,
+                          borderRadius: 6,
+                          flex: 1,
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Feather name="volume-2" size={13} color="#fff" />
+                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
+                          Ouvir Voz IA ({transLanguage || myLangShort})
+                        </Text>
+                      </TouchableOpacity>
+
+                      {rawMediaUrl ? (
+                        <TouchableOpacity
+                          onPress={() => playAudio(item.id, rawMediaUrl)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4,
+                            backgroundColor: 'rgba(0,0,0,0.06)',
+                            paddingVertical: 5,
+                            paddingHorizontal: 7,
+                            borderRadius: 6
+                          }}
+                        >
+                          <Feather name="headphones" size={12} color={Colors.light.textSecondary} />
+                          <Text style={{ color: Colors.light.textSecondary, fontSize: 10, fontWeight: '600' }}>
+                            Original
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
                   </View>
                 )}
               </View>
@@ -1533,8 +1684,164 @@ export default function ChatRoomScreen() {
               );
             })()}
 
+            {/* PAYMENT REQUEST / COBRANÇA */}
+            {item.content && item.content.startsWith('[PAYMENT_REQUEST]') && (() => {
+              let payData: any = null;
+              try {
+                payData = JSON.parse(item.content.replace('[PAYMENT_REQUEST]', ''));
+              } catch (_) {}
+
+              if (!payData) {
+                return (
+                  <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
+                    Solicitação de Pagamento
+                  </Text>
+                );
+              }
+
+              const amountNum = Number(payData.amount) || 0;
+              const formattedBrl = `R$ ${amountNum.toFixed(2).replace('.', ',')}`;
+              const approxUsdc = (amountNum / 5.60).toFixed(2);
+
+              const handlePay = () => {
+                router.push({
+                  pathname: '/checkout',
+                  params: {
+                    amount: amountNum.toFixed(2),
+                    table: payData.table || '01',
+                    merchant: payData.merchantName || (name as string) || 'Atendimento / Restaurante',
+                  },
+                });
+              };
+
+              const handleCopyLink = async () => {
+                if (payData.checkoutUrl) {
+                  await Clipboard.setStringAsync(payData.checkoutUrl);
+                  Alert.alert('Link Copiado!', 'Link de pagamento copiado para a área de transferência.');
+                }
+              };
+
+              return (
+                <View style={{
+                  width: 260,
+                  backgroundColor: '#0F172A',
+                  borderRadius: 14,
+                  padding: 14,
+                  borderWidth: 1.5,
+                  borderColor: '#10B981',
+                  gap: 10,
+                }}>
+                  {/* Cabeçalho do Card */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Feather name="credit-card" size={16} color="#10B981" />
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#F8FAFC' }}>
+                          Conta / Cobrança
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#94A3B8' }}>
+                          {payData.table ? `Ref: ${payData.table}` : 'Atendimento'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#10B981' }}>Checkout</Text>
+                    </View>
+                  </View>
+
+                  {/* Descrição */}
+                  {payData.description ? (
+                    <Text style={{ fontSize: 12, color: '#CBD5E1', fontStyle: 'italic' }}>
+                      "{payData.description}"
+                    </Text>
+                  ) : null}
+
+                  {/* Valor Principal em Destaque */}
+                  <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    padding: 10,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                  }}>
+                    <Text style={{ fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', fontWeight: '600' }}>
+                      Valor Total da Conta
+                    </Text>
+                    <Text style={{ fontSize: 24, fontWeight: '900', color: '#38BDF8', marginVertical: 2 }}>
+                      {formattedBrl}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#A855F7', fontWeight: '700' }}>
+                      ≈ ${approxUsdc} USDC (Solana Pay)
+                    </Text>
+                  </View>
+
+                  {/* Métodos Aceitos */}
+                  <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(168, 85, 247, 0.15)', borderWidth: 1, borderColor: '#A855F7' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: '#A855F7' }}>⚡ Solana Pay</Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(34, 197, 94, 0.15)', borderWidth: 1, borderColor: '#22C55E' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: '#22C55E' }}>PIX Instantâneo</Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(56, 189, 248, 0.15)', borderWidth: 1, borderColor: '#38BDF8' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: '#38BDF8' }}>Cartão / Apple Pay</Text>
+                    </View>
+                  </View>
+
+                  {/* Botão de Pagar / Ação */}
+                  <TouchableOpacity
+                    onPress={handlePay}
+                    style={{
+                      backgroundColor: '#10B981',
+                      paddingVertical: 12,
+                      borderRadius: 10,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'row',
+                      gap: 6,
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Feather name="shield" size={15} color="#fff" />
+                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
+                      {isMe ? 'Visualizar Checkout' : 'Pagar Agora / Checkout'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Botão de Copiar Link */}
+                  {payData.checkoutUrl ? (
+                    <TouchableOpacity
+                      onPress={handleCopyLink}
+                      style={{
+                        paddingVertical: 6,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'row',
+                        gap: 4,
+                      }}
+                    >
+                      <Feather name="copy" size={12} color="#94A3B8" />
+                      <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600' }}>
+                        Copiar Link de Pagamento
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              );
+            })()}
+
             {/* TEXT */}
-            {(item.type === 'TEXT' || (!item.type && item.content)) && (
+            {(!item.content || !item.content.startsWith('[PAYMENT_REQUEST]')) && (item.type === 'TEXT' || (!item.type && item.content)) && (
               <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
                 {item.content}
               </Text>
@@ -1699,20 +2006,20 @@ export default function ChatRoomScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 5,
-                backgroundColor: roomType === 'LECTURE' ? '#FEF3C7' : '#E0F2FE',
+                backgroundColor: '#E0F2FE',
                 paddingHorizontal: 10,
                 paddingVertical: 6,
                 borderRadius: 16,
                 borderWidth: 1,
-                borderColor: roomType === 'LECTURE' ? '#F59E0B' : '#0284C7',
+                borderColor: '#0284C7',
                 marginRight: 4,
               }}
               onPress={() => setRoomInviteModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Feather name={roomType === 'LECTURE' ? 'maximize' : 'user-plus'} size={14} color={roomType === 'LECTURE' ? '#B45309' : '#0369A1'} />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: roomType === 'LECTURE' ? '#92400E' : '#0369A1' }}>
-                {roomType === 'LECTURE' ? 'QR Guia' : 'Convidar'}
+              <Feather name="maximize" size={14} color="#0369A1" />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#0369A1' }}>
+                QR Modo Guia
               </Text>
             </TouchableOpacity>
           )}
@@ -1728,7 +2035,7 @@ export default function ChatRoomScreen() {
             <Pressable style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.1)'}} onPress={() => setHeaderMenuVisible(false)}>
               <View style={{position: 'absolute', top: 60, right: 10, backgroundColor: Colors.light.surface, borderRadius: 10, elevation: 6, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.18, shadowRadius: 8, width: 230, overflow: 'hidden'}}>
 
-                {/* Opção de Convidar Participantes para o Grupo / Palestra */}
+                {/* Opção de Convidar Participantes para o Modo Guia */}
                 {isRoom === 'true' && (
                   <TouchableOpacity
                     style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
@@ -1737,12 +2044,24 @@ export default function ChatRoomScreen() {
                       setRoomInviteModalVisible(true);
                     }}
                   >
-                    <Feather name="user-plus" size={16} color={Colors.primary} />
+                    <Feather name="maximize" size={16} color={Colors.primary} />
                     <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 13}}>
-                      {roomType === 'LECTURE' ? 'Convidar Palestrante / Ouvinte' : 'Convidar Participante'}
+                      QR Code do Modo Guia
                     </Text>
                   </TouchableOpacity>
                 )}
+
+                {/* Cobrança / Enviar Conta */}
+                <TouchableOpacity
+                  style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
+                  onPress={() => {
+                    setHeaderMenuVisible(false);
+                    setChargeModalVisible(true);
+                  }}
+                >
+                  <Feather name="credit-card" size={16} color="#10B981" />
+                  <Text style={{color: '#10B981', fontWeight: '700', fontSize: 13}}>Cobrar / Enviar Conta</Text>
+                </TouchableOpacity>
 
                 {/* Vitrine do Usuário */}
                 <TouchableOpacity
@@ -1783,7 +2102,7 @@ export default function ChatRoomScreen() {
         )}
       </View>
 
-      {/* Banner Informativo de Regra de Áudio (Grupo vs Palestra) */}
+      {/* Banner Informativo do Modo Guia */}
       {isRoom === 'true' && (
         <View style={{
           flexDirection: 'row',
@@ -1791,19 +2110,17 @@ export default function ChatRoomScreen() {
           gap: 8,
           paddingHorizontal: Spacing.md,
           paddingVertical: 8,
-          backgroundColor: roomType === 'GROUP' ? '#F0F9FF' : '#FEF3C7',
+          backgroundColor: '#F0F9FF',
           borderBottomWidth: 1,
-          borderBottomColor: roomType === 'GROUP' ? '#BAE6FD' : '#FDE68A',
+          borderBottomColor: '#BAE6FD',
         }}>
           <Feather
-            name={roomType === 'GROUP' ? 'volume-2' : 'mic-off'}
+            name="headphones"
             size={16}
-            color={roomType === 'GROUP' ? '#0369A1' : '#B45309'}
+            color="#0369A1"
           />
-          <Text style={{ flex: 1, fontSize: 12, color: roomType === 'GROUP' ? '#0C4A6E' : '#78350F', fontWeight: '600' }}>
-            {roomType === 'GROUP'
-              ? '🗣️ Modo Grupo: Todos os participantes podem falar e interagir.'
-              : '🎤 Modo Palestra: Apenas os palestrantes indicados podem falar. Demais são ouvintes.'}
+          <Text style={{ flex: 1, fontSize: 12, color: '#0C4A6E', fontWeight: '600' }}>
+            🎧 Modo Guia: Todos na mesma sala recebem a transmissão traduzida instantaneamente em seu próprio idioma nativo.
           </Text>
         </View>
       )}
@@ -1868,6 +2185,18 @@ export default function ChatRoomScreen() {
                 </View>
                 <Text style={styles.mediaMenuLabel}>Arquivo</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.mediaMenuOption}
+                onPress={() => {
+                  setShowMediaMenu(false);
+                  setChargeModalVisible(true);
+                }}
+              >
+                <View style={[styles.mediaMenuIcon, { backgroundColor: '#10b981' }]}>
+                  <Feather name="credit-card" size={20} color="#fff" />
+                </View>
+                <Text style={styles.mediaMenuLabel}>Cobrança</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Pressable>
@@ -1888,16 +2217,8 @@ export default function ChatRoomScreen() {
           onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
         />
 
-        {/* Input Bar com bloqueio para Ouvintes na Palestra */}
-        {roomType === 'LECTURE' && myRole === 'LISTENER' && user?.id !== roomOwnerId ? (
-          <View style={styles.listenerInputBlockedContainer}>
-            <Feather name="headphones" size={20} color="#0284C7" />
-            <Text style={styles.listenerInputBlockedText}>
-              🎧 Modo Ouvinte: Apenas palestrantes autorizados podem falar e enviar mensagens nesta palestra.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.inputContainer}>
+        {/* Input Bar */}
+        <View style={styles.inputContainer}>
             <TouchableOpacity style={styles.inputAction} onPress={() => setShowMediaMenu(true)}>
               <Feather name="paperclip" size={24} color={showMediaMenu ? Colors.primary : Colors.light.textSecondary} />
             </TouchableOpacity>
@@ -1934,7 +2255,6 @@ export default function ChatRoomScreen() {
               </Animated.View>
             )}
           </View>
-        )}
 
         {isRecording && (
           <View style={styles.recordingBanner}>
@@ -2161,6 +2481,14 @@ export default function ChatRoomScreen() {
             Alert.alert('Aviso', 'Convite gerado localmente como ' + (selectedRole === 'SPEAKER' ? 'Palestrante' : 'Ouvinte'));
           }
         }}
+      />
+
+      {/* Modal para Enviar Cobrança / Conta com Checkout */}
+      <SendChargeChatModal
+        visible={chargeModalVisible}
+        onClose={() => setChargeModalVisible(false)}
+        onSend={handleSendPaymentRequest}
+        defaultTable="01"
       />
 
     </SafeAreaView>

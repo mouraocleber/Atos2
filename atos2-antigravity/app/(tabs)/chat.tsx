@@ -178,13 +178,13 @@ export default function ChatScreen() {
             {item.isRoom && (
               <View style={[
                 styles.roomTag,
-                { backgroundColor: item.roomType === 'GROUP' ? Colors.primary + '20' : Colors.secondary + '30' }
+                { backgroundColor: '#E0F2FE' }
               ]}>
                 <Text style={[
                   styles.roomTagText,
-                  { color: item.roomType === 'GROUP' ? Colors.primary : Colors.secondaryDark }
+                  { color: '#0369A1' }
                 ]}>
-                  {item.roomType === 'GROUP' ? '👥 Grupo' : '🎤 Palestra'}
+                  🎧 Modo Guia
                 </Text>
               </View>
             )}
@@ -211,7 +211,7 @@ export default function ChatScreen() {
           <Feather name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar conversas, grupos ou palestras..."
+            placeholder="Buscar conversas ou salas do Modo Guia..."
             placeholderTextColor={Colors.light.textMuted}
             value={search}
             onChangeText={setSearch}
@@ -240,7 +240,7 @@ export default function ChatScreen() {
             <View style={styles.emptyContainer}>
               <Feather name="message-square" size={48} color={Colors.light.textMuted} />
               <Text style={styles.emptyTitle}>Nenhuma conversa</Text>
-              <Text style={styles.emptySubtitle}>Toque no botão + para iniciar uma conversa, criar um grupo ou palestra</Text>
+              <Text style={styles.emptySubtitle}>Toque no botão + para criar uma sala no Modo Guia ou iniciar uma conversa</Text>
             </View>
           }
         />
@@ -291,47 +291,16 @@ export default function ChatScreen() {
               onPress={() => openCreateModal('GROUP')}
             >
               <View style={[styles.actionIconCircle, { backgroundColor: '#DCFCE7' }]}>
-                <Feather name="users" size={20} color="#16A34A" />
+                <Feather name="headphones" size={20} color="#16A34A" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.actionItemTitle}>👥 Criar Grupo</Text>
-                <Text style={styles.actionItemSub}>Espaço interativo para bate-papo coletivo</Text>
+                <Text style={styles.actionItemTitle}>🎧 Criar Modo Guia (Tour Multilíngue)</Text>
+                <Text style={styles.actionItemSub}>Todos entram via QR Code e ouvem no idioma nativo</Text>
               </View>
               <Feather name="chevron-right" size={20} color={Colors.light.textMuted} />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionMenuItem}
-              activeOpacity={0.7}
-              onPress={() => openCreateModal('LECTURE')}
-            >
-              <View style={[styles.actionIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                <Feather name="mic" size={20} color="#D97706" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.actionItemTitle}>🎤 Criar Palestra</Text>
-                <Text style={styles.actionItemSub}>Transmissão ao vivo com convidados e ouvintes</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={Colors.light.textMuted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionMenuItem}
-              activeOpacity={0.7}
-              onPress={() => {
-                setActionMenuVisible(false);
-                router.push('/(tabs)/listening');
-              }}
-            >
-              <View style={[styles.actionIconCircle, { backgroundColor: '#F3E8FF' }]}>
-                <Feather name="headphones" size={20} color="#9333EA" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.actionItemTitle}>🎧 Modo Escuta</Text>
-                <Text style={styles.actionItemSub}>Tradução de áudio da rua direto no seu fone</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={Colors.light.textMuted} />
-            </TouchableOpacity>
+            {/* Modo Palestra e Modo Escuta ocultados no app */}
 
             <TouchableOpacity
               style={styles.actionMenuCancelBtn}

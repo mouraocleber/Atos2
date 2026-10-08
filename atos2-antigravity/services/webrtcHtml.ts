@@ -662,7 +662,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
         }
       }
 
-      log('Tradução Simultânea ' + (isTranslationActive ? 'ATIVADA ($0.30 USD/minuto)' : 'DESATIVADA') + ' para o idioma do cadastro: ' + selectedLangName + ' (' + selectedLangCode + ')');
+      log('Tradução Simultânea ' + (isTranslationActive ? 'ATIVADA' : 'DESATIVADA') + ' para o idioma do cadastro: ' + selectedLangName + ' (' + selectedLangCode + ')');
       
       if (isTranslationActive) {
         initSpeechRecognition();
@@ -670,17 +670,16 @@ export const getWebRtcHtml = (initialConfig?: any) => {
         stopSpeechRecognition();
       }
 
-      // Notify React Native WebView about language preference & billing rate per minute
+      // Notify React Native WebView about language preference
       postToNative(JSON.stringify({
         type: 'translation_toggle',
         enabled: isTranslationActive,
         language: selectedLangCode,
-        languageName: selectedLangName,
-        rateUsdPerMin: 0.30
+        languageName: selectedLangName
       }));
 
       if (isTranslationActive) {
-        showLiveCaption('Sistema IA', 'Tradução IA Ativada ($0.30 USD/min)', 'Tarifa: $0.30 USD/minuto • Idioma do cadastro: ' + selectedLangName + ' ' + selectedLangFlag);
+        showLiveCaption('Sistema IA', 'Tradução IA Ativada', 'Idioma do cadastro: ' + selectedLangName + ' ' + selectedLangFlag);
       } else {
         showLiveCaption('Sistema IA', 'Tradução IA Desativada', 'Tradução em tempo real pausada');
       }
@@ -807,11 +806,10 @@ export const getWebRtcHtml = (initialConfig?: any) => {
           type: 'translation_toggle',
           enabled: true,
           language: selectedLangCode,
-          languageName: selectedLangName,
-          rateUsdPerMin: 0.30
+          languageName: selectedLangName
         }));
 
-        showLiveCaption('Sistema IA', 'Tradução IA Ativada ($0.30 USD/min)', 'Tarifa: $0.30 USD/minuto • Idiomas diferentes no cadastro (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + ').');
+        showLiveCaption('Sistema IA', 'Tradução IA Ativada', 'Idiomas diferentes no cadastro (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + ').');
       } else {
         isTranslationActive = false;
         const btnTranslate = document.getElementById('btnTranslate');
@@ -911,6 +909,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
             document.getElementById('headerStatus').innerText = 'Chamada em andamento';
             document.getElementById('headerStatus').style.color = '#06d6a0';
             startTimer();
+            postToNative(JSON.stringify({ type: 'call_connected' }));
           } else if (connState === 'disconnected' || connState === 'failed' || iceState === 'disconnected' || iceState === 'failed') {
             document.getElementById('headerStatus').innerText = 'Conexão interrompida';
             document.getElementById('headerStatus').style.color = '#ef476f';
@@ -951,10 +950,12 @@ export const getWebRtcHtml = (initialConfig?: any) => {
                 hideAudioUnlockBanner();
                 checkConnectedAndStartTimer();
                 startTimer();
+                postToNative(JSON.stringify({ type: 'call_connected' }));
               }).catch(e => {
                 log('Remote audio autoplay pendente: ' + e.message + '. Banner exibido para toque do usuário.');
                 showAudioUnlockBanner();
                 startTimer();
+                postToNative(JSON.stringify({ type: 'call_connected' }));
               });
             }
           }
@@ -1087,10 +1088,9 @@ export const getWebRtcHtml = (initialConfig?: any) => {
               type: 'translation_toggle',
               enabled: true,
               language: selectedLangCode,
-              languageName: selectedLangName,
-              rateUsdPerMin: 0.30
+              languageName: selectedLangName
             }));
-            showLiveCaption('Sistema IA', 'Tradução IA Ativada ($0.30 USD/min)', 'Tarifa: $0.30 USD/minuto • Idiomas diferentes no cadastro (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + ').');
+            showLiveCaption('Sistema IA', 'Tradução IA Ativada', 'Idiomas diferentes no cadastro (' + remoteLangBase.toUpperCase() + ' ➔ ' + selectedLangCode.toUpperCase() + ').');
           }
         } else if (signal.type === 'translation_caption') {
           const spkName = signal.speakerName || targetName;
@@ -1099,6 +1099,20 @@ export const getWebRtcHtml = (initialConfig?: any) => {
           showLiveCaption(spkName, signal.originalText, signal.translatedText, spkFlag);
         } else if (signal.type === 'play_translated_audio') {
           log('Áudio traduzido recebido para reprodução.');
+          if (signal.translatedText && 'speechSynthesis' in window) {
+            try {
+              window.speechSynthesis.cancel();
+              const ut = new SpeechSynthesisUtterance(signal.translatedText);
+              ut.lang = signal.targetLanguage || selectedLangCode || 'pt-BR';
+              ut.pitch = (signal.gender === 'female') ? 1.15 : 0.70;
+              ut.rate = 0.95;
+              const remoteAudioEl = document.getElementById('remoteAudio');
+              if (remoteAudioEl) remoteAudioEl.volume = 0.2;
+              ut.onend = () => { if (remoteAudioEl) remoteAudioEl.volume = 1.0; };
+              window.speechSynthesis.speak(ut);
+              return;
+            } catch (e) {}
+          }
           if (signal.audioUrl) {
             const translatedAudio = new Audio(signal.audioUrl);
             const remoteAudioEl = document.getElementById('remoteAudio');

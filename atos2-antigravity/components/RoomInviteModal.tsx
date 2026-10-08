@@ -35,25 +35,25 @@ export default function RoomInviteModal({
   onClose,
   onSuccess,
 }: RoomInviteModalProps) {
-  const [activeTab, setActiveTab] = useState<'qr' | 'contacts'>(roomType === 'LECTURE' ? 'qr' : 'contacts');
+  const [activeTab, setActiveTab] = useState<'qr' | 'contacts'>('qr');
   const [copied, setCopied] = useState(false);
   const [search, setSearch] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [selectedRole, setSelectedRole] = useState<MemberRole>('LISTENER');
+  const [selectedRole, setSelectedRole] = useState<MemberRole>('SPEAKER');
   const [sendingInvite, setSendingInvite] = useState(false);
 
-  const inviteUrl = `https://atos2.online/connect?room=${roomId}&name=${encodeURIComponent(roomName)}&type=${roomType}`;
+  const inviteUrl = `https://atos2.online/connect?room=${roomId}&name=${encodeURIComponent(roomName)}&type=GROUP`;
 
   useEffect(() => {
     if (visible) {
-      setActiveTab(roomType === 'LECTURE' ? 'qr' : 'contacts');
+      setActiveTab('qr');
       loadContacts();
     } else {
       setSelectedContact(null);
       setSearch('');
-      setSelectedRole('LISTENER');
+      setSelectedRole('SPEAKER');
       setCopied(false);
     }
   }, [visible, roomType]);
@@ -101,8 +101,8 @@ export default function RoomInviteModal({
   const handleShareLink = async () => {
     try {
       await Share.share({
-        title: `AtoS2 - ${roomType === 'LECTURE' ? 'Tour com Guia / Palestra' : 'Grupo'}: ${roomName}`,
-        message: `Entre no tour "${roomName}" pelo AtoS2 para ouvir o guia turístico com tradução simultânea no seu idioma:\n${inviteUrl}`,
+        title: `AtoS2 - Modo Guia: ${roomName}`,
+        message: `Entre na sala "${roomName}" pelo AtoS2 para ouvir o guia com áudio traduzido em tempo real no seu idioma nativo:\n${inviteUrl}`,
         url: inviteUrl,
       });
     } catch (e) {
@@ -118,15 +118,11 @@ export default function RoomInviteModal({
 
     setSendingInvite(true);
     try {
-      await inviteUserToRoom(roomId, selectedContact.id, selectedRole);
-
-      const roleText = roomType === 'LECTURE'
-        ? (selectedRole === 'SPEAKER' ? 'Palestrante (Pode Falar)' : 'Ouvinte')
-        : 'Membro';
+      await inviteUserToRoom(roomId, selectedContact.id, 'SPEAKER');
 
       Alert.alert(
         'Convite Enviado! 🎉',
-        `Convite enviado com sucesso para ${selectedContact.name} como ${roleText} em "${roomName}".`,
+        `Convite enviado com sucesso para ${selectedContact.name} participar do Modo Guia "${roomName}".`,
         [
           {
             text: 'OK',
@@ -157,16 +153,16 @@ export default function RoomInviteModal({
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={[styles.iconCircle, roomType === 'LECTURE' && { backgroundColor: '#FEF3C7' }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
                 <Feather
-                  name={roomType === 'LECTURE' ? 'mic' : 'users'}
+                  name="headphones"
                   size={20}
-                  color={roomType === 'LECTURE' ? '#B45309' : Colors.secondaryDark}
+                  color="#0284C7"
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.headerTitle}>
-                  {roomType === 'LECTURE' ? 'Guia Turístico & Palestra' : 'Convidar para o Grupo'}
+                  QR Code do Modo Guia
                 </Text>
                 <Text style={styles.headerSub} numberOfLines={1}>
                   {roomName}
@@ -187,7 +183,7 @@ export default function RoomInviteModal({
             >
               <Feather name="maximize" size={15} color={activeTab === 'qr' ? '#fff' : Colors.light.textMuted} />
               <Text style={[styles.tabBtnText, activeTab === 'qr' && styles.tabBtnTextActive]}>
-                {roomType === 'LECTURE' ? 'QR Code do Guia' : 'QR Code de Acesso'}
+                QR Code do Guia
               </Text>
             </TouchableOpacity>
 
@@ -206,9 +202,9 @@ export default function RoomInviteModal({
           {activeTab === 'qr' ? (
             <View style={styles.qrSection}>
               <View style={styles.qrBadge}>
-                <Feather name="headphones" size={14} color="#B45309" />
+                <Feather name="headphones" size={14} color="#0369A1" />
                 <Text style={styles.qrBadgeText}>
-                  {roomType === 'LECTURE' ? 'Turistas entram direto como Ouvintes' : 'Entrada direta sem cadastro longo'}
+                  🎧 Modo Guia • Tradução Simultânea Coletiva
                 </Text>
               </View>
 
@@ -217,9 +213,7 @@ export default function RoomInviteModal({
               </View>
 
               <Text style={styles.qrInstructions}>
-                {roomType === 'LECTURE'
-                  ? 'Aponte a câmera do celular para este QR Code. Os turistas ouvirão a sua voz traduzida em tempo real no fone de ouvido, sem precisar baixar o app!'
-                  : 'Escaneie para entrar na sala diretamente pelo navegador do celular com zero atrito.'}
+                Aponte a câmera do celular para este QR Code. Todos entram na mesma conversa e ouvem a voz traduzida instantaneamente em seu idioma nativo, sem atrito!
               </Text>
 
               {/* Link de compartilhamento */}
@@ -253,35 +247,7 @@ export default function RoomInviteModal({
                 />
               </View>
 
-              {/* Seleção do Papel na Palestra (Palestrante vs Ouvinte) */}
-              {roomType === 'LECTURE' && (
-                <View style={styles.roleSelectionBox}>
-                  <Text style={styles.roleSelectionLabel}>Definir Papel na Palestra:</Text>
-                  <View style={styles.roleButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.roleBtn, selectedRole === 'SPEAKER' && styles.roleBtnActiveSpeaker]}
-                      onPress={() => setSelectedRole('SPEAKER')}
-                      activeOpacity={0.8}
-                    >
-                      <Feather name="mic" size={16} color={selectedRole === 'SPEAKER' ? '#fff' : '#D97706'} />
-                      <Text style={[styles.roleBtnText, selectedRole === 'SPEAKER' && styles.roleBtnTextActive]}>
-                        🎤 Palestrante (Fala)
-                      </Text>
-                    </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.roleBtn, selectedRole === 'LISTENER' && styles.roleBtnActiveListener]}
-                      onPress={() => setSelectedRole('LISTENER')}
-                      activeOpacity={0.8}
-                    >
-                      <Feather name="headphones" size={16} color={selectedRole === 'LISTENER' ? '#fff' : '#0369A1'} />
-                      <Text style={[styles.roleBtnText, selectedRole === 'LISTENER' && styles.roleBtnTextActive]}>
-                        🎧 Ouvinte
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
 
               {/* Lista de Contatos */}
               <Text style={styles.sectionLabel}>Selecione um Contato:</Text>

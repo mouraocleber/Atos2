@@ -27,21 +27,104 @@ export interface LiveTranslationCallbacks {
   onError?: (errorMessage: string) => void;
 }
 
-// Mapeamento de códigos de idiomas para nomes legíveis
-const LANGUAGE_NAMES: Record<string, string> = {
-  en: 'Inglês',
-  es: 'Espanhol',
-  fr: 'Francês',
-  de: 'Alemão',
-  it: 'Italiano',
-  ja: 'Japonês',
-  zh: 'Chinês (Mandarim)',
-  ru: 'Russo',
-  ar: 'Árabe',
+// Mapeamento dos 33 idiomas suportados para nomes legíveis e códigos BCP-47
+export const LANGUAGE_NAMES: Record<string, string> = {
   pt: 'Português',
   'pt-BR': 'Português (Brasil)',
+  'pt-PT': 'Português (Portugal)',
+  en: 'Inglês',
   'en-US': 'Inglês (EUA)',
+  'en-GB': 'Inglês (Reino Unido)',
+  es: 'Espanhol',
   'es-ES': 'Espanhol (Espanha)',
+  'es-MX': 'Espanhol (México)',
+  fr: 'Francês',
+  'fr-FR': 'Francês',
+  de: 'Alemão',
+  'de-DE': 'Alemão',
+  it: 'Italiano',
+  'it-IT': 'Italiano',
+  ru: 'Russo',
+  'ru-RU': 'Russo',
+  zh: 'Chinês (Simplificado)',
+  'zh-CN': 'Chinês (Simplificado)',
+  'zh-TW': 'Chinês (Tradicional)',
+  ja: 'Japonês',
+  'ja-JP': 'Japonês',
+  ko: 'Coreano',
+  'ko-KR': 'Coreano',
+  ar: 'Árabe',
+  'ar-SA': 'Árabe',
+  hi: 'Hindi',
+  'hi-IN': 'Hindi',
+  tr: 'Turco',
+  'tr-TR': 'Turco',
+  pl: 'Polonês',
+  'pl-PL': 'Polonês',
+  nl: 'Holandês',
+  'nl-NL': 'Holandês',
+  sv: 'Sueco',
+  'sv-SE': 'Sueco',
+  da: 'Dinamarquês',
+  'da-DK': 'Dinamarquês',
+  fi: 'Finlandês',
+  'fi-FI': 'Finlandês',
+  nb: 'Norueguês',
+  'nb-NO': 'Norueguês',
+  uk: 'Ucraniano',
+  'uk-UA': 'Ucraniano',
+  id: 'Indonésio',
+  'id-ID': 'Indonésio',
+  ms: 'Malaio',
+  'ms-MY': 'Malaio',
+  th: 'Tailandês',
+  'th-TH': 'Tailandês',
+  vi: 'Vietnamita',
+  'vi-VN': 'Vietnamita',
+  he: 'Hebraico',
+  'he-IL': 'Hebraico',
+  cs: 'Tcheco',
+  'cs-CZ': 'Tcheco',
+  ro: 'Romeno',
+  'ro-RO': 'Romeno',
+  hu: 'Húngaro',
+  'hu-HU': 'Húngaro',
+  el: 'Grego',
+  'el-GR': 'Grego',
+};
+
+export const BCP47_LANGUAGE_MAP: Record<string, string> = {
+  pt: 'pt-BR',
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  it: 'it-IT',
+  ru: 'ru-RU',
+  zh: 'zh-CN',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+  ar: 'ar-SA',
+  hi: 'hi-IN',
+  tr: 'tr-TR',
+  pl: 'pl-PL',
+  nl: 'nl-NL',
+  sv: 'sv-SE',
+  da: 'da-DK',
+  fi: 'fi-FI',
+  nb: 'nb-NO',
+  no: 'nb-NO',
+  uk: 'uk-UA',
+  id: 'id-ID',
+  ms: 'ms-MY',
+  th: 'th-TH',
+  vi: 'vi-VN',
+  he: 'he-IL',
+  iw: 'he-IL',
+  cs: 'cs-CZ',
+  ro: 'ro-RO',
+  hu: 'hu-HU',
+  el: 'el-GR',
 };
 
 class LiveTranslationService {
@@ -357,24 +440,14 @@ class LiveTranslationService {
   /**
    * Síntese de voz com suporte nativo expo-speech nos celulares e Web Speech API nos navegadores
    * Garante tom masculino autêntico de Cleber (grave/barítono, pitch 0.75) ou feminino (pitch 1.15)
+   * Suporta todos os 33 idiomas, com calibragem especial para Coreano, Japonês, Inglês e Espanhol.
    */
   public speakWithNativeTts(text: string, langCode: string, gender: 'male' | 'female' | 'auto' = 'male'): boolean {
     if (!text || !text.trim()) return false;
 
     const langShort = (langCode || 'pt-BR').split('-')[0].toLowerCase();
     const effectiveGender = gender === 'female' ? 'female' : 'male';
-    const langMap: Record<string, string> = {
-      pt: 'pt-BR',
-      en: 'en-US',
-      es: 'es-ES',
-      fr: 'fr-FR',
-      de: 'de-DE',
-      it: 'it-IT',
-      ja: 'ja-JP',
-      zh: 'zh-CN',
-      ru: 'ru-RU',
-    };
-    const targetLangFull = langMap[langShort] || langCode || 'pt-BR';
+    const targetLangFull = BCP47_LANGUAGE_MAP[langShort] || (langCode.includes('-') ? langCode : `${langShort}-${langShort.toUpperCase()}`);
 
     // 1. Mobile nativo (Android e iOS): usa expo-speech com timbre masculino do Cleber (pitch: 0.75 encorpado/grave)
     if (Platform.OS === 'android' || Platform.OS === 'ios') {
@@ -414,7 +487,7 @@ class LiveTranslationService {
           },
         });
 
-        console.log(`[LiveTranslationService] expo-speech nativo acionado (${Platform.OS}) | Tom: ${effectiveGender.toUpperCase()} (Pitch: ${effectiveGender === 'male' ? 0.75 : 1.15}) | Voz: ${selectedVoiceId || 'padrão SO'}`);
+        console.log(`[LiveTranslationService] expo-speech nativo acionado (${Platform.OS}) | Idioma: ${targetLangFull} | Tom: ${effectiveGender.toUpperCase()} (Pitch: ${effectiveGender === 'male' ? 0.75 : 1.15}) | Voz: ${selectedVoiceId || 'padrão SO'}`);
         return true;
       } catch (expoErr) {
         console.warn('[LiveTranslationService] Erro no expo-speech nativo:', expoErr);
@@ -430,11 +503,14 @@ class LiveTranslationService {
 
         // Seleciona voz disponível por idioma e gênero
         const allVoices = window.speechSynthesis.getVoices();
-        const matchingLangVoices = allVoices.filter(v => v.lang.toLowerCase().startsWith(langShort));
+        const matchingLangVoices = allVoices.filter(v => 
+          v.lang.toLowerCase().startsWith(langShort) || 
+          v.lang.toLowerCase() === targetLangFull.toLowerCase()
+        );
 
         let selectedVoice: SpeechSynthesisVoice | undefined;
         if (effectiveGender === 'male') {
-          // Procura vozes masculinas conhecidas
+          // Procura vozes masculinas conhecidas (incluindo Coreano, Japonês, Chinês e Ocidentais)
           selectedVoice = matchingLangVoices.find(v => {
             const n = v.name.toLowerCase();
             return (
@@ -448,7 +524,13 @@ class LiveTranslationService {
               n.includes('felipe') ||
               n.includes('alvaro') ||
               n.includes('homem') ||
-              n.includes('masculin')
+              n.includes('masculin') ||
+              n.includes('injoon') ||
+              n.includes('keita') ||
+              n.includes('sinji') ||
+              n.includes('yunyang') ||
+              n.includes('tarik') ||
+              n.includes('madhur')
             );
           });
         } else {
@@ -464,7 +546,12 @@ class LiveTranslationService {
               n.includes('helena') ||
               n.includes('dalia') ||
               n.includes('mulher') ||
-              n.includes('feminin')
+              n.includes('feminin') ||
+              n.includes('heami') ||
+              n.includes('yuna') ||
+              n.includes('seoyeon') ||
+              n.includes('nanami') ||
+              n.includes('xiaoxiao')
             );
           });
         }
@@ -498,7 +585,7 @@ class LiveTranslationService {
         };
 
         window.speechSynthesis.speak(utterance);
-        console.log(`[LiveTranslationService] Síntese WebSpeech acionada com tom ${effectiveGender.toUpperCase()} (Pitch: ${utterance.pitch})`);
+        console.log(`[LiveTranslationService] Síntese WebSpeech acionada para ${targetLangFull} com tom ${effectiveGender.toUpperCase()} (Pitch: ${utterance.pitch})`);
         return true;
       }
     } catch (e) {
@@ -511,7 +598,7 @@ class LiveTranslationService {
    * Gera a URL/áudio de síntese de voz (TTS) configurado para o timbre masculino ou feminino
    */
   public getTtsAudioUrl(text: string, langCode: string, gender: 'male' | 'female' | 'auto' = 'male'): string {
-    const langShort = (langCode || 'pt-BR').split('-')[0];
+    const langShort = (langCode || 'pt-BR').split('-')[0].toLowerCase();
     const effectiveGender = gender === 'female' ? 'female' : 'male';
     const voiceVariant = effectiveGender === 'female' ? 'a' : 'b';
     return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langShort}&client=tw-ob&idx=0&total=1&textlen=${text.length}&voice=${voiceVariant}&gender=${effectiveGender}`;
@@ -880,17 +967,26 @@ const translationCache: Record<string, string> = {};
 export async function translateText(text: string, targetLang: string = 'pt-BR'): Promise<string> {
   if (!text || !text.trim()) return text;
   const langOnly = targetLang.split('-')[0].toLowerCase();
-  if (langOnly === 'pt') return text;
 
   const cacheKey = `${langOnly}:${text.trim()}`;
   if (translationCache[cacheKey]) return translationCache[cacheKey];
 
+  // 1. Tenta DeepL Neural Translation se a chave estiver configurada
   if (DEEPL_API_KEY) {
     try {
       const deeplDomain = DEEPL_API_KEY.endsWith(':fx') 
         ? 'https://api-free.deepl.com/v2/translate' 
         : 'https://api.deepl.com/v2/translate';
-      const targetCode = langOnly === 'en' ? 'EN-US' : langOnly.toUpperCase();
+      const deeplTargetMap: Record<string, string> = {
+        en: 'EN-US',
+        pt: 'PT-BR',
+        zh: 'ZH-HANS',
+        nb: 'NB',
+        no: 'NB',
+        ko: 'KO',
+        ja: 'JA',
+      };
+      const targetCode = deeplTargetMap[langOnly] || langOnly.toUpperCase();
       const resp = await fetch(deeplDomain, {
         method: 'POST',
         headers: {
@@ -911,10 +1007,29 @@ export async function translateText(text: string, targetLang: string = 'pt-BR'):
         }
       }
     } catch (e) {
-      console.warn('[translateText] DeepL error:', e);
+      console.warn('[translateText] DeepL error, tentando fallback Google GTX:', e);
     }
   }
 
+  // 2. Fallback Google Translate Neural GTX (Suporta todos os 33 idiomas sem fricção e instantâneo)
+  try {
+    const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${langOnly}&dt=t&q=${encodeURIComponent(text)}`;
+    const gResp = await fetch(gUrl);
+    if (gResp.ok) {
+      const gData = await gResp.json();
+      if (gData && gData[0]) {
+        const res = gData[0].map((part: any) => part[0]).filter(Boolean).join('');
+        if (res) {
+          translationCache[cacheKey] = res;
+          return res;
+        }
+      }
+    }
+  } catch (gErr) {
+    console.warn('[translateText] Google GTX fallback error:', gErr);
+  }
+
+  // 3. Fallback Groq Llama 3.3
   if (GROQ_API_KEY) {
     try {
       const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -924,7 +1039,7 @@ export async function translateText(text: string, targetLang: string = 'pt-BR'):
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'openai/gpt-oss-20b',
+          model: 'llama-3.3-70b-versatile',
           messages: [
             {
               role: 'system',

@@ -47,14 +47,8 @@ export default function CreateRoomModal({
   };
 
   const handleCreate = async () => {
-    if (type === 'LISTENING') {
-      handleClose();
-      router.push('/(tabs)/listening');
-      return;
-    }
-
     if (!name.trim()) {
-      Alert.alert('Atenção', 'Informe o nome do grupo ou palestra.');
+      Alert.alert('Atenção', 'Informe o nome da sala no Modo Guia.');
       return;
     }
 
@@ -68,7 +62,7 @@ export default function CreateRoomModal({
       const res = await createRoom({
         name: name.trim(),
         description: description.trim(),
-        type,
+        type: 'GROUP',
         accessPolicy,
         translationAwareConfirmed: translationConfirmed,
       });
@@ -76,7 +70,7 @@ export default function CreateRoomModal({
       if (res.success || res.data) {
         Alert.alert(
           'Sucesso!',
-          `${type === 'GROUP' ? 'Grupo' : 'Palestra'} criado(a) com sucesso!`,
+          'Sala Modo Guia criada com sucesso! O QR Code está pronto para os participantes escanearem.',
           [
             {
               text: 'OK',
@@ -110,15 +104,15 @@ export default function CreateRoomModal({
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={styles.iconCircle}>
+              <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
                 <Feather
-                  name={type === 'GROUP' ? 'users' : type === 'LECTURE' ? 'mic' : 'headphones'}
+                  name="headphones"
                   size={22}
-                  color={Colors.secondaryDark}
+                  color="#0284C7"
                 />
               </View>
               <Text style={styles.headerTitle}>
-                {type === 'GROUP' ? 'Criar Novo Grupo' : type === 'LECTURE' ? 'Criar Nova Palestra' : 'Modo Escuta'}
+                Criar Sala Modo Guia
               </Text>
             </View>
             <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
@@ -126,184 +120,127 @@ export default function CreateRoomModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Seletor de Modo: Grupo, Palestra ou Modo Escuta */}
-            <Text style={styles.label}>Tipo de Modo / Sala</Text>
-            <View style={styles.typeSelector}>
-              <TouchableOpacity
-                style={[styles.typeOption, type === 'GROUP' && styles.typeOptionActive]}
-                onPress={() => setType('GROUP')}
-                activeOpacity={0.8}
-              >
-                <Feather
-                  name="users"
-                  size={16}
-                  color={type === 'GROUP' ? '#fff' : Colors.light.textMuted}
-                />
-                <Text style={[styles.typeText, type === 'GROUP' && styles.typeTextActive]}>
-                  👥 Grupo
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.typeOption, type === 'LECTURE' && styles.typeOptionActive]}
-                onPress={() => setType('LECTURE')}
-                activeOpacity={0.8}
-              >
-                <Feather
-                  name="mic"
-                  size={16}
-                  color={type === 'LECTURE' ? '#fff' : Colors.light.textMuted}
-                />
-                <Text style={[styles.typeText, type === 'LECTURE' && styles.typeTextActive]}>
-                  🎤 Palestra
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.typeOption, type === 'LISTENING' && styles.typeOptionActive]}
-                onPress={() => setType('LISTENING')}
-                activeOpacity={0.8}
-              >
-                <Feather
-                  name="headphones"
-                  size={16}
-                  color={type === 'LISTENING' ? '#fff' : Colors.light.textMuted}
-                />
-                <Text style={[styles.typeText, type === 'LISTENING' && styles.typeTextActive]}>
-                  🎧 Escuta
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Descritivo dos Modos */}
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* Descritivo do Modo Guia */}
             <View style={[
               styles.modeInfoBox,
               {
-                backgroundColor: type === 'GROUP' ? '#F0F9FF' : type === 'LECTURE' ? '#FEF3C7' : '#F3E8FF',
-                borderColor: type === 'GROUP' ? '#0284C7' : type === 'LECTURE' ? '#F59E0B' : '#9333EA',
+                backgroundColor: '#F0F9FF',
+                borderColor: '#0284C7',
               }
             ]}>
               <Feather
-                name={type === 'GROUP' ? 'volume-2' : type === 'LECTURE' ? 'mic-off' : 'headphones'}
-                size={18}
-                color={type === 'GROUP' ? '#0369A1' : type === 'LECTURE' ? '#B45309' : '#7E22CE'}
+                name="headphones"
+                size={20}
+                color="#0369A1"
                 style={{ marginTop: 2 }}
               />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.modeInfoTitle, { color: type === 'GROUP' ? '#0369A1' : type === 'LECTURE' ? '#92400E' : '#6B21A8' }]}>
-                  {type === 'GROUP' ? '🗣️ Todos Podem Falar:' : type === 'LECTURE' ? '🎤 Regra da Palestra:' : '🎧 Modo Escuta Ativo:'}
+                <Text style={[styles.modeInfoTitle, { color: '#0369A1' }]}>
+                  🎧 Modo Guia • Tradução Simultânea Coletiva
                 </Text>
-                <Text style={[styles.modeInfoBody, { color: type === 'GROUP' ? '#0C4A6E' : type === 'LECTURE' ? '#78350F' : '#581C87' }]}>
-                  {type === 'GROUP'
-                    ? 'No modo GRUPO, TODOS os participantes possuem autorização para falar, interagir e enviar áudios.'
-                    : type === 'LECTURE'
-                    ? 'No modo PALESTRA, APENAS as pessoas indicadas/autorizadas pelo criador podem falar. Todos os demais entram estritamente como OUVINTES.'
-                    : 'No MODO ESCUTA, o app capta o áudio do ambiente (na rua) via microfone, detecta o idioma automaticamente e traduz direto no seu fone de ouvido.'}
+                <Text style={[styles.modeInfoBody, { color: '#0C4A6E' }]}>
+                  Todos que escanearem o QR Code entram na mesma conversa e cada participante recebe o áudio traduzido automaticamente para o seu idioma nativo.
                 </Text>
               </View>
             </View>
 
-            {type !== 'LISTENING' && (
-              <>
-                {/* Nome */}
-                <Text style={styles.label}>
-                  Nome {type === 'GROUP' ? 'do Grupo' : 'da Palestra'} *
+            {/* Nome */}
+            <Text style={styles.label}>
+              Nome da Sala / Tour (Modo Guia) *
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Tour Histórico Pelourinho ou Grupo Internacional"
+              placeholderTextColor={Colors.light.textMuted}
+              value={name}
+              onChangeText={setName}
+            />
+
+            {/* Descrição */}
+            <Text style={styles.label}>Descrição / Roteiro (opcional)</Text>
+            <TextInput
+              style={[styles.input, { height: 70, textAlignVertical: 'top' }]}
+              placeholder="Descreva o propósito da sala ou roteiro do guia..."
+              placeholderTextColor={Colors.light.textMuted}
+              value={description}
+              onChangeText={setDescription}
+              multiline={true}
+            />
+
+            {/* Regras de Entrada e Privacidade */}
+            <Text style={styles.label}>Regra de Entrada e Acesso</Text>
+
+            <TouchableOpacity
+              style={[styles.policyCard, accessPolicy === 'PUBLIC' && styles.policyCardSelected]}
+              onPress={() => setAccessPolicy('PUBLIC')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.radioCircle}>
+                {accessPolicy === 'PUBLIC' && <View style={styles.radioInner} />}
+              </View>
+              <View style={styles.policyContent}>
+                <Text style={styles.policyTitle}>1ª Entrada Livre via QR Code (Recomendado)</Text>
+                <Text style={styles.policySub}>
+                  Qualquer participante que escanear o QR Code entra direto na sala do Modo Guia.
                 </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={type === 'GROUP' ? 'Ex: Grupo de Estudos Atos2' : 'Ex: Palestra sobre Inovação'}
-                  placeholderTextColor={Colors.light.textMuted}
-                  value={name}
-                  onChangeText={setName}
-                />
+              </View>
+            </TouchableOpacity>
 
-                {/* Descrição */}
-                <Text style={styles.label}>Descrição / Assunto (opcional)</Text>
-                <TextInput
-                  style={[styles.input, { height: 70, textAlignVertical: 'top' }]}
-                  placeholder="Descreva o propósito da sala..."
-                  placeholderTextColor={Colors.light.textMuted}
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline={true}
-                />
+            <TouchableOpacity
+              style={[styles.policyCard, accessPolicy === 'APPROVAL' && styles.policyCardSelected]}
+              onPress={() => setAccessPolicy('APPROVAL')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.radioCircle}>
+                {accessPolicy === 'APPROVAL' && <View style={styles.radioInner} />}
+              </View>
+              <View style={styles.policyContent}>
+                <Text style={styles.policyTitle}>2ª Só entra mediante aprovação do Guia</Text>
+                <Text style={styles.policySub}>
+                  O participante escaneia e solicita entrada. Você aprova ou recusa.
+                </Text>
+              </View>
+            </TouchableOpacity>
 
-                {/* Regras de Entrada e Privacidade */}
-                <Text style={styles.label}>Regra de Entrada e Privacidade</Text>
+            <TouchableOpacity
+              style={[styles.policyCard, accessPolicy === 'INVITE_ONLY' && styles.policyCardSelected]}
+              onPress={() => setAccessPolicy('INVITE_ONLY')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.radioCircle}>
+                {accessPolicy === 'INVITE_ONLY' && <View style={styles.radioInner} />}
+              </View>
+              <View style={styles.policyContent}>
+                <Text style={styles.policyTitle}>3ª Sala Privada com convite do Guia</Text>
+                <Text style={styles.policySub}>
+                  Apenas participantes diretamente convidados pelo Guia poderão acessar.
+                </Text>
+              </View>
+            </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.policyCard, accessPolicy === 'PUBLIC' && styles.policyCardSelected]}
-                  onPress={() => setAccessPolicy('PUBLIC')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.radioCircle}>
-                    {accessPolicy === 'PUBLIC' && <View style={styles.radioInner} />}
-                  </View>
-                  <View style={styles.policyContent}>
-                    <Text style={styles.policyTitle}>1ª Qualquer um pode entrar</Text>
-                    <Text style={styles.policySub}>
-                      Acesso livre. Qualquer usuário pode encontrar e entrar no {type === 'GROUP' ? 'grupo' : 'palestra'}.
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+            {/* Card de Aviso sobre Tradução */}
+            <View style={styles.warningCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Feather name="alert-triangle" size={20} color="#D97706" />
+                <Text style={styles.warningTitle}>AVISO IMPORTANTE SOBRE TRADUÇÃO</Text>
+              </View>
+              <Text style={styles.warningBody}>
+                Caso haja utilização do recurso de <Text style={{ fontWeight: '800', color: Colors.primary }}>TRADUÇÃO SIMULTÂNEA</Text> no Modo Guia, <Text style={{ fontWeight: '800', color: '#B45309' }}>O VALOR SERÁ COBRADO POR MINUTO DE USO DA TRADUÇÃO</Text>.
+              </Text>
 
-                <TouchableOpacity
-                  style={[styles.policyCard, accessPolicy === 'APPROVAL' && styles.policyCardSelected]}
-                  onPress={() => setAccessPolicy('APPROVAL')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.radioCircle}>
-                    {accessPolicy === 'APPROVAL' && <View style={styles.radioInner} />}
-                  </View>
-                  <View style={styles.policyContent}>
-                    <Text style={styles.policyTitle}>2ª Só entra mediante ACEITE do dono</Text>
-                    <Text style={styles.policySub}>
-                      O interessado envia solicitação e você (dono do {type === 'GROUP' ? 'grupo' : 'palestra'}) aprova ou recusa.
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.policyCard, accessPolicy === 'INVITE_ONLY' && styles.policyCardSelected]}
-                  onPress={() => setAccessPolicy('INVITE_ONLY')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.radioCircle}>
-                    {accessPolicy === 'INVITE_ONLY' && <View style={styles.radioInner} />}
-                  </View>
-                  <View style={styles.policyContent}>
-                    <Text style={styles.policyTitle}>3ª Só entra com ACEITE DE CONVITE enviado pelo dono</Text>
-                    <Text style={styles.policySub}>
-                      Sala privada. Apenas usuários diretamente convidados por você poderão participar.
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                {/* Card de Aviso sobre Tradução */}
-                <View style={styles.warningCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Feather name="alert-triangle" size={20} color="#D97706" />
-                    <Text style={styles.warningTitle}>AVISO IMPORTANTE SOBRE TRADUÇÃO</Text>
-                  </View>
-                  <Text style={styles.warningBody}>
-                    Caso haja utilização do recurso de <Text style={{ fontWeight: '800', color: Colors.primary }}>TRADUÇÃO SIMULTÂNEA</Text> no {type === 'GROUP' ? 'grupo' : 'palestra'}, <Text style={{ fontWeight: '800', color: '#B45309' }}>O VALOR SERÁ COBRADO POR MINUTO DE USO DA TRADUÇÃO</Text>.
-                  </Text>
-
-                  <Pressable
-                    style={styles.checkboxRow}
-                    onPress={() => setTranslationConfirmed(!translationConfirmed)}
-                  >
-                    <View style={[styles.checkbox, translationConfirmed && styles.checkboxChecked]}>
-                      {translationConfirmed && <Feather name="check" size={14} color="#fff" />}
-                    </View>
-                    <Text style={styles.checkboxLabel}>
-                      Estou ciente da cobrança por minuto em caso de uso de tradução.
-                    </Text>
-                  </Pressable>
+              <Pressable
+                style={styles.checkboxRow}
+                onPress={() => setTranslationConfirmed(!translationConfirmed)}
+              >
+                <View style={[styles.checkbox, translationConfirmed && styles.checkboxChecked]}>
+                  {translationConfirmed && <Feather name="check" size={14} color="#fff" />}
                 </View>
-              </>
-            )}
+                <Text style={styles.checkboxLabel}>
+                  Estou ciente da cobrança por minuto em caso de uso de tradução.
+                </Text>
+              </Pressable>
+            </View>
           </ScrollView>
 
           {/* Buttons Footer */}
@@ -319,20 +256,19 @@ export default function CreateRoomModal({
             <TouchableOpacity
               style={[
                 styles.submitBtn,
-                type !== 'LISTENING' && (!name.trim() || !translationConfirmed || loading) && styles.submitBtnDisabled,
-                type === 'LISTENING' && { backgroundColor: '#9333EA' },
+                (!name.trim() || !translationConfirmed || loading) && styles.submitBtnDisabled,
               ]}
               onPress={handleCreate}
-              disabled={type !== 'LISTENING' && (!name.trim() || !translationConfirmed || loading)}
+              disabled={!name.trim() || !translationConfirmed || loading}
               activeOpacity={0.8}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Feather name={type === 'LISTENING' ? 'headphones' : 'check-circle'} size={18} color="#fff" />
+                  <Feather name="check-circle" size={18} color="#fff" />
                   <Text style={styles.submitBtnText}>
-                    {type === 'GROUP' ? 'Criar Grupo' : type === 'LECTURE' ? 'Criar Palestra' : 'Abrir Modo Escuta'}
+                    Criar Sala Modo Guia
                   </Text>
                 </>
               )}

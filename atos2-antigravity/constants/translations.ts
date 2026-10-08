@@ -503,37 +503,47 @@ export const translations: Record<string, TranslationMap> = {
   },
 };
 
-// Lista completa de idiomas com flag, nome nativo e nome em inglês para busca
+// Mapeamentos para as variantes regionais
+translations['pt-PT'] = translations['pt-BR'];
+translations['en-GB'] = translations['en-US'];
+translations['es-MX'] = translations['es-ES'];
+translations['zh-TW'] = translations['zh-CN'];
+
+// Lista completa dos 33 idiomas suportados na tradução e síntese neural
 export const LANGUAGES = [
-  { code: 'pt-BR', flag: '🇧🇷', label: 'Português (Brasil)',   english: 'Portuguese' },
-  { code: 'en-US', flag: '🇺🇸', label: 'English (US)',          english: 'English' },
-  { code: 'es-ES', flag: '🇪🇸', label: 'Español',               english: 'Spanish' },
-  { code: 'fr-FR', flag: '🇫🇷', label: 'Français',              english: 'French' },
-  { code: 'de-DE', flag: '🇩🇪', label: 'Deutsch',               english: 'German' },
-  { code: 'it-IT', flag: '🇮🇹', label: 'Italiano',              english: 'Italian' },
-  { code: 'ru-RU', flag: '🇷🇺', label: 'Русский',               english: 'Russian' },
-  { code: 'zh-CN', flag: '🇨🇳', label: '中文 (简体)',            english: 'Chinese' },
-  { code: 'ja-JP', flag: '🇯🇵', label: '日本語',                 english: 'Japanese' },
-  { code: 'ko-KR', flag: '🇰🇷', label: '한국어',                 english: 'Korean' },
-  { code: 'ar-SA', flag: '🇸🇦', label: 'العربية',               english: 'Arabic' },
-  { code: 'hi-IN', flag: '🇮🇳', label: 'हिन्दी',                english: 'Hindi' },
-  { code: 'tr-TR', flag: '🇹🇷', label: 'Türkçe',                english: 'Turkish' },
-  { code: 'pl-PL', flag: '🇵🇱', label: 'Polski',                english: 'Polish' },
-  { code: 'nl-NL', flag: '🇳🇱', label: 'Nederlands',            english: 'Dutch' },
-  { code: 'sv-SE', flag: '🇸🇪', label: 'Svenska',               english: 'Swedish' },
-  { code: 'da-DK', flag: '🇩🇰', label: 'Dansk',                 english: 'Danish' },
-  { code: 'fi-FI', flag: '🇫🇮', label: 'Suomi',                 english: 'Finnish' },
-  { code: 'nb-NO', flag: '🇳🇴', label: 'Norsk',                 english: 'Norwegian' },
-  { code: 'uk-UA', flag: '🇺🇦', label: 'Українська',            english: 'Ukrainian' },
-  { code: 'id-ID', flag: '🇮🇩', label: 'Bahasa Indonesia',      english: 'Indonesian' },
-  { code: 'ms-MY', flag: '🇲🇾', label: 'Bahasa Melayu',         english: 'Malay' },
-  { code: 'th-TH', flag: '🇹🇭', label: 'ภาษาไทย',               english: 'Thai' },
-  { code: 'vi-VN', flag: '🇻🇳', label: 'Tiếng Việt',            english: 'Vietnamese' },
-  { code: 'he-IL', flag: '🇮🇱', label: 'עברית',                 english: 'Hebrew' },
-  { code: 'cs-CZ', flag: '🇨🇿', label: 'Čeština',               english: 'Czech' },
-  { code: 'ro-RO', flag: '🇷🇴', label: 'Română',                english: 'Romanian' },
-  { code: 'hu-HU', flag: '🇭🇺', label: 'Magyar',                english: 'Hungarian' },
-  { code: 'el-GR', flag: '🇬🇷', label: 'Ελληνικά',              english: 'Greek' },
+  { code: 'pt-BR', flag: '🇧🇷', label: 'Português (Brasil)',     english: 'Portuguese (Brazil)' },
+  { code: 'pt-PT', flag: '🇵🇹', label: 'Português (Portugal)',   english: 'Portuguese (Portugal)' },
+  { code: 'en-US', flag: '🇺🇸', label: 'English (US)',            english: 'English (US)' },
+  { code: 'en-GB', flag: '🇬🇧', label: 'English (UK)',            english: 'English (UK)' },
+  { code: 'es-ES', flag: '🇪🇸', label: 'Español (España)',        english: 'Spanish (Spain)' },
+  { code: 'es-MX', flag: '🇲🇽', label: 'Español (México)',        english: 'Spanish (Mexico)' },
+  { code: 'fr-FR', flag: '🇫🇷', label: 'Français',                english: 'French' },
+  { code: 'de-DE', flag: '🇩🇪', label: 'Deutsch',                 english: 'German' },
+  { code: 'it-IT', flag: '🇮🇹', label: 'Italiano',                english: 'Italian' },
+  { code: 'ru-RU', flag: '🇷🇺', label: 'Русский',                 english: 'Russian' },
+  { code: 'zh-CN', flag: '🇨🇳', label: '中文 (简体)',              english: 'Chinese (Simplified)' },
+  { code: 'zh-TW', flag: '🇹🇼', label: '中文 (繁體)',              english: 'Chinese (Traditional)' },
+  { code: 'ja-JP', flag: '🇯🇵', label: '日本語',                   english: 'Japanese' },
+  { code: 'ko-KR', flag: '🇰🇷', label: '한국어',                   english: 'Korean' },
+  { code: 'ar-SA', flag: '🇸🇦', label: 'العربية',                 english: 'Arabic' },
+  { code: 'hi-IN', flag: '🇮🇳', label: 'हिन्दी',                  english: 'Hindi' },
+  { code: 'tr-TR', flag: '🇹🇷', label: 'Türkçe',                  english: 'Turkish' },
+  { code: 'pl-PL', flag: '🇵🇱', label: 'Polski',                  english: 'Polish' },
+  { code: 'nl-NL', flag: '🇳🇱', label: 'Nederlands',              english: 'Dutch' },
+  { code: 'sv-SE', flag: '🇸🇪', label: 'Svenska',                 english: 'Swedish' },
+  { code: 'da-DK', flag: '🇩🇰', label: 'Dansk',                   english: 'Danish' },
+  { code: 'fi-FI', flag: '🇫🇮', label: 'Suomi',                   english: 'Finnish' },
+  { code: 'nb-NO', flag: '🇳🇴', label: 'Norsk',                   english: 'Norwegian' },
+  { code: 'uk-UA', flag: '🇺🇦', label: 'Українська',              english: 'Ukrainian' },
+  { code: 'id-ID', flag: '🇮🇩', label: 'Bahasa Indonesia',        english: 'Indonesian' },
+  { code: 'ms-MY', flag: '🇲🇾', label: 'Bahasa Melayu',           english: 'Malay' },
+  { code: 'th-TH', flag: '🇹🇭', label: 'ภาษาไทย',                 english: 'Thai' },
+  { code: 'vi-VN', flag: '🇻🇳', label: 'Tiếng Việt',              english: 'Vietnamese' },
+  { code: 'he-IL', flag: '🇮🇱', label: 'עברית',                   english: 'Hebrew' },
+  { code: 'cs-CZ', flag: '🇨🇿', label: 'Čeština',                 english: 'Czech' },
+  { code: 'ro-RO', flag: '🇷🇴', label: 'Română',                  english: 'Romanian' },
+  { code: 'hu-HU', flag: '🇭🇺', label: 'Magyar',                  english: 'Hungarian' },
+  { code: 'el-GR', flag: '🇬🇷', label: 'Ελληνικά',                english: 'Greek' },
 ];
 
 export type LanguageCode = keyof typeof translations;

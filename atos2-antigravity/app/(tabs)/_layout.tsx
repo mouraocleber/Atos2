@@ -88,6 +88,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="listening"
         options={{
+          href: null, // Oculto da barra de navegação para reativação futura
           title: t('tab_listening') || 'Escuta',
           headerTitle: 'Modo Escuta • Tradução ao Vivo',
           tabBarIcon: ({ color, focused }) => (

@@ -241,7 +241,7 @@ export default function SettingsScreen() {
 
     Alert.alert(
       isCurrentPlan ? `Renovar Plano ${planType}` : `Assinar Plano ${planType}`,
-      `Plano atual: ${user?.plan || 'FREE'}\n\nMensal: R$ ${m.toFixed(2).replace('.', ',')} ($ ${usdM.toFixed(2)} USD)/mês\nAnual: R$ ${a.toFixed(2).replace('.', ',')} ($ ${usdA.toFixed(2)} USD)/ano (2 meses grátis)\n\n${user?.plan === 'FREE' ? '⭐ 90 dias grátis sem cobrança para novos assinantes!' : ''}`,
+      `Plano atual: ${user?.plan || 'FREE'}\n\nMensal: R$ ${m.toFixed(2).replace('.', ',')}/mês\nAnual: R$ ${a.toFixed(2).replace('.', ',')}/ano (2 meses grátis)\n\n${user?.plan === 'FREE' ? '⭐ 90 dias grátis sem cobrança para novos assinantes!' : ''}`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: `Mensal (R$ ${m.toFixed(2).replace('.', ',')})`, onPress: () => confirmUpgrade(planType, 'MONTHLY') },
@@ -861,7 +861,7 @@ export default function SettingsScreen() {
                   </View>
                 </View>
                 <Text style={styles.planFeature}>✓  Mensagens ilimitadas</Text>
-                <Text style={styles.planFeature}>✓  Carteira Multi-Moeda (Moeda Local & USDC)</Text>
+                <Text style={styles.planFeature}>✓  Carteira Multi-Moeda (Moeda Local & Solana/USDC)</Text>
                 <Text style={styles.planFeature}>✗  Sem acesso à Vitrine</Text>
                 <Text style={styles.planFeature}>✗  Sem palavras-chave</Text>
                 {user?.plan === 'FREE' && (
@@ -876,7 +876,7 @@ export default function SettingsScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <View>
                     <Text style={[styles.planName, { color: Colors.secondaryDark }]}>PRO (1 Usuário)</Text>
-                    <Text style={styles.planPrice}>R$ 99,90/mês ($19.99 USD) <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 999,00/ano</Text></Text>
+                    <Text style={styles.planPrice}>R$ 99,90/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 999,00/ano</Text></Text>
                   </View>
                   <View style={[styles.planBadge, { backgroundColor: Colors.secondary + '20' }]}>
                     <Text style={[styles.planBadgeText, { color: Colors.secondaryDark }]}>Popular</Text>
@@ -884,7 +884,7 @@ export default function SettingsScreen() {
                 </View>
                 <Text style={styles.planFeature}>✓  1 Licença de Usuário / Atendente</Text>
                 <Text style={styles.planFeature}>✓  Tradução em Tempo Real no Balcão/Ponto</Text>
-                <Text style={styles.planFeature}>✓  Modo Escuta & Push-to-Talk</Text>
+                <Text style={styles.planFeature}>✓  Tradução de Cardápio e Chat Multilíngue</Text>
                 <Text style={[styles.planFeature, { color: Colors.secondary, fontWeight: '700' }]}>⭐ 90 dias grátis para novos assinantes!</Text>
                 {user?.plan === 'PRO' ? (
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
@@ -917,7 +917,7 @@ export default function SettingsScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <View>
                     <Text style={[styles.planName, { color: Colors.primary }]}>BUSINESS (5 Usuários)</Text>
-                    <Text style={styles.planPrice}>R$ 299,90/mês ($59.99 USD) <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 2.999,00/ano</Text></Text>
+                    <Text style={styles.planPrice}>R$ 299,90/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 2.999,00/ano</Text></Text>
                   </View>
                   <View style={[styles.planBadge, { backgroundColor: Colors.primary + '20' }]}>
                     <Text style={[styles.planBadgeText, { color: Colors.primary }]}>Recomendado</Text>
@@ -959,7 +959,7 @@ export default function SettingsScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <View>
                     <Text style={[styles.planName, { color: '#8B5CF6' }]}>ENTERPRISE (15 Licenças)</Text>
-                    <Text style={styles.planPrice}>R$ 499,90/mês ($99.99 USD) <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 4.999,00/ano</Text></Text>
+                    <Text style={styles.planPrice}>R$ 499,90/mês <Text style={{ fontSize: 12, color: Colors.light.textMuted }}>ou R$ 4.999,00/ano</Text></Text>
                   </View>
                   <View style={[styles.planBadge, { backgroundColor: '#8B5CF620' }]}>
                     <Text style={[styles.planBadgeText, { color: '#8B5CF6' }]}>Corporativo</Text>

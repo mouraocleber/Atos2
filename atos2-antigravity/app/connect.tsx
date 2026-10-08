@@ -33,29 +33,75 @@ interface UserProfile {
 
 export const POPULAR_LANGUAGES = [
   { code: 'pt-BR', name: 'Português', flag: '🇧🇷' },
+  { code: 'pt-PT', name: 'Português (PT)', flag: '🇵🇹' },
   { code: 'en-US', name: 'English', flag: '🇺🇸' },
+  { code: 'en-GB', name: 'English (UK)', flag: '🇬🇧' },
   { code: 'es-ES', name: 'Español', flag: '🇪🇸' },
+  { code: 'es-MX', name: 'Español (MX)', flag: '🇲🇽' },
   { code: 'fr-FR', name: 'Français', flag: '🇫🇷' },
   { code: 'de-DE', name: 'Deutsch', flag: '🇩🇪' },
   { code: 'it-IT', name: 'Italiano', flag: '🇮🇹' },
-  { code: 'zh-CN', name: '中文', flag: '🇨🇳' },
+  { code: 'zh-CN', name: '中文 (简体)', flag: '🇨🇳' },
+  { code: 'zh-TW', name: '中文 (繁體)', flag: '🇹🇼' },
   { code: 'ja-JP', name: '日本語', flag: '🇯🇵' },
+  { code: 'ko-KR', name: '한국어', flag: '🇰🇷' },
   { code: 'ru-RU', name: 'Русский', flag: '🇷🇺' },
   { code: 'ar-SA', name: 'العربية', flag: '🇸🇦' },
+  { code: 'hi-IN', name: 'हिन्दी', flag: '🇮🇳' },
+  { code: 'tr-TR', name: 'Türkçe', flag: '🇹🇷' },
+  { code: 'pl-PL', name: 'Polski', flag: '🇵🇱' },
+  { code: 'nl-NL', name: 'Nederlands', flag: '🇳🇱' },
+  { code: 'sv-SE', name: 'Svenska', flag: '🇸🇪' },
+  { code: 'da-DK', name: 'Dansk', flag: '🇩🇰' },
+  { code: 'fi-FI', name: 'Suomi', flag: '🇫🇮' },
+  { code: 'nb-NO', name: 'Norsk', flag: '🇳🇴' },
+  { code: 'uk-UA', name: 'Українська', flag: '🇺🇦' },
+  { code: 'id-ID', name: 'Bahasa Indonesia', flag: '🇮🇩' },
+  { code: 'ms-MY', name: 'Bahasa Melayu', flag: '🇲🇾' },
+  { code: 'th-TH', name: 'ภาษาไทย', flag: '🇹🇭' },
+  { code: 'vi-VN', name: 'Tiếng Việt', flag: '🇻🇳' },
+  { code: 'he-IL', name: 'עברית', flag: '🇮🇱' },
+  { code: 'cs-CZ', name: 'Čeština', flag: '🇨🇿' },
+  { code: 'ro-RO', name: 'Română', flag: '🇷🇴' },
+  { code: 'hu-HU', name: 'Magyar', flag: '🇭🇺' },
+  { code: 'el-GR', name: 'Ελληνικά', flag: '🇬🇷' },
 ];
 
 function detectVisitorLanguage(): string {
   if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.language) {
     const nav = navigator.language.toLowerCase();
+    if (nav.startsWith('ko')) return 'ko-KR';
+    if (nav.startsWith('ja')) return 'ja-JP';
+    if (nav.startsWith('zh-tw') || nav.startsWith('zh-hk')) return 'zh-TW';
+    if (nav.startsWith('zh')) return 'zh-CN';
+    if (nav.startsWith('en-gb')) return 'en-GB';
     if (nav.startsWith('en')) return 'en-US';
+    if (nav.startsWith('es-mx')) return 'es-MX';
     if (nav.startsWith('es')) return 'es-ES';
     if (nav.startsWith('fr')) return 'fr-FR';
     if (nav.startsWith('de')) return 'de-DE';
     if (nav.startsWith('it')) return 'it-IT';
-    if (nav.startsWith('zh')) return 'zh-CN';
-    if (nav.startsWith('ja')) return 'ja-JP';
     if (nav.startsWith('ru')) return 'ru-RU';
     if (nav.startsWith('ar')) return 'ar-SA';
+    if (nav.startsWith('hi')) return 'hi-IN';
+    if (nav.startsWith('tr')) return 'tr-TR';
+    if (nav.startsWith('pl')) return 'pl-PL';
+    if (nav.startsWith('nl')) return 'nl-NL';
+    if (nav.startsWith('sv')) return 'sv-SE';
+    if (nav.startsWith('da')) return 'da-DK';
+    if (nav.startsWith('fi')) return 'fi-FI';
+    if (nav.startsWith('no') || nav.startsWith('nb')) return 'nb-NO';
+    if (nav.startsWith('uk')) return 'uk-UA';
+    if (nav.startsWith('id')) return 'id-ID';
+    if (nav.startsWith('ms')) return 'ms-MY';
+    if (nav.startsWith('th')) return 'th-TH';
+    if (nav.startsWith('vi')) return 'vi-VN';
+    if (nav.startsWith('he') || nav.startsWith('iw')) return 'he-IL';
+    if (nav.startsWith('cs')) return 'cs-CZ';
+    if (nav.startsWith('ro')) return 'ro-RO';
+    if (nav.startsWith('hu')) return 'hu-HU';
+    if (nav.startsWith('el')) return 'el-GR';
+    if (nav.startsWith('pt-pt')) return 'pt-PT';
     if (nav.startsWith('pt')) return 'pt-BR';
   }
   return 'pt-BR';
@@ -378,48 +424,135 @@ export default function ConnectScreen() {
           </View>
         ) : isRoom ? (
           <View style={styles.card}>
-            {/* Avatar do Tour / Palestra */}
+            {/* Avatar do Modo Guia */}
             <View style={styles.avatarContainer}>
-              <View style={[styles.avatarCircle, { backgroundColor: roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.primary }]}>
-                <Feather name={roomTypeParam === 'LECTURE' ? 'mic' : 'users'} size={40} color="#fff" />
+              <View style={[styles.avatarCircle, { backgroundColor: '#0284C7' }]}>
+                <Feather name="headphones" size={40} color="#fff" />
               </View>
               <View style={styles.verifiedBadge}>
                 <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
               </View>
             </View>
 
-            <Text style={styles.userName}>{roomNameParam || roomDetails?.name || 'Tour com Guia'}</Text>
+            <Text style={styles.userName}>{roomNameParam || roomDetails?.name || 'Modo Guia'}</Text>
             
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 6, backgroundColor: roomTypeParam === 'LECTURE' ? '#FEF3C7' : '#E0F2FE', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
-              <Feather name="headphones" size={14} color={roomTypeParam === 'LECTURE' ? '#B45309' : '#0369A1'} />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: roomTypeParam === 'LECTURE' ? '#92400E' : '#0369A1' }}>
-                {roomTypeParam === 'LECTURE' ? '🎤 Palestra / Tour Guia Turístico' : '👥 Grupo Aberto'}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 6, backgroundColor: '#E0F2FE', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+              <Feather name="headphones" size={14} color="#0369A1" />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#0369A1' }}>
+                🎧 Modo Guia • Tradução Simultânea Coletiva
               </Text>
             </View>
 
             <Text style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', marginHorizontal: 12, marginVertical: 8, lineHeight: 18 }}>
-              {roomTypeParam === 'LECTURE'
-                ? 'Conecte-se para ouvir a voz do guia em tempo real com tradução simultânea no seu fone de ouvido, no seu idioma nativo.'
-                : 'Entre na sala para interagir e receber traduções em tempo real.'}
+              Todos entram na mesma conversa e cada participante recebe o áudio traduzido automaticamente para o seu idioma nativo.
             </Text>
 
             <View style={styles.divider} />
 
-            <Text style={styles.sectionTitle}>Entrar na Transmissão</Text>
+            {/* Seletor de Idioma Nativo para Ouvir o Guia */}
+            <View style={styles.langSelectorBox}>
+              <View style={styles.langSelectorHeader}>
+                <Text style={styles.langSelectorTitle}>🌐 Seu Idioma Nativo:</Text>
+                <Text style={styles.langSelectorActive}>
+                  {POPULAR_LANGUAGES.find(l => l.code === selectedLanguage)?.flag}{' '}
+                  {POPULAR_LANGUAGES.find(l => l.code === selectedLanguage)?.name}
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.langScrollContent}
+              >
+                {POPULAR_LANGUAGES.map((lang) => {
+                  const isSelected = selectedLanguage === lang.code;
+                  return (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={[styles.langChip, isSelected && styles.langChipSelected]}
+                      onPress={() => {
+                        setSelectedLanguage(lang.code);
+                        setAppLanguage(lang.code as any);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.langChipFlag}>{lang.flag}</Text>
+                      <Text style={[styles.langChipText, isSelected && styles.langChipTextSelected]}>
+                        {lang.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {currentUser ? (
+              <TouchableOpacity
+                style={[styles.actionBtnPrimary, { backgroundColor: '#0284C7', marginTop: 12 }]}
+                onPress={handleJoinRoom}
+                activeOpacity={0.8}
+              >
+                <Feather name="headphones" size={20} color="#fff" />
+                <Text style={[styles.actionBtnText, { color: '#fff', fontWeight: '800' }]}>
+                  🎧 Entrar no Modo Guia Agora
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: '100%', alignItems: 'center', marginTop: 8 }}>
+                {/* Botão Google (1 Toque) */}
+                <TouchableOpacity
+                  style={styles.googleActionBtn}
+                  onPress={handleGoogleConnect}
+                  disabled={googleLoading || guestLoading}
+                  activeOpacity={0.85}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator color="#333" />
+                  ) : (
+                    <>
+                      <FontAwesome name="google" size={18} color="#DB4437" />
+                      <Text style={styles.googleActionBtnText}>Continuar com o Google (1 Toque)</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.orDivider}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>ou entrada rápida sem cadastro</Text>
+                  <View style={styles.orLine} />
+                </View>
+
+                {/* Nome Opcional do Visitante */}
+                <TextInput
+                  style={styles.guestInput}
+                  placeholder="Seu nome ou apelido (Opcional)"
+                  placeholderTextColor="#64748b"
+                  value={guestName}
+                  onChangeText={setGuestName}
+                  maxLength={40}
+                />
+
+                <TouchableOpacity
+                  style={[styles.actionBtnPrimary, { backgroundColor: '#0284C7', marginTop: 8 }]}
+                  onPress={handleQuickGuestConnect}
+                  disabled={guestLoading || googleLoading}
+                  activeOpacity={0.85}
+                >
+                  {guestLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Feather name="headphones" size={20} color="#fff" />
+                      <Text style={[styles.actionBtnText, { color: '#fff', fontWeight: '800' }]}>
+                        🎧 Entrar no Modo Guia com 1 Toque
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
 
             <TouchableOpacity
-              style={[styles.actionBtnPrimary, { backgroundColor: roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.primary }]}
-              onPress={handleJoinRoom}
-              activeOpacity={0.8}
-            >
-              <Feather name="headphones" size={20} color="#041527" />
-              <Text style={[styles.actionBtnText, { color: '#041527', fontWeight: '800' }]}>
-                🎧 Entrar como Ouvinte no Tour
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionBtnSecondary, { borderColor: roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.secondary }]}
+              style={[styles.actionBtnSecondary, { borderColor: '#0284C7', marginTop: 12 }]}
               onPress={() => {
                 if (!currentUser) {
                   router.push({
@@ -432,8 +565,8 @@ export default function ConnectScreen() {
               }}
               activeOpacity={0.8}
             >
-              <Ionicons name="wallet-outline" size={20} color={roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.secondary} />
-              <Text style={[styles.actionBtnText, { color: roomTypeParam === 'LECTURE' ? '#F59E0B' : Colors.secondary }]}>
+              <Ionicons name="wallet-outline" size={20} color="#0284C7" />
+              <Text style={[styles.actionBtnText, { color: '#0284C7' }]}>
                 💳 Pagar / Dar Gorjeta ao Guia
               </Text>
             </TouchableOpacity>
