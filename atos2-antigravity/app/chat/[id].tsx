@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList,
   KeyboardAvoidingView, Platform, Image, Modal, Alert, ActivityIndicator,
-  Animated, Pressable, Linking
+  Animated, Pressable, Linking, PermissionsAndroid
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -294,6 +294,38 @@ export default function ChatRoomScreen() {
       return true;
     }
     try {
+      if (Platform.OS === 'android') {
+        const audioRes = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: 'Permissão de Microfone',
+            message: 'O Atos2 precisa de acesso ao microfone para a chamada.',
+            buttonPositive: 'Permitir',
+          }
+        );
+        if (audioRes !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Microfone necessário', 'Você precisa permitir o acesso ao microfone para participar da chamada.');
+          return false;
+        }
+
+        if (type === 'video') {
+          const cameraRes = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+            {
+              title: 'Permissão de Câmera',
+              message: 'O Atos2 precisa de acesso à câmera para chamadas de vídeo.',
+              buttonPositive: 'Permitir',
+            }
+          );
+          if (cameraRes !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert('Câmera necessária', 'Você precisa permitir o acesso à câmera para chamadas de vídeo.');
+            return false;
+          }
+        }
+        return true;
+      }
+
+      // iOS
       const audioPerm = await AudioModule.requestRecordingPermissionsAsync();
       if (!audioPerm.granted) {
         Alert.alert('Microfone necessário', 'Você precisa permitir o acesso ao microfone para fazer ligações.');
@@ -2335,7 +2367,6 @@ export default function ChatRoomScreen() {
                   allowsProtectedMedia
                   domStorageEnabled
                   javaScriptEnabled
-                  {...({ onPermissionRequest: (request: any) => request.grant(request.resources) } as any)}
                   onMessage={(event) => {
                     handleCallBridgeMessage(event.nativeEvent.data);
                   }}

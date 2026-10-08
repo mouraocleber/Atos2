@@ -401,8 +401,24 @@ export const getWebRtcHtml = (initialConfig?: any) => {
   <!-- Captions Overlay Container -->
   <div id="captionsContainer" class="captions-container"></div>
 
-  <!-- Captions Overlay Container -->
-  <div id="captionsContainer" class="captions-container"></div>
+  <!-- Control Panel -->
+  <div class="controls-overlay">
+    <button id="btnMute" class="btn" onclick="toggleMute()" title="Microfone">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+    </button>
+    <button id="btnVideo" class="btn" onclick="toggleVideo()" style="display: none;" title="Câmera">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+    </button>
+    <button id="btnFlip" class="btn" onclick="flipCamera()" style="display: none;" title="Inverter Câmera">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+    </button>
+    <button id="btnTranslate" class="btn btn-translate" onclick="toggleTranslation()" title="Tradução IA">
+      ✨ IA
+    </button>
+    <button id="btnHangup" class="btn btn-hangup" onclick="hangUp()" title="Encerrar">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.8 19.8 0 0 1-3.11-8.69A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><line x1="23" y1="1" x2="1" y2="23"></line></svg>
+    </button>
+  </div>
 
   <script>
     let localStream = null;
@@ -828,17 +844,28 @@ export const getWebRtcHtml = (initialConfig?: any) => {
       }
 
       // Update UI texts
-      document.getElementById('headerName').innerText = targetName;
-      document.getElementById('audioName').innerText = targetName;
-      document.getElementById('avatar').innerText = targetName.charAt(0).toUpperCase();
+      const hName = document.getElementById('headerName');
+      if (hName) hName.innerText = targetName;
+      const aName = document.getElementById('audioName');
+      if (aName) aName.innerText = targetName;
+      const av = document.getElementById('avatar');
+      if (av) av.innerText = targetName.charAt(0).toUpperCase();
 
       // Show/Hide containers depending on call type
       if (callType === 'video') {
-        document.getElementById('videoContainer').style.display = 'block';
-        document.getElementById('btnVideo').style.display = 'flex';
-        document.getElementById('btnFlip').style.display = 'flex';
+        const vidCont = document.getElementById('videoContainer');
+        if (vidCont) vidCont.style.display = 'block';
+        const bVid = document.getElementById('btnVideo');
+        if (bVid) bVid.style.display = 'flex';
+        const bFl = document.getElementById('btnFlip');
+        if (bFl) bFl.style.display = 'flex';
+        const aUi = document.getElementById('audioUi');
+        if (aUi) aUi.style.display = 'none';
       } else {
-        document.getElementById('audioUi').style.display = 'flex';
+        const aUi = document.getElementById('audioUi');
+        if (aUi) aUi.style.display = 'flex';
+        const vidCont = document.getElementById('videoContainer');
+        if (vidCont) vidCont.style.display = 'none';
       }
 
       startCall();
@@ -847,27 +874,78 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     // Main setup
     async function startCall() {
       try {
-        log('Requesting local media streams com prioridade de voz humana...');
-        const constraints = {
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: 1, // Canal mono direto para priorizar voz humana sem cancelamento cruzado
-            sampleRate: { ideal: 48000 }
-          },
-          video: callType === 'video' ? { facingMode: facingMode } : false
-        };
-        
-        if (!navigator.mediaDevices) {
-          throw new Error("navigator.mediaDevices is undefined. Origin is not secure (requires HTTPS or localhost baseUrl in WebView).");
+        log('Requesting local media streams (tipo: ' + callType + ')...');
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("navigator.mediaDevices.getUserMedia is not available.");
         }
-        localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        log('Acquired local media stream with voice-prioritized audio tracks.');
+
+        let acquiredStream = null;
+
+        if (callType === 'video') {
+          // Tentativa 1: constraints completas com câmera frontal preferencial
+          try {
+            acquiredStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1,
+              },
+              video: {
+                facingMode: facingMode ? { ideal: facingMode } : 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+              }
+            });
+            log('Câmera obtida com constraints completas.');
+          } catch (camErr1) {
+            log('Aviso ao solicitar câmera com constraints completas: ' + camErr1.message + '. Tentando fallback simples...');
+            try {
+              // Tentativa 2: fallback simples (compatível com todos os WebViews móveis)
+              acquiredStream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: true
+              });
+              log('Câmera obtida com fallback simples (audio: true, video: true).');
+            } catch (camErr2) {
+              log('Erro crítico ao solicitar câmera: ' + camErr2.message + '. Tentando prosseguir apenas com áudio...');
+              acquiredStream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: false
+              });
+            }
+          }
+        } else {
+          acquiredStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1,
+              sampleRate: { ideal: 48000 }
+            },
+            video: false
+          });
+          log('Microfone obtido para chamada de áudio.');
+        }
+
+        localStream = acquiredStream;
+        log('Local media stream ativo com ' + localStream.getTracks().length + ' tracks (' + localStream.getTracks().map(t => t.kind).join(', ') + ').');
 
         if (callType === 'video') {
           const localVideo = document.getElementById('localVideo');
-          localVideo.srcObject = localStream;
+          if (localVideo) {
+            localVideo.srcObject = localStream;
+            localVideo.muted = true;
+            localVideo.setAttribute('playsinline', '');
+            localVideo.setAttribute('autoplay', '');
+            localVideo.play().then(() => {
+              log('Vídeo local reproduzindo com sucesso.');
+            }).catch(e => {
+              log('Aviso ao iniciar vídeo local: ' + e.message);
+            });
+          }
         }
 
         // Initialize PeerConnection
@@ -932,7 +1010,11 @@ export const getWebRtcHtml = (initialConfig?: any) => {
             const remoteVideo = document.getElementById('remoteVideo');
             if (remoteVideo) {
               remoteVideo.srcObject = stream;
-              remoteVideo.play().catch(e => log('Remote video play error: ' + e.message));
+              remoteVideo.setAttribute('playsinline', '');
+              remoteVideo.setAttribute('autoplay', '');
+              remoteVideo.play().then(() => {
+                log('Vídeo remoto reproduzindo com sucesso.');
+              }).catch(e => log('Remote video play error: ' + e.message));
             }
           }
           
