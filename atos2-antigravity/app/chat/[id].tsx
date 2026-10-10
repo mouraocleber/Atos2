@@ -515,11 +515,15 @@ export default function ChatRoomScreen() {
             }
           }
 
-          if (textToSpeak && textToSpeak !== '[Áudio]' && textToSpeak !== 'Áudio') {
+          const isPlaceholder = !textToSpeak || textToSpeak === '[Áudio]' || textToSpeak === 'Áudio' || textToSpeak === '[Audio]' || textToSpeak === 'Audio';
+          if (!isPlaceholder && textToSpeak) {
             console.log(`[Modo Guia] Reproduzindo áudio traduzido automaticamente em ${myNativeLang}: "${textToSpeak}"`);
             playTranslatedAudioTts(textToSpeak, myNativeLang, senderGender);
-          } else if (newMsg.mediaUrl) {
-            playAudio(newMsg.id, newMsg.mediaUrl);
+          } else {
+            const targetAudio = newMsg.mediaUrl || (newMsg as any).media_url;
+            if (targetAudio) {
+              playAudio(newMsg.id || '', targetAudio);
+            }
           }
         };
 
@@ -1317,14 +1321,22 @@ export default function ChatRoomScreen() {
 
         // 1. Transcrição com Groq Whisper Turbo (Primária / Gratuita) e fallback Deepgram
         try {
-          const fileResp = await fetch(uri);
-          const audioBlob = await fileResp.blob();
           const groqKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
 
           if (groqKey) {
             try {
               const formData = new FormData();
-              formData.append('file', audioBlob as any, 'audio.m4a');
+              if (Platform.OS === 'web') {
+                const fileResp = await fetch(uri);
+                const audioBlob = await fileResp.blob();
+                formData.append('file', audioBlob as any, 'audio.m4a');
+              } else {
+                formData.append('file', {
+                  uri: uri,
+                  type: 'audio/m4a',
+                  name: 'audio.m4a',
+                } as any);
+              }
               formData.append('model', 'whisper-large-v3-turbo');
               formData.append('response_format', 'verbose_json');
 
@@ -1341,6 +1353,8 @@ export default function ChatRoomScreen() {
                 transcribedText = groqData.text?.trim() || '';
                 detectedLang = groqData.language || 'pt';
                 console.log(`[Audio STT Groq] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
+              } else {
+                console.warn('[Audio STT Groq] Status:', groqResponse.status);
               }
             } catch (groqErr) {
               console.warn('[Audio STT Groq] Erro:', groqErr);
@@ -1349,25 +1363,31 @@ export default function ChatRoomScreen() {
 
           // Fallback Deepgram se a Groq não transcrever
           if (!transcribedText) {
-            const dgKey = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
-            const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
-            const dgResponse = await fetch(dgUrl, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Token ${dgKey}`,
-                'Content-Type': audioBlob.type || 'audio/m4a',
-              },
-              body: audioBlob,
-            });
+            try {
+              const dgKey = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
+              const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
+              const fileResp = await fetch(uri);
+              const audioBlob = await fileResp.blob();
+              const dgResponse = await fetch(dgUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Token ${dgKey}`,
+                  'Content-Type': audioBlob.type || 'audio/m4a',
+                },
+                body: audioBlob,
+              });
 
-            if (dgResponse.ok) {
-              const dgData = await dgResponse.json();
-              const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
-              transcribedText = alternative?.transcript?.trim() || '';
-              detectedLang = dgData.results?.channels?.[0]?.detected_language || 'pt';
-              console.log(`[Audio STT Deepgram] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
-            } else {
-              console.warn('[Audio STT Deepgram] Status de erro:', dgResponse.status);
+              if (dgResponse.ok) {
+                const dgData = await dgResponse.json();
+                const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
+                transcribedText = alternative?.transcript?.trim() || '';
+                detectedLang = dgData.results?.channels?.[0]?.detected_language || 'pt';
+                console.log(`[Audio STT Deepgram] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
+              } else {
+                console.warn('[Audio STT Deepgram] Status de erro:', dgResponse.status);
+              }
+            } catch (dgErr) {
+              console.warn('[Audio STT Deepgram] Erro:', dgErr);
             }
           }
         } catch (sttErr) {
@@ -1411,7 +1431,13 @@ export default function ChatRoomScreen() {
 
   const playAudio = async (msgId: string, url: string) => {
     try {
-      const cachedUrl = await getCachedMedia(url) || url;
+      if (!url) return;
+      let targetUrl = url;
+      if (!targetUrl.startsWith('http') && !targetUrl.startsWith('file://')) {
+        targetUrl = `${SERVER_MEDIA_BASE}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
+      }
+
+      const cachedUrl = await getCachedMedia(targetUrl) || targetUrl;
       if (soundRef.current) {
         try { soundRef.current.remove(); } catch(_) {}
         if (playingAudioId === msgId) {
@@ -1420,6 +1446,15 @@ export default function ChatRoomScreen() {
           return;
         }
       }
+
+      // Garante modo de áudio alto-falante e em modo silencioso
+      try {
+        await AudioModule.setAudioModeAsync({
+          playsInSilentMode: true,
+          allowsRecording: false,
+          defaultToSpeaker: true,
+        } as any);
+      } catch (_) {}
 
       // Cria player de áudio compatível baixando para System FS
       const { createAudioPlayer } = await import('expo-audio');
@@ -1542,10 +1577,11 @@ export default function ChatRoomScreen() {
                 <TouchableOpacity
                   style={styles.audioBubble}
                   onPress={() => {
-                    if (!isMe && transContent && transContent !== item.content) {
+                    const audioTarget = mediaUrl || (rawMediaUrl ? (rawMediaUrl.startsWith('http') ? rawMediaUrl : `${SERVER_MEDIA_BASE}${rawMediaUrl.startsWith('/') ? '' : '/'}${rawMediaUrl}`) : '');
+                    if (audioTarget) {
+                      playAudio(item.id, audioTarget);
+                    } else if (transContent && transContent !== item.content && !transContent.startsWith('[Áudio]') && !transContent.startsWith('[Audio]')) {
                       playTranslatedAudioTts(transContent, transLanguage || myLangShort, (item as any).senderVoiceGender || 'male');
-                    } else {
-                      playAudio(item.id, rawMediaUrl || '');
                     }
                   }}
                 >
@@ -1561,12 +1597,12 @@ export default function ChatRoomScreen() {
                     ))}
                   </View>
                   <Text style={[styles.audioLabel, isMe ? styles.messageTextMe : styles.messageTextOther]}>
-                    {!isMe && transContent && transContent !== item.content ? `Ouvir (${transLanguage || myLangShort})` : (item.content && item.content !== '[Áudio]' ? item.content : 'Áudio')}
+                    {playingAudioId === item.id ? 'Pausar' : 'Ouvir Áudio Gravado'}
                   </Text>
                 </TouchableOpacity>
 
                 {/* Transcrição em texto original do áudio */}
-                {item.content && item.content !== '[Áudio]' && item.content !== 'Áudio' && (
+                {item.content && item.content !== '[Áudio]' && item.content !== 'Áudio' && item.content !== '[Audio]' && item.content !== 'Audio' && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 2 }}>
                     <Feather name="file-text" size={11} color={isMe ? 'rgba(255,255,255,0.7)' : Colors.light.textMuted} />
                     <Text style={[{ fontSize: 11, fontStyle: 'italic', flex: 1 }, isMe ? { color: 'rgba(255,255,255,0.85)' } : { color: Colors.light.textSecondary }]} numberOfLines={2}>
@@ -1576,7 +1612,7 @@ export default function ChatRoomScreen() {
                 )}
 
                 {/* Tradução simultânea do texto do áudio com Botões de Ação */}
-                {transContent && transContent !== item.content && (
+                {transContent && transContent !== item.content && !transContent.startsWith('[Áudio]') && !transContent.startsWith('[Audio]') && (
                   <View style={{
                     marginTop: 4,
                     padding: 10,
@@ -1620,9 +1656,9 @@ export default function ChatRoomScreen() {
                         </Text>
                       </TouchableOpacity>
 
-                      {rawMediaUrl ? (
+                      {(mediaUrl || rawMediaUrl) ? (
                         <TouchableOpacity
-                          onPress={() => playAudio(item.id, rawMediaUrl)}
+                          onPress={() => playAudio(item.id, mediaUrl || rawMediaUrl || '')}
                           style={{
                             flexDirection: 'row',
                             alignItems: 'center',
@@ -2367,6 +2403,7 @@ export default function ChatRoomScreen() {
                   allowsProtectedMedia
                   domStorageEnabled
                   javaScriptEnabled
+                  {...({ onPermissionRequest: (request: any) => request.grant(request.resources) } as any)}
                   onMessage={(event) => {
                     handleCallBridgeMessage(event.nativeEvent.data);
                   }}

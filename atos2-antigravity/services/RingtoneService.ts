@@ -7,14 +7,14 @@ class RingtoneService {
 
   public async configureVoipAudioMode() {
     try {
-      // allowsRecording DEVE ser false para que a gravação nativa não retenha o hardware do microfone,
-      // deixando-o 100% liberado para o WebView capturar o áudio da chamada WebRTC
+      // allowsRecording DEVE ser true para ativar a categoria PlayAndRecord no iOS/Android,
+      // permitindo que o microfone capture áudio e o alto-falante reproduza simultaneamente
       await AudioModule.setAudioModeAsync({
         playsInSilentMode: true,
-        allowsRecording: false,
+        allowsRecording: true,
         defaultToSpeaker: true,
       } as any);
-      console.log('[RingtoneService] VoIP audio mode configurado: allowsRecording=false (microfone liberado para WebView).');
+      console.log('[RingtoneService] VoIP audio mode configurado: allowsRecording=true, defaultToSpeaker=true.');
     } catch (e) {
       console.warn('[RingtoneService] Error setting audio mode:', e);
     }

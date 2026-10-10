@@ -384,8 +384,8 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     </div>
   </div>
 
-  <!-- Dedicated Remote Audio Element for VoIP audio playback with proper sizing to avoid WebKit suspension -->
-  <audio id="remoteAudio" autoplay playsinline style="position: fixed; width: 2px; height: 2px; top: 0; left: 0; opacity: 0.1; pointer-events: none;"></audio>
+  <!-- Dedicated Remote Audio/Video Element for VoIP audio playback (video tag with playsinline guarantees audio playback on iOS WKWebView) -->
+  <video id="remoteAudio" autoplay playsinline style="position: fixed; width: 10px; height: 10px; top: -100px; left: -100px; pointer-events: none;"></video>
 
   <!-- Banner flutuante para desbloquear áudio no mobile caso a política de autoplay bloqueie -->
   <div id="audioUnlockBanner" onclick="unlockAllAudio()" style="display: none; position: absolute; top: 90px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #FFC857 0%, #E9A825 100%); color: #041527; font-weight: 700; font-size: 13px; padding: 10px 18px; border-radius: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.6); z-index: 999; cursor: pointer;">
