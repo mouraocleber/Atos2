@@ -175,6 +175,7 @@ export default function ChatRoomScreen() {
     messages.forEach(async (msg) => {
       if (msg.senderId === user?.id) return;
       if (!msg.content || msg.content === '[Áudio]' || msg.content === 'Áudio') return;
+      if (msg.content.includes('[PAYMENT_REQUEST]')) return;
       if (nativeTranslations[msg.id]) return;
 
       const existingLang = (msg.translatedLanguage || '').split('-')[0].toLowerCase();
@@ -1240,7 +1241,7 @@ export default function ChatRoomScreen() {
 
     const checkoutId = Math.random().toString(36).substring(2, 9);
     const merchantName = user?.name || user?.nickname || 'Atendimento';
-    const checkoutUrl = `https://atos2.online/checkout/${checkoutId}?amount=${data.amount.toFixed(2)}&table=${encodeURIComponent(data.table)}&merchant=${encodeURIComponent(merchantName)}`;
+    const checkoutUrl = `https://atos2.online/checkout?amount=${data.amount.toFixed(2)}&table=${encodeURIComponent(data.table)}&merchant=${encodeURIComponent(merchantName)}&orderId=${checkoutId}`;
 
     const paymentPayload = {
       isPaymentRequest: true,
@@ -1504,8 +1505,77 @@ export default function ChatRoomScreen() {
       : null;
     const userPreferredLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
     const myLangShort = userPreferredLang.split('-')[0].toUpperCase();
+    const isPaymentReq = Boolean(
+      (item.content && item.content.includes('[PAYMENT_REQUEST]')) ||
+      (item.translatedContent && item.translatedContent.includes('[PAYMENT_REQUEST]'))
+    );
     const transContent = (!isMe && nativeTranslations[item.id]) ? nativeTranslations[item.id] : (item.translatedContent || (item as any).translated_content);
     const transLanguage = (!isMe && nativeTranslations[item.id]) ? myLangShort : (item.translatedLanguage || (item as any).translated_language);
+
+    const renderTextWithLinks = (text: string, isMessageFromMe: boolean) => {
+      if (!text) return null;
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const parts = text.split(urlRegex);
+      const foundUrls: string[] = text.match(urlRegex) || [];
+
+      return (
+        <View>
+          <Text style={[styles.messageText, isMessageFromMe ? styles.messageTextMe : styles.messageTextOther]}>
+            {parts.map((part, index) => {
+              if (part.match(urlRegex)) {
+                return (
+                  <Text
+                    key={index}
+                    style={{
+                      color: isMessageFromMe ? '#93C5FD' : '#2563EB',
+                      textDecorationLine: 'underline',
+                      fontWeight: '700',
+                    }}
+                    onPress={() => {
+                      Linking.openURL(part).catch((err) => console.error('Erro ao abrir link', err));
+                    }}
+                  >
+                    {part}
+                  </Text>
+                );
+              }
+              return <React.Fragment key={index}>{part}</React.Fragment>;
+            })}
+          </Text>
+          {foundUrls.length > 0 && (
+            <View style={{ marginTop: 8, gap: 6 }}>
+              {foundUrls.map((url, uIdx) => {
+                const isCheckoutLink = url.includes('checkout') || url.includes('stripe') || url.includes('solana') || url.includes('pix');
+                return (
+                  <TouchableOpacity
+                    key={uIdx}
+                    onPress={() => {
+                      Linking.openURL(url).catch((err) => console.error('Erro ao abrir URL:', err));
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: isCheckoutLink ? '#10B981' : (isMessageFromMe ? 'rgba(255,255,255,0.2)' : Colors.primary),
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      gap: 6,
+                      alignSelf: 'flex-start',
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name={isCheckoutLink ? 'credit-card' : 'external-link'} size={14} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                      {isCheckoutLink ? 'Abrir Link de Pagamento / Checkout' : 'Abrir Link'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      );
+    };
 
     return (
       <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}>
@@ -1753,17 +1823,29 @@ export default function ChatRoomScreen() {
             })()}
 
             {/* PAYMENT REQUEST / COBRANÇA */}
-            {item.content && item.content.startsWith('[PAYMENT_REQUEST]') && (() => {
+            {isPaymentReq && (() => {
               let payData: any = null;
               try {
-                payData = JSON.parse(item.content.replace('[PAYMENT_REQUEST]', ''));
+                if (item.translatedContent && item.translatedContent.includes('[PAYMENT_REQUEST]')) {
+                  const jsonStr = item.translatedContent.slice(item.translatedContent.indexOf('[PAYMENT_REQUEST]') + '[PAYMENT_REQUEST]'.length);
+                  payData = JSON.parse(jsonStr);
+                }
               } catch (_) {}
+
+              if (!payData && item.content && item.content.includes('[PAYMENT_REQUEST]')) {
+                try {
+                  const jsonStr = item.content.slice(item.content.indexOf('[PAYMENT_REQUEST]') + '[PAYMENT_REQUEST]'.length);
+                  payData = JSON.parse(jsonStr);
+                } catch (_) {}
+              }
 
               if (!payData) {
                 return (
-                  <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
-                    Solicitação de Pagamento
-                  </Text>
+                  <View style={{ padding: 10 }}>
+                    <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
+                      💳 Solicitação de Pagamento
+                    </Text>
+                  </View>
                 );
               }
 
@@ -1909,10 +1991,8 @@ export default function ChatRoomScreen() {
             })()}
 
             {/* TEXT */}
-            {(!item.content || !item.content.startsWith('[PAYMENT_REQUEST]')) && (item.type === 'TEXT' || (!item.type && item.content)) && (
-              <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
-                {item.content}
-              </Text>
+            {!isPaymentReq && (item.type === 'TEXT' || (!item.type && item.content)) && (
+              renderTextWithLinks(item.content, isMe)
             )}
 
             {/* LOCATION */}
@@ -1964,14 +2044,12 @@ export default function ChatRoomScreen() {
             )}
 
             {/* Tradução */}
-            {transContent && (
+            {transContent && !isPaymentReq && (
               <View style={[styles.translationBox, isMe ? styles.translationBoxMe : styles.translationBoxOther]}>
                 <Text style={[styles.translationLabel, isMe ? styles.messageTextMe : styles.messageTextOther]}>
                   Tradução ({transLanguage}):
                 </Text>
-                <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
-                  {transContent}
-                </Text>
+                {renderTextWithLinks(transContent, isMe)}
               </View>
             )}
 
