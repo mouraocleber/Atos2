@@ -65,6 +65,12 @@ export const QuickChargeModal: React.FC<QuickChargeModalProps> = ({
     onClose();
   };
 
+  const handleClose = () => {
+    setAmount('');
+    setQrCodeUrl(null);
+    onClose();
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.overlay}>
@@ -77,7 +83,7 @@ export const QuickChargeModal: React.FC<QuickChargeModalProps> = ({
                 Ref: {tableNumber} • Operador: {waiterName}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#94A3B8" />
             </TouchableOpacity>
           </View>
@@ -126,8 +132,18 @@ export const QuickChargeModal: React.FC<QuickChargeModalProps> = ({
                 Peça para o cliente escanear o QR Code com a câmera do celular:
               </Text>
 
-              <View style={styles.qrBox}>
-                <QRCode value={qrCodeUrl} size={180} color="#0F172A" />
+              <View style={styles.qrBoxWrapper}>
+                <View style={styles.qrBox}>
+                  <QRCode value={qrCodeUrl} size={180} color="#0F172A" />
+                </View>
+                {/* Botão X flutuante no QR Code */}
+                <TouchableOpacity
+                  style={styles.qrBoxCloseBtn}
+                  onPress={handleClose}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Ionicons name="close" size={20} color="#FFF" />
+                </TouchableOpacity>
               </View>
 
               <Text style={styles.totalDisplay}>
@@ -167,6 +183,14 @@ export const QuickChargeModal: React.FC<QuickChargeModalProps> = ({
                   <Text style={styles.finishButtonText}>Finalizar & Liberar</Text>
                 </TouchableOpacity>
               </View>
+
+              <TouchableOpacity
+                style={styles.cancelReturnButton}
+                onPress={handleClose}
+              >
+                <Ionicons name="close-circle-outline" size={18} color="#94A3B8" />
+                <Text style={styles.cancelReturnButtonText}>Fechar QR Code e Retornar ao App</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -379,5 +403,48 @@ const styles = StyleSheet.create({
   methodBadgeText: {
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  qrBoxWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 4,
+  },
+  qrBoxCloseBtn: {
+    position: 'absolute',
+    top: -12,
+    right: -12,
+    backgroundColor: '#EF4444',
+    borderRadius: 20,
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: '#1E293B',
+    zIndex: 10,
+  },
+  cancelReturnButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(51, 65, 85, 0.4)',
+    borderWidth: 1,
+    borderColor: '#475569',
+    marginTop: 8,
+  },
+  cancelReturnButtonText: {
+    color: '#CBD5E1',
+    fontWeight: '600',
+    fontSize: 13,
   },
 });

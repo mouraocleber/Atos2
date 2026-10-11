@@ -874,12 +874,21 @@ export default function WalletScreen() {
       </View>
 
       {/* Modal 1: Depositar via PIX — exibe QR Code e chave PIX do usuário */}
-      <Modal visible={pixQrVisible} transparent animationType="slide">
+      <Modal visible={pixQrVisible} transparent animationType="slide" onRequestClose={() => setPixQrVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { alignItems: 'center' }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <Feather name="download" size={20} color={Colors.success} />
-              <Text style={styles.modalTitle}>Depositar / Receber via PIX</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="download" size={20} color={Colors.success} />
+                <Text style={styles.modalTitle}>Depositar / Receber via PIX</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setPixQrVisible(false)}
+                style={{ padding: 6, borderRadius: 20, backgroundColor: Colors.dark.surfaceLight || '#334155' }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Feather name="x" size={20} color={Colors.light.text} />
+              </TouchableOpacity>
             </View>
 
             {/* Abas: Depositar e Receber P2P */}
@@ -929,13 +938,35 @@ export default function WalletScreen() {
                 ) : (
                   <View style={{ width: '100%', alignItems: 'center' }}>
                     <Text style={styles.modalSubtitle}>Efetue o pagamento do PIX abaixo para adicionar saldo à sua carteira.</Text>
-                    <View style={{ padding: 20, backgroundColor: '#fff', borderRadius: 12, marginBottom: 16 }}>
-                      {generatedPixCode ? (
-                        <QRCode
-                          value={generatedPixCode}
-                          size={190}
-                        />
-                      ) : <ActivityIndicator color={Colors.primary} />}
+                    <View style={{ position: 'relative', marginVertical: 14 }}>
+                      <View style={{ padding: 20, backgroundColor: '#fff', borderRadius: 12, elevation: 4 }}>
+                        {generatedPixCode ? (
+                          <QRCode
+                            value={generatedPixCode}
+                            size={190}
+                          />
+                        ) : <ActivityIndicator color={Colors.primary} />}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setPixQrVisible(false)}
+                        style={{
+                          position: 'absolute',
+                          top: -10,
+                          right: -10,
+                          backgroundColor: '#EF4444',
+                          borderRadius: 20,
+                          width: 32,
+                          height: 32,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          elevation: 6,
+                          borderWidth: 2,
+                          borderColor: '#1E293B',
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Feather name="x" size={18} color="#FFF" />
+                      </TouchableOpacity>
                     </View>
                     <TouchableOpacity
                       style={{
@@ -993,8 +1024,30 @@ export default function WalletScreen() {
                     </View>
 
                     {/* QR Code */}
-                    <View style={{ padding: 18, backgroundColor: '#fff', borderRadius: 12, marginBottom: 14 }}>
-                      <QRCode value={merchantPixConfig.key} size={180} />
+                    <View style={{ position: 'relative', marginVertical: 12 }}>
+                      <View style={{ padding: 18, backgroundColor: '#fff', borderRadius: 12, elevation: 4 }}>
+                        <QRCode value={merchantPixConfig.key} size={180} />
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setPixQrVisible(false)}
+                        style={{
+                          position: 'absolute',
+                          top: -10,
+                          right: -10,
+                          backgroundColor: '#EF4444',
+                          borderRadius: 20,
+                          width: 32,
+                          height: 32,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          elevation: 6,
+                          borderWidth: 2,
+                          borderColor: '#1E293B',
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Feather name="x" size={18} color="#FFF" />
+                      </TouchableOpacity>
                     </View>
 
                     {/* Chave copiavel */}
@@ -1087,14 +1140,36 @@ export default function WalletScreen() {
                     </View>
 
                     {/* QR Code */}
-                    <View style={{ padding: 18, backgroundColor: '#fff', borderRadius: 12, marginBottom: 14 }}>
-                      {user?.id ? (
-                        <QRCode
-                          value={pixKeyType === 'email' ? (user?.email || user?.id) :
-                            pixKeyType === 'phone' ? (user?.phone || user?.id) : (user?.id)}
-                          size={180}
-                        />
-                      ) : <ActivityIndicator color={Colors.primary} />}
+                    <View style={{ position: 'relative', marginVertical: 12 }}>
+                      <View style={{ padding: 18, backgroundColor: '#fff', borderRadius: 12, elevation: 4 }}>
+                        {user?.id ? (
+                          <QRCode
+                            value={pixKeyType === 'email' ? (user?.email || user?.id) :
+                              pixKeyType === 'phone' ? (user?.phone || user?.id) : (user?.id)}
+                            size={180}
+                          />
+                        ) : <ActivityIndicator color={Colors.primary} />}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setPixQrVisible(false)}
+                        style={{
+                          position: 'absolute',
+                          top: -10,
+                          right: -10,
+                          backgroundColor: '#EF4444',
+                          borderRadius: 20,
+                          width: 32,
+                          height: 32,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          elevation: 6,
+                          borderWidth: 2,
+                          borderColor: '#1E293B',
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Feather name="x" size={18} color="#FFF" />
+                      </TouchableOpacity>
                     </View>
 
                     {/* Chave copiavel */}
@@ -1126,12 +1201,21 @@ export default function WalletScreen() {
       </Modal>
 
       {/* Modal Binance: Comprar Cripto */}
-      <Modal visible={binanceModalVisible} transparent animationType="slide">
+      <Modal visible={binanceModalVisible} transparent animationType="slide" onRequestClose={() => setBinanceModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, justifyContent: 'center' }}>
-              <Feather name="trending-up" size={20} color={Colors.primary} />
-              <Text style={styles.modalTitle}>Comprar com Binance</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="trending-up" size={20} color={Colors.primary} />
+                <Text style={styles.modalTitle}>Comprar com Binance</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setBinanceModalVisible(false)}
+                style={{ padding: 6, borderRadius: 20, backgroundColor: Colors.dark.surfaceLight || '#334155' }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Feather name="x" size={20} color={Colors.light.text} />
+              </TouchableOpacity>
             </View>
 
             {binanceStep === 'input' ? (
@@ -1237,11 +1321,33 @@ export default function WalletScreen() {
                 </View>
 
                 {binanceOrder?.payUrl && (
-                  <View style={{ padding: 16, backgroundColor: '#fff', borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#eee' }}>
-                    <QRCode
-                      value={binanceOrder.payUrl}
-                      size={140}
-                    />
+                  <View style={{ position: 'relative', marginVertical: 12, alignItems: 'center' }}>
+                    <View style={{ padding: 16, backgroundColor: '#fff', borderRadius: 12, elevation: 4 }}>
+                      <QRCode
+                        value={binanceOrder.payUrl}
+                        size={140}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setBinanceModalVisible(false)}
+                      style={{
+                        position: 'absolute',
+                        top: -10,
+                        right: -10,
+                        backgroundColor: '#EF4444',
+                        borderRadius: 20,
+                        width: 32,
+                        height: 32,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        elevation: 6,
+                        borderWidth: 2,
+                        borderColor: '#1E293B',
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Feather name="x" size={18} color="#FFF" />
+                    </TouchableOpacity>
                   </View>
                 )}
 
