@@ -10,7 +10,8 @@ import { useAuth } from '../../contexts/AuthContext';
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const { t } = useLocalization();
-  const { isLinkAccess } = useAuth();
+  const { user, isLinkAccess } = useAuth();
+  const hidePrivateTabs = Boolean(isLinkAccess && (!user || user.email?.startsWith('guest_')));
   
   return (
     <Tabs
@@ -62,7 +63,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="wallet"
         options={{
-          href: isLinkAccess ? null : '/(tabs)/wallet',
+          href: hidePrivateTabs ? null : '/(tabs)/wallet',
           title: t('tab_wallet') || 'Carteira',
           headerTitle: t('header_wallet') || 'Carteira',
           tabBarIcon: ({ color, focused }) => (
@@ -75,7 +76,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="search"
         options={{
-          href: isLinkAccess ? null : '/(tabs)/search',
+          href: hidePrivateTabs ? null : '/(tabs)/search',
           title: t('tab_search') || 'Buscar',
           headerTitle: t('header_search') || 'Buscar Usuários',
           tabBarIcon: ({ color, focused }) => (
@@ -88,7 +89,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          href: isLinkAccess ? null : '/(tabs)/settings',
+          href: '/(tabs)/settings',
           title: t('tab_settings') || 'Config',
           headerTitle: t('header_settings') || 'Configurações',
           tabBarIcon: ({ color, focused }) => (

@@ -10,14 +10,14 @@ import {
   Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Colors } from '../../constants/theme';
-import { useAuth } from '../../contexts/AuthContext';
-import { useLocalization } from '../../contexts/LocalizationContext';
+import { Colors } from '../constants/theme';
+import { useAuth } from '../contexts/AuthContext';
+import { useLocalization } from '../contexts/LocalizationContext';
 import {
   liveTranslationService,
   TranslationState,
   TranslationResult,
-} from '../../services/LiveTranslationService';
+} from '../services/LiveTranslationService';
 
 export default function ListeningScreen() {
   const { user } = useAuth();
@@ -42,16 +42,16 @@ export default function ListeningScreen() {
   useEffect(() => {
     // Configura os callbacks do serviço
     liveTranslationService.setCallbacks({
-      onStateChange: (newState) => setState(newState),
-      onDetectedLanguage: (langName) => setDetectedLangName(langName),
-      onTranslationResult: (result) => {
+      onStateChange: (newState: TranslationState) => setState(newState),
+      onDetectedLanguage: (langName: string) => setDetectedLangName(langName),
+      onTranslationResult: (result: TranslationResult) => {
         setHistory((prev) => [result, ...prev.slice(0, 15)]);
       },
-      onAudioLevel: (level) => {
+      onAudioLevel: (level: number) => {
         setAudioLevel(level);
         animateEqualizerBars(level);
       },
-      onError: (msg) => {
+      onError: (msg: string) => {
         Alert.alert('Modo Escuta', msg);
       },
     });

@@ -135,6 +135,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (parsedUser.profileImage !== normalizedUser.profileImage) {
           await AsyncStorage.setItem('user', JSON.stringify(normalizedUser));
         }
+        if (parsedUser.email && !parsedUser.email.startsWith('guest_')) {
+          setIsLinkAccessState(false);
+          await AsyncStorage.removeItem('@atos2_is_link_access');
+        }
       }
     } catch (e) {
       console.error('Erro ao carregar dados salvos:', e);
@@ -178,6 +182,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await setSecureItem('refreshToken', refreshToken);
       }
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.removeItem('@atos2_is_link_access');
+      setIsLinkAccessState(false);
 
       setToken(newToken);
       setUser(userData);
@@ -237,6 +243,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await setSecureItem('token', newToken);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.removeItem('@atos2_is_link_access');
+      setIsLinkAccessState(false);
 
       setToken(newToken);
       setUser(userData);
@@ -290,6 +298,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     await setSecureItem('refreshToken', refreshToken);
                   }
                   await AsyncStorage.setItem('user', JSON.stringify(userData));
+                  await AsyncStorage.removeItem('@atos2_is_link_access');
+                  setIsLinkAccessState(false);
 
                   setToken(newToken);
                   setUser(userData);
@@ -348,6 +358,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await setSecureItem('refreshToken', refreshToken);
       }
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.removeItem('@atos2_is_link_access');
+      setIsLinkAccessState(false);
 
       setToken(newToken);
       setUser(userData);
@@ -414,6 +426,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await setSecureItem('refreshToken', refreshToken);
       }
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.removeItem('@atos2_is_link_access');
+      setIsLinkAccessState(false);
 
       setToken(newToken);
       setUser(userData);
@@ -444,6 +458,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await deleteSecureItem('token');
     await deleteSecureItem('refreshToken');
     await AsyncStorage.removeItem('user');
+    await AsyncStorage.removeItem('@atos2_is_link_access');
+    setIsLinkAccessState(false);
     setToken(null);
     setUser(null);
     setPendingAuthData(null);
