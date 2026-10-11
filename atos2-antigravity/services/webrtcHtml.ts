@@ -349,7 +349,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
       try {
         var str = (typeof payload === 'string') ? payload : JSON.stringify(payload);
         if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
-          postToNative(str);
+          window.ReactNativeWebView.postMessage(str);
         } else if (window.parent && window.parent !== window) {
           window.parent.postMessage(str, '*');
         }
@@ -384,8 +384,8 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     </div>
   </div>
 
-  <!-- Dedicated Remote Audio/Video Element for VoIP audio playback (video tag with playsinline guarantees audio playback on iOS WKWebView) -->
-  <video id="remoteAudio" autoplay playsinline style="position: fixed; width: 10px; height: 10px; top: -100px; left: -100px; pointer-events: none;"></video>
+  <!-- Dedicated Remote Audio Element for VoIP audio playback -->
+  <audio id="remoteAudio" autoplay playsinline style="display: none;"></audio>
 
   <!-- Banner flutuante para desbloquear áudio no mobile caso a política de autoplay bloqueie -->
   <div id="audioUnlockBanner" onclick="unlockAllAudio()" style="display: none; position: absolute; top: 90px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #FFC857 0%, #E9A825 100%); color: #041527; font-weight: 700; font-size: 13px; padding: 10px 18px; border-radius: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.6); z-index: 999; cursor: pointer;">
@@ -959,15 +959,6 @@ export const getWebRtcHtml = (initialConfig?: any) => {
           log('Local track adicionada: ' + track.kind + ' (enabled: ' + track.enabled + ')');
         });
 
-        if (!isCaller && typeof peerConnection.addTransceiver === 'function') {
-          try {
-            peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
-            if (callType === 'video') {
-              peerConnection.addTransceiver('video', { direction: 'sendrecv' });
-            }
-          } catch (e) {}
-        }
-
         // Setup handlers
         peerConnection.onicecandidate = (event) => {
           if (event.candidate) {
@@ -1010,6 +1001,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
             const remoteVideo = document.getElementById('remoteVideo');
             if (remoteVideo) {
               remoteVideo.srcObject = stream;
+              remoteVideo.muted = true; // O som sai exclusivamente pelo remoteAudio para evitar eco
               remoteVideo.setAttribute('playsinline', '');
               remoteVideo.setAttribute('autoplay', '');
               remoteVideo.play().then(() => {
@@ -1018,27 +1010,30 @@ export const getWebRtcHtml = (initialConfig?: any) => {
             }
           }
           
-          // Canal direto de mídia para áudio remoto: sem interceptação de AudioContext suspenso
-          const remoteAudio = document.getElementById('remoteAudio');
-          if (remoteAudio) {
-            remoteAudio.srcObject = stream;
-            remoteAudio.volume = 1.0;
-            remoteAudio.muted = false;
+          // Canal direto de mídia para áudio remoto
+          if (event.track.kind === 'audio' || stream.getAudioTracks().length > 0) {
+            const remoteAudio = document.getElementById('remoteAudio');
+            if (remoteAudio) {
+              const audioStream = new MediaStream(stream.getAudioTracks().length > 0 ? stream.getAudioTracks() : [event.track]);
+              remoteAudio.srcObject = audioStream;
+              remoteAudio.volume = 1.0;
+              remoteAudio.muted = false;
 
-            const playPromise = remoteAudio.play();
-            if (playPromise !== undefined) {
-              playPromise.then(() => {
-                log('Remote audio reproduzindo diretamente com prioridade de voz.');
-                hideAudioUnlockBanner();
-                checkConnectedAndStartTimer();
-                startTimer();
-                postToNative(JSON.stringify({ type: 'call_connected' }));
-              }).catch(e => {
-                log('Remote audio autoplay pendente: ' + e.message + '. Banner exibido para toque do usuário.');
-                showAudioUnlockBanner();
-                startTimer();
-                postToNative(JSON.stringify({ type: 'call_connected' }));
-              });
+              const playPromise = remoteAudio.play();
+              if (playPromise !== undefined) {
+                playPromise.then(() => {
+                  log('Remote audio reproduzindo diretamente com prioridade de voz.');
+                  hideAudioUnlockBanner();
+                  checkConnectedAndStartTimer();
+                  startTimer();
+                  postToNative(JSON.stringify({ type: 'call_connected' }));
+                }).catch(e => {
+                  log('Remote audio autoplay pendente: ' + e.message + '. Banner exibido para toque do usuário.');
+                  showAudioUnlockBanner();
+                  startTimer();
+                  postToNative(JSON.stringify({ type: 'call_connected' }));
+                });
+              }
             }
           }
         };

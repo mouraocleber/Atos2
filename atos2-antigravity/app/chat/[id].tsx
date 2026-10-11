@@ -198,8 +198,42 @@ export default function ChatRoomScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const webViewRef = useRef<WebView>(null);
   const iframeRef = useRef<any>(null);
+  const webAudioRef = useRef<any>(null);
   const signalQueueRef = useRef<string[]>([]);
   const isWebViewReadyRef = useRef<boolean>(false);
+
+  // Desbloqueio global de áudio nos navegadores Web no primeiro toque/clique
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const unlockWebAudio = () => {
+      try {
+        if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          if (ctx.state === 'suspended') {
+            ctx.resume();
+          }
+        }
+      } catch (_) {}
+      window.removeEventListener('click', unlockWebAudio);
+      window.removeEventListener('touchstart', unlockWebAudio);
+    };
+
+    window.addEventListener('click', unlockWebAudio, { once: true, passive: true });
+    window.addEventListener('touchstart', unlockWebAudio, { once: true, passive: true });
+
+    return () => {
+      window.removeEventListener('click', unlockWebAudio);
+      window.removeEventListener('touchstart', unlockWebAudio);
+      if (webAudioRef.current) {
+        try { webAudioRef.current.pause(); } catch (_) {}
+      }
+    };
+  }, []);
 
   const sendToCallBridge = (msg: string) => {
     if (Platform.OS === 'web') {
@@ -499,11 +533,18 @@ export default function ChatRoomScreen() {
         const senderGender = newMsg.senderVoiceGender || (incoming as any).senderVoiceGender || 'male';
 
         const autoPlayIncomingAudio = async () => {
-          let textToSpeak = newMsg.translatedContent;
           const myShort = myNativeLang.split('-')[0].toLowerCase();
+          const targetAudio = newMsg.mediaUrl || (newMsg as any).media_url;
+
+          // Se remetente e destinatário falam o mesmo idioma base (ex: Cleber pt-BR e Visitante pt-BR):
+          // O visitante ouve diretamente a voz gravada original do usuário!
+          const senderLang = ((newMsg as any).senderLanguage || (newMsg as any).language || 'pt').split('-')[0].toLowerCase();
+          const isSameLanguage = senderLang === myShort;
+
+          let textToSpeak = newMsg.translatedContent;
           const msgTransLang = (newMsg.translatedLanguage || '').split('-')[0].toLowerCase();
 
-          if (!textToSpeak || msgTransLang !== myShort) {
+          if (!isSameLanguage && (!textToSpeak || msgTransLang !== myShort)) {
             if (newMsg.content && newMsg.content !== '[Áudio]' && newMsg.content !== 'Áudio') {
               try {
                 textToSpeak = await translateText(newMsg.content, myNativeLang);
@@ -516,13 +557,16 @@ export default function ChatRoomScreen() {
             }
           }
 
-          const isPlaceholder = !textToSpeak || textToSpeak === '[Áudio]' || textToSpeak === 'Áudio' || textToSpeak === '[Audio]' || textToSpeak === 'Audio';
-          if (!isPlaceholder && textToSpeak) {
+          const hasValidTranslation = !isSameLanguage && textToSpeak &&
+            textToSpeak !== '[Áudio]' && textToSpeak !== 'Áudio' &&
+            textToSpeak !== '[Audio]' && textToSpeak !== 'Audio';
+
+          if (hasValidTranslation && textToSpeak) {
             console.log(`[Modo Guia] Reproduzindo áudio traduzido automaticamente em ${myNativeLang}: "${textToSpeak}"`);
             playTranslatedAudioTts(textToSpeak, myNativeLang, senderGender);
           } else {
-            const targetAudio = newMsg.mediaUrl || (newMsg as any).media_url;
             if (targetAudio) {
+              console.log(`[Modo Guia] Reproduzindo áudio gravado original: "${targetAudio}"`);
               playAudio(newMsg.id || '', targetAudio);
             }
           }
@@ -865,7 +909,7 @@ export default function ChatRoomScreen() {
   };
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || callStatus !== 'in-call') return;
+    if (Platform.OS !== 'web' || !callModalVisible) return;
 
     const onWebMessage = (event: MessageEvent) => {
       handleCallBridgeMessage(event.data);
@@ -875,7 +919,7 @@ export default function ChatRoomScreen() {
     return () => {
       window.removeEventListener('message', onWebMessage);
     };
-  }, [callStatus, currentRoomId]);
+  }, [callModalVisible, currentRoomId]);
 
   const handleLocalAudioChunk = async (data: { base64Audio: string; mimeType?: string; language?: string; speakerName?: string; speakerFlag?: string }) => {
     if (!data.base64Audio) return;
@@ -1294,15 +1338,36 @@ export default function ChatRoomScreen() {
           ? user.voiceGender
           : 'male';
 
-      // 1. Tenta expo-speech nativo nos celulares ou Web Speech API calibrada para tom masculino autêntico de Cleber (pitch 0.75)
-      const spoken = liveTranslationService.speakWithNativeTts(text, effectiveLang, gender);
-      if (spoken) return;
+      // 1. Mobile nativo (Android e iOS): usa expo-speech calibrado
+      if (Platform.OS !== 'web') {
+        const spoken = liveTranslationService.speakWithNativeTts(text, effectiveLang, gender);
+        if (spoken) return;
 
-      // 2. Fallback para player com URL sintetizada
+        const ttsUrl = liveTranslationService.getTtsAudioUrl(text, effectiveLang, gender);
+        const { createAudioPlayer } = await import('expo-audio');
+        const player = createAudioPlayer({ uri: ttsUrl });
+        player.play();
+        return;
+      }
+
+      // 2. Web: usa sintetização de áudio via HTML5 Audio para compatibilidade absoluta em navegadores
       const ttsUrl = liveTranslationService.getTtsAudioUrl(text, effectiveLang, gender);
-      const { createAudioPlayer } = await import('expo-audio');
-      const player = createAudioPlayer({ uri: ttsUrl });
-      player.play();
+      if (ttsUrl && typeof window !== 'undefined' && typeof window.Audio !== 'undefined') {
+        try {
+          if (webAudioRef.current) {
+            try { webAudioRef.current.pause(); } catch (_) {}
+          }
+          const audio = new window.Audio(ttsUrl);
+          webAudioRef.current = audio;
+          await audio.play();
+          return;
+        } catch (audioErr) {
+          console.warn('[Chat Web TTS Audio Playback]', audioErr);
+        }
+      }
+
+      // Fallback Web Speech API
+      liveTranslationService.speakWithNativeTts(text, effectiveLang, gender);
     } catch (e) {
       console.warn('[Chat] Erro ao reproduzir TTS da tradução do áudio:', e);
     }
@@ -1438,6 +1503,39 @@ export default function ChatRoomScreen() {
         targetUrl = `${SERVER_MEDIA_BASE}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
       }
 
+      // Reprodução no Navegador Web (Visitante / Desk) via HTML5 Audio
+      if (Platform.OS === 'web') {
+        if (webAudioRef.current) {
+          try {
+            webAudioRef.current.pause();
+            webAudioRef.current.currentTime = 0;
+          } catch (_) {}
+          if (playingAudioId === msgId) {
+            setPlayingAudioId(null);
+            webAudioRef.current = null;
+            return;
+          }
+        }
+        const audio = new window.Audio(targetUrl);
+        webAudioRef.current = audio;
+        setPlayingAudioId(msgId);
+        audio.onended = () => {
+          setPlayingAudioId(null);
+          webAudioRef.current = null;
+        };
+        audio.onerror = (e) => {
+          console.warn('[Web Audio Playback Error]', e);
+          setPlayingAudioId(null);
+          webAudioRef.current = null;
+        };
+        audio.play().catch(err => {
+          console.warn('[Web Audio Playback Blocked/Error]', err);
+          setPlayingAudioId(null);
+        });
+        return;
+      }
+
+      // Reprodução no Mobile Nativo (Android / iOS)
       const cachedUrl = await getCachedMedia(targetUrl) || targetUrl;
       if (soundRef.current) {
         try { soundRef.current.remove(); } catch(_) {}
