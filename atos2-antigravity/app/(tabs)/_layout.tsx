@@ -86,19 +86,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="listening"
-        options={{
-          href: null, // Oculto da barra de navegação para reativação futura
-          title: t('tab_listening') || 'Escuta',
-          headerTitle: 'Modo Escuta • Tradução ao Vivo',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
-              <Feather name="headphones" size={focused ? 22 : 24} color={color} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="settings"
         options={{
           href: isLinkAccess ? null : '/(tabs)/settings',
