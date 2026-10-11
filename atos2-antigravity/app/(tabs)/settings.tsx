@@ -712,23 +712,16 @@ export default function SettingsScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, {alignItems: 'center'}]}>
-            <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="qr-code-outline" size={20} color={Colors.primary} />
                 <Text style={styles.modalTitle}>Meu QR Code de Contato</Text>
               </View>
-              <TouchableOpacity
-                onPress={() => setQrModalVisible(false)}
-                style={{ padding: 6, borderRadius: 20, backgroundColor: Colors.dark.surfaceLight || '#334155' }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Feather name="x" size={20} color={Colors.light.text} />
-              </TouchableOpacity>
             </View>
 
             <Text style={styles.modalSubtitle}>Mostre este código para outro usuário escanear e iniciar uma conversa.</Text>
 
-            <View style={{ position: 'relative', marginVertical: 16 }}>
+            <View style={{ marginVertical: 16 }}>
               <View style={{ padding: 20, backgroundColor: '#fff', borderRadius: 12, elevation: 4 }}>
                 {user?.id ? (
                   <QRCode value={`https://atos2.online/connect?user=${user.id}`} size={200} />
@@ -736,26 +729,6 @@ export default function SettingsScreen() {
                   <ActivityIndicator color={Colors.primary} />
                 )}
               </View>
-              <TouchableOpacity
-                onPress={() => setQrModalVisible(false)}
-                style={{
-                  position: 'absolute',
-                  top: -10,
-                  right: -10,
-                  backgroundColor: '#EF4444',
-                  borderRadius: 20,
-                  width: 32,
-                  height: 32,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  elevation: 6,
-                  borderWidth: 2,
-                  borderColor: '#1E293B',
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Feather name="x" size={18} color="#FFF" />
-              </TouchableOpacity>
             </View>
 
             {user?.id && (

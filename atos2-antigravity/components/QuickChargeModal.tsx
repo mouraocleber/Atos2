@@ -136,14 +136,6 @@ export const QuickChargeModal: React.FC<QuickChargeModalProps> = ({
                 <View style={styles.qrBox}>
                   <QRCode value={qrCodeUrl} size={180} color="#0F172A" />
                 </View>
-                {/* Botão X flutuante no QR Code */}
-                <TouchableOpacity
-                  style={styles.qrBoxCloseBtn}
-                  onPress={handleClose}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                >
-                  <Ionicons name="close" size={20} color="#FFF" />
-                </TouchableOpacity>
               </View>
 
               <Text style={styles.totalDisplay}>

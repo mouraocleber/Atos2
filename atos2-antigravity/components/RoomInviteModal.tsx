@@ -208,30 +208,10 @@ export default function RoomInviteModal({
                 </Text>
               </View>
 
-              <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                 <View style={styles.qrWrapper}>
                   <QRCode value={inviteUrl} size={200} color="#041527" />
                 </View>
-                <TouchableOpacity
-                  onPress={onClose}
-                  style={{
-                    position: 'absolute',
-                    top: -6,
-                    right: 36,
-                    backgroundColor: '#EF4444',
-                    borderRadius: 20,
-                    width: 32,
-                    height: 32,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    elevation: 6,
-                    borderWidth: 2,
-                    borderColor: '#1E293B',
-                  }}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Feather name="x" size={18} color="#FFF" />
-                </TouchableOpacity>
               </View>
 
               <Text style={styles.qrInstructions}>
