@@ -18,7 +18,6 @@ import CachedImage from '../../components/CachedImage';
 import { ATOS2_FEES } from '../../constants/fees';
 import * as Linking from 'expo-linking';
 import { getBinanceQuote, createBinanceBuyOrder, checkBinanceOrderStatus } from '../../services/binance';
-import { startStripeOnboarding, getStripeConnectBalance, requestStripePayout, StripeBalanceResponse } from '../../services/stripe';
 import { QuickChargeModal } from '../../components/QuickChargeModal';
 import { PixConfigModal } from '../../components/PixConfigModal';
 import { getMerchantPixConfig, MerchantPixConfig, PIX_TYPE_LABELS } from '../../services/pixService';
@@ -115,9 +114,7 @@ export default function WalletScreen() {
   const [fetchingQuote, setFetchingQuote] = useState(false);
   const [checkingBinanceStatus, setCheckingBinanceStatus] = useState(false);
 
-  // Stripe Connect State (Zero Custódia / Split Global)
-  const [stripeBalance, setStripeBalance] = useState<StripeBalanceResponse | null>(null);
-  const [stripeLoading, setStripeLoading] = useState(false);
+
 
   // Quick Charge (Cobrança Rápida / Concierge) State
   const [quickChargeModalVisible, setQuickChargeModalVisible] = useState(false);
@@ -318,10 +315,9 @@ export default function WalletScreen() {
 
   const loadData = async () => {
     try {
-      const [balRes, histRes, stripeRes] = await Promise.allSettled([
+      const [balRes, histRes] = await Promise.allSettled([
         getBalance(),
         getTransactionHistory(),
-        getStripeConnectBalance(),
       ]);
 
       if (balRes.status === 'fulfilled') {
@@ -330,9 +326,6 @@ export default function WalletScreen() {
       if (histRes.status === 'fulfilled') {
         const hist = histRes.value;
         setTransactions(Array.isArray(hist) ? hist : (hist as any).data || []);
-      }
-      if (stripeRes.status === 'fulfilled' && stripeRes.value) {
-        setStripeBalance(stripeRes.value);
       }
     } catch (e: any) {
       console.error(e);
@@ -343,21 +336,7 @@ export default function WalletScreen() {
     }
   };
 
-  // Stripe Connect: Iniciar Onboarding / Configurar Conta Bancária
-  const handleStripeOnboarding = async () => {
-    setStripeLoading(true);
-    try {
-      await startStripeOnboarding(true);
-      Alert.alert(
-        'Stripe Connect 🌐',
-        'Abrimos o portal oficial da Stripe no seu navegador para vincular sua conta bancária de repasse direto. Conclua o cadastro para receber vendas com cartões globais.'
-      );
-    } catch (e: any) {
-      Alert.alert('Erro', e?.message || 'Não foi possível iniciar o onboarding da Stripe.');
-    } finally {
-      setStripeLoading(false);
-    }
-  };
+
 
   // Binance Pay: Verificação de Status do Pedido
   const handleCheckBinanceStatus = async () => {
@@ -773,88 +752,52 @@ export default function WalletScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Stripe Connect & Split Global (Zero Custódia) Widget */}
+        {/* Recebimento Global & Repasses via PIX (Zero Custódia) Widget */}
         <View style={styles.cardWidgetContainer}>
           <View style={styles.cardWidgetHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Feather name="globe" size={18} color={Colors.primary} />
-              <Text style={styles.cardWidgetTitle}>Recebimento Global & Cartões (Stripe Connect)</Text>
+              <Text style={styles.cardWidgetTitle}>Recebimento Global & Repasses PIX</Text>
             </View>
             <View style={{
-              backgroundColor: user?.stripeAccountId || user?.stripe_account_id ? '#E8F5E9' : '#FFF3E0',
+              backgroundColor: merchantPixConfig ? '#E8F5E9' : '#FFF3E0',
               paddingHorizontal: 8,
               paddingVertical: 3,
               borderRadius: 12,
             }}>
               <Text style={{
-                color: user?.stripeAccountId || user?.stripe_account_id ? Colors.success : '#E65100',
+                color: merchantPixConfig ? Colors.success : '#E65100',
                 fontSize: 10,
                 fontWeight: '700',
               }}>
-                {user?.stripeAccountId || user?.stripe_account_id ? 'CONECTADO' : 'PENDENTE'}
+                {merchantPixConfig ? 'REPASSE PIX ATIVO' : 'PIX PENDENTE'}
               </Text>
             </View>
           </View>
 
           <View style={styles.cardWidgetBody}>
-            {user?.stripeAccountId || user?.stripe_account_id ? (
-              <View style={{ gap: 12 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View>
-                    <Text style={{ color: Colors.light.textSecondary, fontSize: 12 }}>Saldo Disponível para Repasse</Text>
-                    <Text style={{ fontSize: 20, fontWeight: '800', color: Colors.light.text, marginTop: 2 }}>
-                      {stripeBalance?.available?.[0]
-                        ? `${(stripeBalance.available[0].amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: stripeBalance.available[0].currency.toUpperCase() })}`
-                        : '$ 0,00'}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ color: Colors.light.textMuted, fontSize: 10 }}>Liquidação Automática</Text>
-                    <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '700' }}>Direto na Conta Bancária</Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardWidgetActions}>
-                  <TouchableOpacity
-                    style={styles.cardActionBtn}
-                    onPress={handleStripeOnboarding}
-                    disabled={stripeLoading}
-                  >
-                    {stripeLoading ? (
-                      <ActivityIndicator size="small" color={Colors.primary} />
-                    ) : (
-                      <>
-                        <Feather name="external-link" size={16} color={Colors.primary} />
-                        <Text style={styles.cardActionBtnText}>Gerenciar Conta Bancária / Portal Stripe</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <View style={{ alignItems: 'center', paddingVertical: 14, gap: 10 }}>
-                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' }}>
-                  <Feather name="credit-card" size={24} color={Colors.primary} />
-                </View>
-                <Text style={{ color: Colors.light.text, fontWeight: '700', fontSize: 14, textAlign: 'center' }}>
-                  Habilitar Recebimentos Internacionais
+            <View style={{ paddingVertical: 6, gap: 8 }}>
+              <Text style={{ color: Colors.light.text, fontWeight: '700', fontSize: 13 }}>
+                🌐 Processamento de Turistas Ativo via AtoS2
+              </Text>
+              <Text style={{ color: Colors.light.textSecondary, fontSize: 12, lineHeight: 17 }}>
+                Turistas estrangeiros pagam via Cartões Globais (Stripe), Apple Pay, Google Pay ou Solana Pay. Os valores são repassados automaticamente para a sua chave PIX ({merchantPixConfig ? merchantPixConfig.key : 'configure sua chave'}).
+              </Text>
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingVertical: 8,
+                }}
+                onPress={() => setPixConfigVisible(true)}
+              >
+                <Feather name="dollar-sign" size={14} color={Colors.primary} />
+                <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 12 }}>
+                  {merchantPixConfig ? 'Gerenciar Chave PIX de Repasse' : 'Cadastrar Chave PIX para Receber Repasses'}
                 </Text>
-                <Text style={{ color: Colors.light.textSecondary, fontSize: 12, textAlign: 'center', paddingHorizontal: 16 }}>
-                  Receba turistas com cartões globais, Apple Pay e Google Pay. O split é automático e cai direto na sua conta bancária sem custódia no Atos2.
-                </Text>
-                <TouchableOpacity
-                  style={[styles.modalBtnSubmit, { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 10, marginTop: 4 }]}
-                  onPress={handleStripeOnboarding}
-                  disabled={stripeLoading}
-                >
-                  {stripeLoading ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.modalBtnSubmitText}>+ Conectar com Stripe Connect</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 

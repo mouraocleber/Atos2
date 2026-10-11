@@ -20,7 +20,6 @@ import { clearMediaCache, getMediaCacheSize } from '../../services/MediaCacheSer
 import { LANGUAGES } from '../../constants/translations';
 import { PixConfigModal } from '../../components/PixConfigModal';
 import { getMerchantPixConfig, MerchantPixConfig, PIX_TYPE_LABELS } from '../../services/pixService';
-import { startStripeOnboarding } from '../../services/stripe';
 
 export default function SettingsScreen() {
   const { user, signOut, updateUser, refreshUser } = useAuth();
@@ -28,7 +27,6 @@ export default function SettingsScreen() {
   const { setAppLanguage, t } = useLocalization();
   const [pixConfigVisible, setPixConfigVisible] = useState(false);
   const [merchantPixConfig, setMerchantPixConfig] = useState<MerchantPixConfig | null>(null);
-  const [stripeLoading, setStripeLoading] = useState(false);
   const { isCoachDone, markCoachDone, resetAll } = useOnboarding();
   const [coachVisible, setCoachVisible] = useState(false);
 
@@ -197,20 +195,7 @@ export default function SettingsScreen() {
     }
   }
 
-  async function handleStripeConnect() {
-    setStripeLoading(true);
-    try {
-      await startStripeOnboarding(true);
-      Alert.alert(
-        'Stripe Connect 🌐',
-        'Abrimos o portal seguro da Stripe no seu navegador para vincular ou atualizar sua conta bancária de repasse direto (Zero Custódia).'
-      );
-    } catch (e: any) {
-      Alert.alert('Erro', e?.message || 'Não foi possível conectar com a Stripe no momento.');
-    } finally {
-      setStripeLoading(false);
-    }
-  }
+
 
   async function handleBuyKeyword() {
     if (!kwWord.trim() || !kwPosition) return Alert.alert('Atenção', 'Preencha a palavra e a posição (1-5)');
@@ -382,40 +367,35 @@ export default function SettingsScreen() {
             title="Chave PIX de Recebimento"
             subtitle={
               merchantPixConfig
-                ? `${PIX_TYPE_LABELS[merchantPixConfig.type]}: ${merchantPixConfig.key}`
-                : 'Cadastrar CNPJ / chave para receber'
-            }
-            onPress={() => setPixConfigVisible(true)}
-          />
-          <MenuItem
-            icon="globe"
-            title="Conta Global (Stripe Connect)"
-            subtitle={
-              user?.stripeAccountId || user?.stripe_account_id
-                ? 'Conta bancária conectada para repasse direto'
-                : 'Conectar dados bancários para receber cartões globais'
+                ? `${PIX_TYPE_LABELS[merchantPixConfig.type]}: ${merchantPixConfig.key} • Repasses automáticos`
+                : 'Cadastrar chave PIX (Receber PIX, Cartão Global e Cripto)'
             }
             rightComponent={
-              stripeLoading ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
-              ) : (
+              merchantPixConfig ? (
                 <View style={{
-                  backgroundColor: user?.stripeAccountId || user?.stripe_account_id ? '#E8F5E9' : '#FFF3E0',
+                  backgroundColor: '#E8F5E9',
                   paddingHorizontal: 8,
                   paddingVertical: 3,
                   borderRadius: 10,
                 }}>
-                  <Text style={{
-                    color: user?.stripeAccountId || user?.stripe_account_id ? Colors.success : '#E65100',
-                    fontSize: 10,
-                    fontWeight: '700',
-                  }}>
-                    {user?.stripeAccountId || user?.stripe_account_id ? 'CONECTADO' : 'CONFIGURAR'}
+                  <Text style={{ color: Colors.success, fontSize: 10, fontWeight: '700' }}>
+                    ATIVO
+                  </Text>
+                </View>
+              ) : (
+                <View style={{
+                  backgroundColor: '#FFF3E0',
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 10,
+                }}>
+                  <Text style={{ color: '#E65100', fontSize: 10, fontWeight: '700' }}>
+                    CONFIGURAR
                   </Text>
                 </View>
               )
             }
-            onPress={handleStripeConnect}
+            onPress={() => setPixConfigVisible(true)}
           />
         </View>
       </View>
