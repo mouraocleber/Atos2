@@ -12,7 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useBiometric } from '../../contexts/BiometricContext';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import CoachMark from '../../components/CoachMark';
-import { getBalance, getTransactionHistory, createTransaction, WalletBalanceResponse } from '../../services/wallet';
+import { getBalance, getTransactionHistory, createTransaction, getCryptoSettlementTransactions, WalletBalanceResponse } from '../../services/wallet';
 import api, { SERVER_URL } from '../../services/api';
 import CachedImage from '../../components/CachedImage';
 import { ATOS2_FEES } from '../../constants/fees';
@@ -315,18 +315,28 @@ export default function WalletScreen() {
 
   const loadData = async () => {
     try {
-      const [balRes, histRes] = await Promise.allSettled([
+      const [balRes, histRes, cryptoSettlementsRes] = await Promise.allSettled([
         getBalance(),
         getTransactionHistory(),
+        getCryptoSettlementTransactions(),
       ]);
 
       if (balRes.status === 'fulfilled') {
         setBalanceData(balRes.value);
       }
-      if (histRes.status === 'fulfilled') {
-        const hist = histRes.value;
-        setTransactions(Array.isArray(hist) ? hist : (hist as any).data || []);
-      }
+      
+      const serverHist = histRes.status === 'fulfilled'
+        ? (Array.isArray(histRes.value) ? histRes.value : (histRes.value as any)?.data || [])
+        : [];
+      const localCrypto = cryptoSettlementsRes.status === 'fulfilled' ? cryptoSettlementsRes.value : [];
+
+      // Mescla transações do servidor com liquidações locais de cripto
+      const serverIds = new Set(serverHist.map((t: any) => t.id || t.reference));
+      const uniqueLocal = localCrypto.filter((c: any) => !serverIds.has(c.id));
+      const merged = [...uniqueLocal, ...serverHist].sort(
+        (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setTransactions(merged);
     } catch (e: any) {
       console.error(e);
       Alert.alert('Erro', e?.response?.data?.error || 'Não foi possível carregar os dados da carteira');
@@ -575,22 +585,41 @@ export default function WalletScreen() {
     }
   };
 
-  const renderTransaction = ({ item }: { item: Transaction }) => {
-    const info = typeLabels[item.type];
+  const renderTransaction = ({ item }: { item: any }) => {
+    const isCrypto = !!item.settlementDetails || item.description?.includes('Solana Pay');
+    const info = isCrypto
+      ? { icon: 'check-circle', label: 'Solana Pay (D+1)', color: '#A855F7' }
+      : (typeLabels[item.type] || { icon: 'activity', label: 'Operação', color: Colors.info });
+
     return (
       <TouchableOpacity style={styles.transactionItem} onPress={() => setSelectedTx(item)}>
         <View style={[styles.transactionIcon, { backgroundColor: info.color + '20' }]}>
           <Feather name={info.icon} size={20} color={info.color} />
         </View>
         <View style={styles.transactionInfo}>
-          <Text style={styles.transactionDesc}>{item.description || 'Transferência'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.transactionDesc}>{item.description || 'Transferência'}</Text>
+            {isCrypto && (
+              <View style={{ backgroundColor: 'rgba(168, 85, 247, 0.15)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                <Text style={{ color: '#A855F7', fontSize: 10, fontWeight: '700' }}>SOLANA</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.transactionDate}>
             {info.label} • {new Date(item.created_at).toLocaleDateString('pt-BR')}
+            {isCrypto ? ' • Repasse D+1' : ''}
           </Text>
         </View>
-        <Text style={[styles.transactionAmount, { color: item.amount >= 0 ? Colors.success : Colors.error }]}>
-          {item.amount >= 0 ? '+' : ''}{item.currency} {formatCurrency(Math.abs(item.amount))}
-        </Text>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[styles.transactionAmount, { color: item.amount >= 0 ? Colors.success : Colors.error }]}>
+            {item.amount >= 0 ? '+' : ''}{item.currency} {formatCurrency(Math.abs(item.amount))}
+          </Text>
+          {isCrypto && (
+            <Text style={{ fontSize: 10, color: '#F59E0B', fontWeight: '600', marginTop: 2 }}>
+              Aguardando Repasse
+            </Text>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -1550,7 +1579,11 @@ export default function WalletScreen() {
                 <View style={{ backgroundColor: Colors.light.background, padding: 15, borderRadius: 10, marginBottom: 20 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
                     <Text style={{ color: Colors.light.textMuted }}>Tipo de Operação</Text>
-                    <Text style={{ color: Colors.light.text, fontWeight: 'bold' }}>{typeLabels[selectedTx.type].label}</Text>
+                    <Text style={{ color: Colors.light.text, fontWeight: 'bold' }}>
+                      {(selectedTx as any).settlementDetails || selectedTx.description?.includes('Solana Pay')
+                        ? 'Solana Pay (Liquidação D+1)'
+                        : (typeLabels[selectedTx.type]?.label || 'Operação')}
+                    </Text>
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
                     <Text style={{ color: Colors.light.textMuted }}>Data da Operação</Text>
@@ -1558,7 +1591,9 @@ export default function WalletScreen() {
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
                     <Text style={{ color: Colors.light.textMuted }}>Status</Text>
-                    <Text style={{ color: selectedTx.status === 'COMPLETED' ? Colors.success : Colors.warning, fontWeight: 'bold' }}>{selectedTx.status}</Text>
+                    <Text style={{ color: selectedTx.status === 'COMPLETED' ? Colors.success : '#F59E0B', fontWeight: 'bold' }}>
+                      {(selectedTx as any).settlementDetails ? 'Aguardando Repasse Bancário (D+1)' : selectedTx.status}
+                    </Text>
                   </View>
                   {selectedTx.description && (
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -1566,8 +1601,38 @@ export default function WalletScreen() {
                       <Text style={{ color: Colors.light.text }}>{selectedTx.description}</Text>
                     </View>
                   )}
+
+                  {/* Se for liquidação cripto, mostra os detalhes do split de 2% e aviso de repasse */}
+                  {(selectedTx as any).settlementDetails && (
+                    <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: Colors.light.border, gap: 6 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ color: Colors.light.textMuted, fontSize: 12 }}>Valor Bruto Recebido:</Text>
+                        <Text style={{ color: Colors.light.text, fontSize: 12, fontWeight: '600' }}>
+                          R$ {formatCurrency((selectedTx as any).settlementDetails.grossAmount)} ({(selectedTx as any).settlementDetails.cryptoAmount})
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ color: Colors.light.textMuted, fontSize: 12 }}>Taxa Plataforma Atos2 (2%):</Text>
+                        <Text style={{ color: Colors.error, fontSize: 12, fontWeight: '600' }}>
+                          - R$ {formatCurrency((selectedTx as any).settlementDetails.platformFee)}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ color: Colors.light.text, fontSize: 12, fontWeight: 'bold' }}>Repasse Líquido Bancário:</Text>
+                        <Text style={{ color: Colors.success, fontSize: 12, fontWeight: 'bold' }}>
+                          R$ {formatCurrency((selectedTx as any).settlementDetails.netAmount)}
+                        </Text>
+                      </View>
+                      <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: 10, borderRadius: 8, marginTop: 6 }}>
+                        <Text style={{ color: '#D97706', fontSize: 11, lineHeight: 16, fontWeight: '500' }}>
+                          ⚡ Repasse automático programado para sua chave PIX / conta bancária cadastrada em até 24h (mínimo de ~5 EUR / ~R$ 30,00 da operadora de liquidação).
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
                   <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: Colors.light.border }}>
-                    <Text style={{ color: Colors.light.textMuted, fontSize: 12 }}>ID da Transação</Text>
+                    <Text style={{ color: Colors.light.textMuted, fontSize: 12 }}>ID / Hash da Transação</Text>
                     <Text style={{ color: Colors.light.textSecondary, fontSize: 10, marginTop: 4 }}>{selectedTx.id}</Text>
                   </View>
                 </View>

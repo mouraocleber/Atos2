@@ -149,6 +149,7 @@ export default function ChatRoomScreen() {
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [playingTtsId, setPlayingTtsId] = useState<string | null>(null);
   const soundRef = useRef<any | null>(null);
 
   // Call modal state — UI nativa em vez de Jitsi
@@ -495,7 +496,18 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     loadLiveMessages(true);
 
-    if (!socket) return;
+    // Polling contínuo de contingência a cada 3.5 segundos:
+    // Garante que novas mensagens (como áudios ou textos) cheguem à tela mesmo se
+    // a conexão WebSocket do navegador oscilar ou estiver em segundo plano
+    const syncInterval = setInterval(() => {
+      loadLiveMessages(false);
+    }, 3500);
+
+    if (!socket) {
+      return () => {
+        clearInterval(syncInterval);
+      };
+    }
 
     const handleNewMessage = (incoming: any) => {
       const newMsg = normalizeMessage(incoming);
@@ -707,6 +719,7 @@ export default function ChatRoomScreen() {
     socket.on('webrtcPlayTranslatedAudio', handleWebRtcPlayTranslatedAudio);
 
     return () => {
+      clearInterval(syncInterval);
       socket.off('newMessage', handleNewMessage);
       socket.off('messageStatusUpdate', handleStatusUpdate);
       socket.off('messageDeleted', handleMessageDeleted);
@@ -1329,8 +1342,24 @@ export default function ChatRoomScreen() {
     }
   };
 
-  const playTranslatedAudioTts = async (text: string, lang: string, speakerGender?: 'male' | 'female' | 'auto') => {
+  const playTranslatedAudioTts = async (text: string, lang: string, speakerGender?: 'male' | 'female' | 'auto', msgId?: string) => {
     try {
+      if (msgId) {
+        if (playingTtsId === msgId) {
+          setPlayingTtsId(null);
+          if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            try { window.speechSynthesis.cancel(); } catch (_) {}
+          }
+          if (webAudioRef.current) {
+            try { webAudioRef.current.pause(); } catch (_) {}
+          }
+          return;
+        }
+        setPlayingTtsId(msgId);
+        setTimeout(() => {
+          setPlayingTtsId(prev => prev === msgId ? null : prev);
+        }, 8000);
+      }
       const effectiveLang = lang || user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
       const gender: 'male' | 'female' = (speakerGender && speakerGender !== 'auto')
         ? speakerGender
@@ -1350,7 +1379,11 @@ export default function ChatRoomScreen() {
         return;
       }
 
-      // 2. Web: usa sintetização de áudio via HTML5 Audio para compatibilidade absoluta em navegadores
+      // 2. Web: usa sintetização nativa via Web Speech API primeiro (sem dependência externa bloqueável)
+      const spokenWeb = liveTranslationService.speakWithNativeTts(text, effectiveLang, gender);
+      if (spokenWeb) return;
+
+      // Fallback Web via HTML5 Audio se Web Speech API não sintetizar
       const ttsUrl = liveTranslationService.getTtsAudioUrl(text, effectiveLang, gender);
       if (ttsUrl && typeof window !== 'undefined' && typeof window.Audio !== 'undefined') {
         try {
@@ -1365,9 +1398,6 @@ export default function ChatRoomScreen() {
           console.warn('[Chat Web TTS Audio Playback]', audioErr);
         }
       }
-
-      // Fallback Web Speech API
-      liveTranslationService.speakWithNativeTts(text, effectiveLang, gender);
     } catch (e) {
       console.warn('[Chat] Erro ao reproduzir TTS da tradução do áudio:', e);
     }
@@ -1805,22 +1835,22 @@ export default function ChatRoomScreen() {
                     {/* Botões de Ouvir Voz IA no Idioma do Usuário e Áudio Original */}
                     <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
                       <TouchableOpacity
-                        onPress={() => playTranslatedAudioTts(transContent, transLanguage || myLangShort, isMe ? (user?.voiceGender || 'male') : ((item as any).senderVoiceGender || 'male'))}
+                        onPress={() => playTranslatedAudioTts(transContent, transLanguage || myLangShort, isMe ? (user?.voiceGender || 'male') : ((item as any).senderVoiceGender || 'male'), item.id)}
                         style={{
                           flexDirection: 'row',
                           alignItems: 'center',
                           gap: 5,
-                          backgroundColor: '#22c55e',
-                          paddingVertical: 5,
+                          backgroundColor: playingTtsId === item.id ? '#15803d' : '#22c55e',
+                          paddingVertical: 6,
                           paddingHorizontal: 8,
                           borderRadius: 6,
                           flex: 1,
                           justifyContent: 'center'
                         }}
                       >
-                        <Feather name="volume-2" size={13} color="#fff" />
+                        <Feather name={playingTtsId === item.id ? 'volume-x' : 'volume-2'} size={13} color="#fff" />
                         <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
-                          Ouvir Voz IA ({transLanguage || myLangShort})
+                          {playingTtsId === item.id ? 'Ouvindo Voz IA...' : `Ouvir Voz IA (${transLanguage || myLangShort})`}
                         </Text>
                       </TouchableOpacity>
 

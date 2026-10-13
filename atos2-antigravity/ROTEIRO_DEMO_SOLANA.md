@@ -76,11 +76,11 @@
   - A confirmação ocorre em ~1 segundo.
 * **Visual da Tela de Sucesso:**
   - **"Pagamento Aprovado! Comprovante de Liquidação D+0"**.
-  - Exibe: Estabelecimento, Mesa, Forma de Pagamento (`Solana Pay USDC`), Hash da Transação Solana e Split transparente de taxas.
+  - Exibe: Estabelecimento, Mesa, Forma de Pagamento (`Solana Pay USDC`), Hash da Transação Solana, Split transparente (taxa Atos2 de 2%), valor líquido fiduciário e o aviso oficial: *"Repasse automático para a conta bancária/chave PIX cadastrada em até 24h (mínimo de ~5 EUR da operadora)"*.
 * **Voz / Narração (Português):**
-  > "Com o protocolo nativo Solana Pay, geramos a transação direta em USDC na Solana Mainnet. O turista escaneia com Phantom ou Solflare, confirma em menos de 1 segundo e paga frações de centavo de taxa."
+  > "Com o protocolo nativo Solana Pay, geramos a transação direta em USDC na Solana Mainnet. O turista escaneia com Phantom ou Solflare, confirma em menos de 1 segundo e paga frações de centavo de taxa. O app desconta os 2% da plataforma e programa o repasse fiduciário automático direto para a conta bancária ou chave PIX do estabelecimento em até 24 horas."
 * **Voiceover (Inglês):**
-  > *"Using the native Solana Pay protocol, we generate a direct USDC payment on Solana Mainnet. The guest scans with Phantom or Solflare, confirms in 400 milliseconds, paying sub-cent fees with instant settlement."*
+  > *"Using the native Solana Pay protocol, we generate a direct USDC payment on Solana Mainnet. The guest scans with Phantom or Solflare, confirms in 400 milliseconds, paying sub-cent fees. The app deducts the 2% take-rate and automatically schedules the net fiat payout directly into the merchant's bank account or PIX within 24 hours."*
 
 ---
 

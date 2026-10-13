@@ -19,6 +19,7 @@ import * as Linking from 'expo-linking';
 import { useAuth } from '../contexts/AuthContext';
 import { ATOS2_FEES, SOLANA_CONFIG } from '../constants/fees';
 import api from '../services/api';
+import { saveCryptoSettlementTransaction } from '../services/wallet';
 import {
   convertBrlToUsdc,
   convertBrlToSol,
@@ -166,6 +167,35 @@ export default function CheckoutScreen() {
           solanaToken === 'SOL' ? totalSol : totalUsdc,
           solanaToken
         );
+
+        // Registra o recebimento na carteira com o valor líquido fiduciário (sem os 2% do Atos2)
+        try {
+          await saveCryptoSettlementTransaction({
+            id: solResult.txHash,
+            type: 'DEPOSIT',
+            amount: merchantNetBrl,
+            currency: 'BRL',
+            status: 'PENDING',
+            description: `Solana Pay (${solanaToken}) - Mesa ${table}`,
+            reference: solResult.txHash,
+            created_at: new Date().toISOString(),
+            settlementDetails: {
+              grossAmount: totalFinalBrl,
+              platformFee: merchantFeeBrl,
+              netAmount: merchantNetBrl,
+              cryptoAmount: solanaToken === 'SOL' ? `${totalSol.toFixed(4)} SOL` : `${totalUsdc.toFixed(2)} USDC`,
+              cryptoCurrency: solanaToken,
+              minPayoutEur: 5,
+              payoutEtaHours: 24,
+              bankNotice: 'Transferência automática para a conta bancária/chave PIX cadastrada em até 24h (mínimo de ~5 EUR da operadora).',
+              table: String(table),
+              merchant: String(merchant),
+            },
+          });
+        } catch (saveErr) {
+          console.warn('[Checkout] Erro ao salvar transação de liquidação cripto:', saveErr);
+        }
+
         setReceiptData({
           methodName: `Solana Pay (${solanaToken})`,
           txHash: solResult.txHash,
@@ -177,6 +207,7 @@ export default function CheckoutScreen() {
           merchant,
           table,
           date: new Date().toLocaleString(),
+          isCryptoSettlement: true,
         });
         setIsProcessing(false);
         setPaymentModalVisible(false);
@@ -316,6 +347,31 @@ export default function CheckoutScreen() {
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Data e Hora:</Text>
                 <Text style={styles.receiptVal}>{receiptData.date}</Text>
+              </View>
+            </View>
+
+            {/* Aviso Obrigatório de Repasse Bancário D+1 (Zero Custódia) */}
+            <View style={styles.bankTransferNoticeCard}>
+              <View style={styles.bankTransferNoticeHeader}>
+                <Ionicons name="business" size={20} color="#F59E0B" />
+                <Text style={styles.bankTransferNoticeTitle}>Repasse Automático para Conta Bancária / PIX</Text>
+              </View>
+              <Text style={styles.bankTransferNoticeDesc}>
+                O valor líquido de{' '}
+                <Text style={{ fontWeight: 'bold', color: '#4ADE80' }}>
+                  R$ {receiptData.merchantNet.toFixed(2)}
+                </Text>{' '}
+                (sem a taxa de 2%) foi registrado no seu extrato e será transferido automaticamente para sua chave PIX / conta bancária cadastrada em{' '}
+                <Text style={{ fontWeight: 'bold', color: '#FFF' }}>até 24 horas</Text>{' '}
+                (aplicável após alcançar o valor mínimo de{' '}
+                <Text style={{ fontWeight: 'bold', color: '#38BDF8' }}>~5 EUR / ~R$ 30,00</Text>{' '}
+                exigido pela operadora de liquidação).
+              </Text>
+              <View style={styles.bankTransferNoticeBadge}>
+                <Ionicons name="time-outline" size={14} color="#F59E0B" />
+                <Text style={styles.bankTransferNoticeBadgeText}>
+                  Status: Liquidação D+1 Agendada • Zero Custódia Atos2
+                </Text>
               </View>
             </View>
 
@@ -659,6 +715,17 @@ export default function CheckoutScreen() {
                     Endereço Oficial: {SOLANA_CONFIG.WALLET_ADDRESS.substring(0, 8)}...
                     {SOLANA_CONFIG.WALLET_ADDRESS.substring(SOLANA_CONFIG.WALLET_ADDRESS.length - 8)}
                   </Text>
+
+                  {/* Alerta de Liquidação Automática Zero Custódia */}
+                  <View style={styles.solanaZeroCustodyNoticeBox}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <Ionicons name="shield-checkmark" size={16} color="#A855F7" />
+                      <Text style={styles.solanaZeroCustodyNoticeTitle}>Liquidação Automática Zero Custódia</Text>
+                    </View>
+                    <Text style={styles.solanaZeroCustodyNoticeText}>
+                      O pagamento em {solanaToken} é liquidado diretamente na rede Solana e convertido na moeda fiduciária local (R$). O valor líquido (sem a taxa de 2%) entra no seu extrato e é transferido para a sua conta bancária/PIX em até 24h (para valores a partir de ~5 EUR da operadora).
+                    </Text>
+                  </View>
                 </View>
               )}
 
@@ -1299,5 +1366,68 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  bankTransferNoticeCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 16,
+    width: '100%',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    gap: 8,
+  },
+  bankTransferNoticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bankTransferNoticeTitle: {
+    color: '#F59E0B',
+    fontSize: 14,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  bankTransferNoticeDesc: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  bankTransferNoticeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  bankTransferNoticeBadgeText: {
+    color: '#F59E0B',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  solanaZeroCustodyNoticeBox: {
+    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    width: '100%',
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.3)',
+  },
+  solanaZeroCustodyNoticeTitle: {
+    color: '#C084FC',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  solanaZeroCustodyNoticeText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    lineHeight: 16,
   },
 });
