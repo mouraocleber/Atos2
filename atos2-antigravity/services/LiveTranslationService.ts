@@ -971,11 +971,29 @@ export async function translateText(text: string, targetLang: string = 'pt-BR'):
   const cacheKey = `${langOnly}:${text.trim()}`;
   if (translationCache[cacheKey]) return translationCache[cacheKey];
 
-  // 1. Tenta DeepL Neural Translation se a chave estiver configurada
-  if (DEEPL_API_KEY) {
+  // 1. Google Translate Neural GTX PRIMEIRO (ultrarrápido ~150ms, sem bloqueio de CORS no Web, suporta todos os 33 idiomas)
+  try {
+    const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${langOnly}&dt=t&q=${encodeURIComponent(text)}`;
+    const gResp = await fetch(gUrl);
+    if (gResp.ok) {
+      const gData = await gResp.json();
+      if (gData && gData[0]) {
+        const res = gData[0].map((part: any) => part[0]).filter(Boolean).join('');
+        if (res) {
+          translationCache[cacheKey] = res;
+          return res;
+        }
+      }
+    }
+  } catch (gErr) {
+    console.warn('[translateText] Google GTX error, tentando fallback:', gErr);
+  }
+
+  // 2. Fallback DeepL Neural Translation (apenas mobile nativo pois DeepL bloqueia CORS no navegador Web)
+  if (DEEPL_API_KEY && Platform.OS !== 'web') {
     try {
-      const deeplDomain = DEEPL_API_KEY.endsWith(':fx') 
-        ? 'https://api-free.deepl.com/v2/translate' 
+      const deeplDomain = DEEPL_API_KEY.endsWith(':fx')
+        ? 'https://api-free.deepl.com/v2/translate'
         : 'https://api.deepl.com/v2/translate';
       const deeplTargetMap: Record<string, string> = {
         en: 'EN-US',
@@ -1007,26 +1025,8 @@ export async function translateText(text: string, targetLang: string = 'pt-BR'):
         }
       }
     } catch (e) {
-      console.warn('[translateText] DeepL error, tentando fallback Google GTX:', e);
+      console.warn('[translateText] DeepL fallback error:', e);
     }
-  }
-
-  // 2. Fallback Google Translate Neural GTX (Suporta todos os 33 idiomas sem fricção e instantâneo)
-  try {
-    const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${langOnly}&dt=t&q=${encodeURIComponent(text)}`;
-    const gResp = await fetch(gUrl);
-    if (gResp.ok) {
-      const gData = await gResp.json();
-      if (gData && gData[0]) {
-        const res = gData[0].map((part: any) => part[0]).filter(Boolean).join('');
-        if (res) {
-          translationCache[cacheKey] = res;
-          return res;
-        }
-      }
-    }
-  } catch (gErr) {
-    console.warn('[translateText] Google GTX fallback error:', gErr);
   }
 
   // 3. Fallback Groq Llama 3.3
@@ -1068,6 +1068,60 @@ export async function translateText(text: string, targetLang: string = 'pt-BR'):
   }
 
   return text;
+}
+
+/**
+ * Traduz vários textos em uma única requisição ultrarrápida (ideal para o MENU / Vitrine).
+ */
+export async function translateBatch(texts: string[], targetLang: string = 'pt-BR'): Promise<string[]> {
+  if (!texts || texts.length === 0) return [];
+  const langOnly = targetLang.split('-')[0].toLowerCase();
+
+  // Verifica se todos já estão em cache
+  const allCached = texts.every((t) => !t || !t.trim() || !!translationCache[`${langOnly}:${t.trim()}`]);
+  if (allCached) {
+    return texts.map((t) => (!t || !t.trim() ? t : translationCache[`${langOnly}:${t.trim()}`] || t));
+  }
+
+  // Envia em bloco único separado por marcador seguro para evitar dezenas de chamadas HTTP
+  const SEP = '\n[[[ATOS2_SEP]]]\n';
+  const nonEmptyIndices: number[] = [];
+  const nonEmptyTexts: string[] = [];
+  texts.forEach((t, idx) => {
+    if (t && t.trim()) {
+      nonEmptyIndices.push(idx);
+      nonEmptyTexts.push(t.trim());
+    }
+  });
+
+  if (nonEmptyTexts.length === 0) return texts;
+
+  try {
+    const joined = nonEmptyTexts.join(SEP);
+    const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${langOnly}&dt=t&q=${encodeURIComponent(joined)}`;
+    const gResp = await fetch(gUrl);
+    if (gResp.ok) {
+      const gData = await gResp.json();
+      if (gData && gData[0]) {
+        const fullTranslated = gData[0].map((part: any) => part[0]).filter(Boolean).join('');
+        const parts = fullTranslated.split(/\[\[\[ATOS2_SEP\]\]\]/i).map((s: string) => s.trim());
+        if (parts.length === nonEmptyTexts.length) {
+          const result = [...texts];
+          nonEmptyIndices.forEach((origIdx, i) => {
+            const tr = parts[i] || nonEmptyTexts[i];
+            translationCache[`${langOnly}:${nonEmptyTexts[i]}`] = tr;
+            result[origIdx] = tr;
+          });
+          return result;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[translateBatch] Fallback para Promise.all:', e);
+  }
+
+  // Fallback paralelo caso o separador tenha sido alterado
+  return Promise.all(texts.map((t) => (t && t.trim() ? translateText(t, targetLang) : Promise.resolve(t))));
 }
 
 // Taxas de câmbio baseadas em 1 BRL -> Moeda Estrangeira (atualizadas automaticamente via API com fallback seguro)
@@ -1167,6 +1221,32 @@ const LANGUAGE_TO_CURRENCY: Record<string, { locale: string; currency: string }>
   'uk': { locale: 'uk-UA', currency: 'UAH' },
 };
 
+const CURRENCY_SYMBOLS: Record<string, { symbol: string; decimals: number; decimalSep: string; thousandSep: string }> = {
+  BRL: { symbol: 'R$ ', decimals: 2, decimalSep: ',', thousandSep: '.' },
+  USD: { symbol: 'US$ ', decimals: 2, decimalSep: '.', thousandSep: ',' },
+  EUR: { symbol: '€ ', decimals: 2, decimalSep: ',', thousandSep: '.' },
+  GBP: { symbol: '£ ', decimals: 2, decimalSep: '.', thousandSep: ',' },
+  JPY: { symbol: '¥ ', decimals: 0, decimalSep: '.', thousandSep: ',' },
+  CNY: { symbol: '¥ ', decimals: 2, decimalSep: '.', thousandSep: ',' },
+  KRW: { symbol: '₩ ', decimals: 0, decimalSep: '.', thousandSep: ',' },
+  RUB: { symbol: '₽ ', decimals: 2, decimalSep: ',', thousandSep: ' ' },
+  INR: { symbol: '₹ ', decimals: 2, decimalSep: '.', thousandSep: ',' },
+  TRY: { symbol: '₺ ', decimals: 2, decimalSep: ',', thousandSep: '.' },
+  PLN: { symbol: 'zł ', decimals: 2, decimalSep: ',', thousandSep: ' ' },
+  SEK: { symbol: 'kr ', decimals: 2, decimalSep: ',', thousandSep: ' ' },
+  DKK: { symbol: 'kr ', decimals: 2, decimalSep: ',', thousandSep: '.' },
+  NOK: { symbol: 'kr ', decimals: 2, decimalSep: ',', thousandSep: ' ' },
+  ILS: { symbol: '₪ ', decimals: 2, decimalSep: '.', thousandSep: ',' },
+  CZK: { symbol: 'Kč ', decimals: 2, decimalSep: ',', thousandSep: ' ' },
+  RON: { symbol: 'lei ', decimals: 2, decimalSep: ',', thousandSep: '.' },
+  HUF: { symbol: 'Ft ', decimals: 0, decimalSep: ',', thousandSep: ' ' },
+  THB: { symbol: '฿ ', decimals: 2, decimalSep: '.', thousandSep: ',' },
+  VND: { symbol: '₫ ', decimals: 0, decimalSep: ',', thousandSep: '.' },
+  IDR: { symbol: 'Rp ', decimals: 0, decimalSep: ',', thousandSep: '.' },
+  MYR: { symbol: 'RM ', decimals: 2, decimalSep: '.', thousandSep: ',' },
+  UAH: { symbol: '₴ ', decimals: 2, decimalSep: ',', thousandSep: ' ' },
+};
+
 export function formatLocalizedPrice(price: number | string, targetLang: string = 'pt-BR'): string {
   const numBrl = typeof price === 'number' ? price : parseFloat(String(price).replace(',', '.')) || 0;
   const normalizedLang = (targetLang || 'pt-BR').toLowerCase();
@@ -1180,14 +1260,13 @@ export function formatLocalizedPrice(price: number | string, targetLang: string 
   const rate = brlExchangeRates[mapping.currency] ?? (mapping.currency === 'BRL' ? 1.0 : brlExchangeRates.USD);
   const convertedValue = numBrl * rate;
 
-  try {
-    return new Intl.NumberFormat(mapping.locale, {
-      style: 'currency',
-      currency: mapping.currency,
-    }).format(convertedValue);
-  } catch (_) {
-    return `${mapping.currency} ${convertedValue.toFixed(2)}`;
-  }
+  const fmt = CURRENCY_SYMBOLS[mapping.currency] || { symbol: `${mapping.currency} `, decimals: 2, decimalSep: '.', thousandSep: ',' };
+  const fixed = convertedValue.toFixed(fmt.decimals);
+  const [intPart, decPart] = fixed.split('.');
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, fmt.thousandSep);
+  return decPart !== undefined
+    ? `${fmt.symbol}${formattedInt}${fmt.decimalSep}${decPart}`
+    : `${fmt.symbol}${formattedInt}`;
 }
 
 

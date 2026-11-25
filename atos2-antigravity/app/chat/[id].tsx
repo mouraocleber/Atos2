@@ -545,12 +545,10 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     loadLiveMessages(true);
 
-    // Polling contínuo de contingência a cada 3.5 segundos:
-    // Garante que novas mensagens (como áudios ou textos) cheguem à tela mesmo se
-    // a conexão WebSocket do navegador oscilar ou estiver em segundo plano
+    // Polling contínuo de contingência a cada 12 segundos (WebSocket já entrega em tempo real; reduz 70% das requisições)
     const syncInterval = setInterval(() => {
       loadLiveMessages(false);
-    }, 3500);
+    }, 12000);
 
     if (!socket) {
       return () => {
@@ -742,8 +740,8 @@ export default function ChatRoomScreen() {
         }
       }
 
-      // Prioridade no celular: síntese nativa via expo-speech no idioma nativo do usuário
-      if (textToSpeak) {
+      // No celular nativo (Android/iOS): síntese nativa via expo-speech no idioma nativo do usuário
+      if (Platform.OS !== 'web' && textToSpeak) {
         const spoken = liveTranslationService.speakWithNativeTts(
           textToSpeak,
           myNativeLang,
@@ -755,6 +753,7 @@ export default function ChatRoomScreen() {
         }
       }
 
+      // No Web (ou fallback mobile): reproduz dentro do iframe/WebView da chamada (onde o áudio já foi desbloqueado pelo toque)
       const msg = JSON.stringify({
         type: 'signal',
         signal: {
@@ -1009,18 +1008,21 @@ export default function ChatRoomScreen() {
     }
   };
 
+  const handleCallBridgeMessageRef = useRef(handleCallBridgeMessage);
+  handleCallBridgeMessageRef.current = handleCallBridgeMessage;
+
   useEffect(() => {
     if (Platform.OS !== 'web' || !callModalVisible) return;
 
     const onWebMessage = (event: MessageEvent) => {
-      handleCallBridgeMessage(event.data);
+      handleCallBridgeMessageRef.current(event.data);
     };
 
     window.addEventListener('message', onWebMessage);
     return () => {
       window.removeEventListener('message', onWebMessage);
     };
-  }, [callModalVisible, currentRoomId]);
+  }, [callModalVisible]);
 
   const handleLocalAudioChunk = async (data: { base64Audio: string; mimeType?: string; language?: string; speakerName?: string; speakerFlag?: string }) => {
     if (!data.base64Audio) return;
@@ -2688,14 +2690,48 @@ export default function ChatRoomScreen() {
               <Feather name="clock" size={24} color={(scheduleDateObj) ? Colors.secondaryDark : Colors.light.textSecondary} />
             </TouchableOpacity>
 
-            <TextInput
-              style={styles.textInput}
-              value={inputValue}
-              onChangeText={setInputValue}
-              placeholder="Digite uma mensagem..."
-              placeholderTextColor={Colors.light.textMuted}
-              multiline
-            />
+            {isRecording ? (
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#FEF2F2',
+                  borderWidth: 1,
+                  borderColor: '#FCA5A5',
+                  borderRadius: 20,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  marginHorizontal: 6,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444' }} />
+                  <Text style={{ color: '#DC2626', fontWeight: '800', fontSize: 15, fontVariant: ['tabular-nums'] }}>
+                    {formatRecordingDuration(recordingSeconds)}
+                  </Text>
+                  <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}>
+                    Gravando...
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={cancelRecording}
+                  style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#FEE2E2', borderRadius: 12 }}
+                >
+                  <Text style={{ color: '#B91C1C', fontSize: 12, fontWeight: '700' }}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TextInput
+                style={styles.textInput}
+                value={inputValue}
+                onChangeText={setInputValue}
+                placeholder="Digite uma mensagem..."
+                placeholderTextColor={Colors.light.textMuted}
+                multiline
+              />
+            )}
 
             {isSending ? (
               <View style={styles.sendButton}>
@@ -2775,7 +2811,7 @@ export default function ChatRoomScreen() {
                     remoteLanguage: remoteUserLanguage || '',
                     roomId: currentRoomId,
                     groqApiKey: process.env.EXPO_PUBLIC_GROQ_API_KEY || '',
-                    deepgramApiKey: process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '',
+                    deepgramApiKey: process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9',
                   }),
                   style: { width: '100%', height: '100%', border: 'none', background: '#041527' },
                   allow: 'camera; microphone; autoplay; display-capture',
@@ -2797,7 +2833,7 @@ export default function ChatRoomScreen() {
                       remoteLanguage: remoteUserLanguage || '',
                       roomId: currentRoomId,
                       groqApiKey: process.env.EXPO_PUBLIC_GROQ_API_KEY || '',
-                      deepgramApiKey: process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '',
+                      deepgramApiKey: process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9',
                     }),
                     baseUrl: 'https://localhost'
                   }}

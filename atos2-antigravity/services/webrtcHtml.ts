@@ -396,6 +396,9 @@ export const getWebRtcHtml = (initialConfig?: any) => {
   <div class="header-overlay">
     <div id="headerName" class="caller-name">Conectando</div>
     <div id="headerStatus" class="call-status">Seguro P2P</div>
+    <div id="iaStatusBadge" style="display: none; margin-top: 6px; background: rgba(6, 214, 160, 0.2); border: 1px solid #06d6a0; color: #06d6a0; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; width: fit-content;">
+      ✨ IA Tradução Ativa
+    </div>
   </div>
 
   <!-- Captions Overlay Container -->
@@ -495,8 +498,17 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     function updateRemoteAudioDucking() {
       const remoteAudio = document.getElementById('remoteAudio');
       if (remoteAudio) {
-        // Quando a tradução IA está ativa, reduz o volume da voz original para a voz traduzida ficar cristalina
-        remoteAudio.volume = isTranslationActive ? 0.15 : 1.0;
+        // Quando a tradução IA está ativa, reduz drasticamente o volume da voz original estrangeira
+        remoteAudio.volume = isTranslationActive ? 0.08 : 1.0;
+      }
+      const badge = document.getElementById('iaStatusBadge');
+      if (badge) {
+        if (isTranslationActive) {
+          badge.style.display = 'inline-flex';
+          badge.innerText = '✨ IA Tradução Ativa (' + selectedLangCode.toUpperCase() + ')';
+        } else {
+          badge.style.display = 'none';
+        }
       }
     }
 

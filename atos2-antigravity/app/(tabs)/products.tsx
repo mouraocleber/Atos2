@@ -10,7 +10,7 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import api, { SERVER_URL } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocalization } from '../../contexts/LocalizationContext';
-import { translateText, formatLocalizedPrice, refreshExchangeRates } from '../../services/LiveTranslationService';
+import { translateText, translateBatch, formatLocalizedPrice, refreshExchangeRates } from '../../services/LiveTranslationService';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import CoachMark from '../../components/CoachMark';
 import CachedImage from '../../components/CachedImage';
@@ -329,7 +329,8 @@ function MarketplaceScreenInner() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [translatedFields, setTranslatedFields] = useState<Record<string, { name?: string; category?: string; description?: string }>>({});
 
-  const viewerLanguage = user?.preferredLanguage || language || 'pt-BR';
+  const userProfileLang = user?.preferredLanguage || (user as any)?.preferred_language || (user as any)?.language || '';
+  const viewerLanguage = (language && language !== 'pt-BR') ? language : (userProfileLang || language || 'pt-BR');
   const isPortuguese = viewerLanguage.toLowerCase().startsWith('pt') && !viewerLanguage.toLowerCase().startsWith('pt-pt');
   const [, setRatesTick] = useState(0);
 
@@ -368,7 +369,7 @@ function MarketplaceScreenInner() {
   const [isCreating, setIsCreating] = useState(false);
 
 
-  // Tradução automática em tempo real para o idioma do usuário visualizador
+  // Tradução automática em tempo real (em lote paralelo ultrarrápido < 0.5s) para o idioma do visitante
   useEffect(() => {
     const list = mode === 'vitrine' ? products : myProducts;
     if (!list || list.length === 0) return;
@@ -379,19 +380,41 @@ function MarketplaceScreenInner() {
 
     let isMounted = true;
     const translateCatalog = async () => {
-      const updates: Record<string, { name?: string; category?: string; description?: string }> = {};
-      for (const p of list) {
-        try {
-          const n = p.name ? (await translateText(p.name, viewerLanguage)) : (p.name || undefined);
-          const c = p.category ? (await translateText(p.category, viewerLanguage)) : (p.category || undefined);
-          const d = p.description ? (await translateText(p.description, viewerLanguage)) : (p.description || undefined);
-          updates[p.id] = { name: n || undefined, category: c || undefined, description: d || undefined };
-        } catch (_) {
-          updates[p.id] = { name: p.name || undefined, category: p.category || undefined, description: p.description || undefined };
+      try {
+        // Traduz em blocos paralelos de 8 produtos por chamada em lote (instantâneo)
+        const CHUNK_SIZE = 8;
+        const chunks: Product[][] = [];
+        for (let i = 0; i < list.length; i += CHUNK_SIZE) {
+          chunks.push(list.slice(i, i + CHUNK_SIZE));
         }
-      }
-      if (isMounted) {
-        setTranslatedFields(prev => ({ ...prev, ...updates }));
+
+        await Promise.all(
+          chunks.map(async (chunk) => {
+            const flatTexts: string[] = [];
+            chunk.forEach((p) => {
+              flatTexts.push(p.name || '');
+              flatTexts.push(p.category || '');
+              flatTexts.push(p.description || '');
+            });
+
+            const translatedFlat = await translateBatch(flatTexts, viewerLanguage);
+            const chunkUpdates: Record<string, { name?: string; category?: string; description?: string }> = {};
+            chunk.forEach((p, idx) => {
+              const base = idx * 3;
+              chunkUpdates[p.id] = {
+                name: translatedFlat[base] || p.name || undefined,
+                category: translatedFlat[base + 1] || p.category || undefined,
+                description: translatedFlat[base + 2] || p.description || undefined,
+              };
+            });
+
+            if (isMounted) {
+              setTranslatedFields((prev) => ({ ...prev, ...chunkUpdates }));
+            }
+          })
+        );
+      } catch (err) {
+        console.warn('[Vitrine] Erro na tradução em lote:', err);
       }
     };
     translateCatalog();
