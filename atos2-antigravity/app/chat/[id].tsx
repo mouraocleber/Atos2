@@ -144,10 +144,30 @@ export default function ChatRoomScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // Áudio — hook no topo do componente (regra dos hooks)
-  // A permissão só é pedida quando começar a gravar (requestRecordingPermissionsAsync)
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // Áudio — preset otimizado para voz (16kHz mono ~32kbps): arquivos ~70% menores e envio/STT muito mais rápidos
+  const VOICE_RECORDING_OPTIONS = useMemo(() => ({
+    ...RecordingPresets.HIGH_QUALITY,
+    sampleRate: 16000,
+    numberOfChannels: 1,
+    bitRate: 32000,
+    android: {
+      ...(RecordingPresets.HIGH_QUALITY as any)?.android,
+      sampleRate: 16000,
+      numberOfChannels: 1,
+      bitRate: 32000,
+    },
+    ios: {
+      ...(RecordingPresets.HIGH_QUALITY as any)?.ios,
+      sampleRate: 16000,
+      numberOfChannels: 1,
+      bitRate: 32000,
+    },
+  }), []);
+  const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasMicPermissionRef = useRef(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [playingTtsId, setPlayingTtsId] = useState<string | null>(null);
   const soundRef = useRef<any | null>(null);
@@ -159,6 +179,27 @@ export default function ChatRoomScreen() {
   const [callDirection, setCallDirection] = useState<'outgoing' | 'incoming'>('outgoing');
   const [callerName, setCallerName] = useState<string>('');
   const [remoteUserLanguage, setRemoteUserLanguage] = useState<string>('');
+  const remoteUserLanguageRef = useRef<string>('');
+  const processedTranslationIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    remoteUserLanguageRef.current = remoteUserLanguage;
+  }, [remoteUserLanguage]);
+
+  // Busca o idioma preferido do contato ao abrir o chat (garante tradução automática mesmo via GlobalCallHandler)
+  useEffect(() => {
+    if (!id || isRoom === 'true') return;
+    api.get(`/users/${id}`)
+      .then((res) => {
+        const u = res.data?.data?.user || res.data?.data || res.data?.user;
+        const lang = u?.preferredLanguage || u?.preferred_language || u?.language;
+        if (lang) {
+          setRemoteUserLanguage(lang);
+          remoteUserLanguageRef.current = lang;
+        }
+      })
+      .catch(() => {});
+  }, [id, isRoom]);
 
   // Tradução dinâmica em tempo real para o idioma nativo de cada participante (Modo Guia)
   const [nativeTranslations, setNativeTranslations] = useState<Record<string, string>>({});
@@ -254,6 +295,14 @@ export default function ChatRoomScreen() {
     }
     return isWebViewReadyRef.current && !!webViewRef.current;
   };
+  const sendOrQueueCallBridge = (msg: string) => {
+    if (isCallBridgeReady()) {
+      sendToCallBridge(msg);
+    } else {
+      signalQueueRef.current.push(msg);
+    }
+  };
+
   const DEFAULT_ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
@@ -599,7 +648,8 @@ export default function ChatRoomScreen() {
       ringtoneService.startIncomingRingtone();
       if (data.callerLanguage) {
         setRemoteUserLanguage(data.callerLanguage);
-        sendToCallBridge(JSON.stringify({
+        remoteUserLanguageRef.current = data.callerLanguage;
+        sendOrQueueCallBridge(JSON.stringify({
           type: 'signal',
           signal: { type: 'set_remote_language', remoteLanguage: data.callerLanguage }
         }));
@@ -613,7 +663,8 @@ export default function ChatRoomScreen() {
       ringtoneService.configureVoipAudioMode();
       if (data?.remoteLanguage) {
         setRemoteUserLanguage(data.remoteLanguage);
-        sendToCallBridge(JSON.stringify({
+        remoteUserLanguageRef.current = data.remoteLanguage;
+        sendOrQueueCallBridge(JSON.stringify({
           type: 'signal',
           signal: { type: 'set_remote_language', remoteLanguage: data.remoteLanguage }
         }));
@@ -632,19 +683,31 @@ export default function ChatRoomScreen() {
     };
 
     const handleWebRtcSignal = (data: { from: string, signal: any }) => {
+      if (data.signal?.type === 'set_remote_language' && data.signal?.remoteLanguage) {
+        setRemoteUserLanguage(data.signal.remoteLanguage);
+        remoteUserLanguageRef.current = data.signal.remoteLanguage;
+      }
+      if (data.signal?.type === 'play_translated_audio') {
+        handleWebRtcPlayTranslatedAudio(data.signal);
+        return;
+      }
+      if (data.signal?.type === 'translation_caption') {
+        handleWebRtcTranslationCaption(data.signal);
+        return;
+      }
       const msg = JSON.stringify({
         type: 'signal',
         signal: data.signal
       });
-      if (isCallBridgeReady()) {
-        sendToCallBridge(msg);
-      } else {
-        console.log('[VoIP Signal Queue] Armazenando sinal recebido antes do WebView/Iframe estar pronto:', data.signal?.type);
-        signalQueueRef.current.push(msg);
-      }
+      sendOrQueueCallBridge(msg);
     };
 
-    const handleWebRtcTranslationCaption = (data: { speakerName?: string, speakerFlag?: string, speakerLanguage?: string, originalText: string, translatedText: string, roomId?: string }) => {
+    const handleWebRtcTranslationCaption = (data: { txId?: string, speakerName?: string, speakerFlag?: string, speakerLanguage?: string, originalText: string, translatedText: string, roomId?: string }) => {
+      if (data.txId) {
+        const capKey = `cap_${data.txId}`;
+        if (processedTranslationIdsRef.current.has(capKey)) return;
+        processedTranslationIdsRef.current.add(capKey);
+      }
       const msg = JSON.stringify({
         type: 'signal',
         signal: {
@@ -657,21 +720,23 @@ export default function ChatRoomScreen() {
           roomId: data.roomId
         }
       });
-      if (isCallBridgeReady()) {
-        sendToCallBridge(msg);
-      } else {
-        signalQueueRef.current.push(msg);
-      }
+      sendOrQueueCallBridge(msg);
     };
 
-    const handleWebRtcPlayTranslatedAudio = async (data: { audioUrl: string; translatedText?: string; targetLanguage?: string; language?: string; gender?: 'male' | 'female'; originalText?: string }) => {
+    const handleWebRtcPlayTranslatedAudio = async (data: { txId?: string; audioUrl: string; translatedText?: string; targetLanguage?: string; language?: string; gender?: 'male' | 'female'; originalText?: string }) => {
+      if (data.txId) {
+        const audKey = `aud_${data.txId}`;
+        if (processedTranslationIdsRef.current.has(audKey)) return;
+        processedTranslationIdsRef.current.add(audKey);
+      }
       const myNativeLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
       let textToSpeak = data.translatedText || data.originalText;
 
       // Se a transmissão estiver em outro idioma, traduz para o idioma nativo deste participante
       if (data.originalText && (data.language || 'pt').split('-')[0].toLowerCase() !== myNativeLang.split('-')[0].toLowerCase()) {
         try {
-          textToSpeak = await translateText(data.originalText, myNativeLang);
+          const t = await translateText(data.originalText, myNativeLang);
+          if (t) textToSpeak = t;
         } catch (e) {
           textToSpeak = data.translatedText || data.originalText;
         }
@@ -694,14 +759,13 @@ export default function ChatRoomScreen() {
         type: 'signal',
         signal: {
           type: 'play_translated_audio',
-          audioUrl: data.audioUrl
+          audioUrl: data.audioUrl,
+          translatedText: textToSpeak,
+          targetLanguage: myNativeLang,
+          gender: data.gender || 'male'
         }
       });
-      if (isCallBridgeReady()) {
-        sendToCallBridge(msg);
-      } else {
-        signalQueueRef.current.push(msg);
-      }
+      sendOrQueueCallBridge(msg);
     };
 
     const handleMessageDeleted = (data: { messageId: string }) => {
@@ -808,38 +872,23 @@ export default function ChatRoomScreen() {
     if (!data.text || !data.text.trim()) return;
 
     const sourceLang = (data.language || user?.preferredLanguage || language || 'pt').split('-')[0].toLowerCase();
-    const targetLang = (remoteUserLanguage || 'pt').split('-')[0].toLowerCase();
+    const rawRemoteLang = remoteUserLanguageRef.current || remoteUserLanguage || '';
+    let targetLang = rawRemoteLang ? rawRemoteLang.split('-')[0].toLowerCase() : '';
+
+    // Se o idioma remoto ainda não chegou ou é igual ao do falante (ex: teste manual com botão IA ligado), traduz pt <-> en
+    if (!targetLang || targetLang === sourceLang) {
+      targetLang = sourceLang === 'pt' ? 'en' : 'pt';
+    }
 
     let translatedText = data.text;
     if (sourceLang !== targetLang) {
-      let success = false;
-
-      // 1. Google Translate Fast API (sem limite de taxa para chamadas ao vivo)
       try {
-        const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(data.text)}`;
-        const gResp = await fetch(gUrl);
-        const gData = await gResp.json();
-        if (gData && gData[0] && gData[0][0] && gData[0][0][0]) {
-          translatedText = gData[0].map((part: any) => part[0]).filter(Boolean).join('');
-          success = true;
+        const res = await translateText(data.text, targetLang);
+        if (res && res.trim()) {
+          translatedText = res.trim();
         }
-      } catch (gErr) {
-        console.warn('[VoIP Translation Fast] Fallback Google Translate error:', gErr);
-      }
-
-      // 2. Fallback MyMemory
-      if (!success) {
-        try {
-          const resp = await fetch(
-            `https://api.mymemory.translated.net/get?q=${encodeURIComponent(data.text)}&langpair=${sourceLang}|${targetLang}`
-          );
-          const mmData = await resp.json();
-          if (mmData.responseData?.translatedText) {
-            translatedText = mmData.responseData.translatedText;
-          }
-        } catch (e) {
-          console.warn('[VoIP Translation] Error translating spoken text:', e);
-        }
+      } catch (e) {
+        console.warn('[VoIP Translation] Error translating spoken text:', e);
       }
     }
 
@@ -848,10 +897,12 @@ export default function ChatRoomScreen() {
       ? user.voiceGender
       : liveTranslationService.detectVoiceGenderFromAudio(data.text, null, user?.voiceGender);
     const audioUrl = liveTranslationService.getTtsAudioUrl(translatedText, targetLang, detectedGender);
+    const txId = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
-    console.log(`[VoIP Live Translation] Transcrito: "${data.text}" ➔ Traduzido: "${translatedText}" (Timbre: ${detectedGender.toUpperCase()})`);
+    console.log(`[VoIP Live Translation] (${sourceLang} -> ${targetLang}) "${data.text}" ➔ "${translatedText}" (Timbre: ${detectedGender.toUpperCase()})`);
 
-    socketRef.current?.emit('webrtcTranslationCaption', {
+    const captionPayload = {
+      txId,
       to: id,
       roomId: currentRoomId,
       speakerName: data.speakerName || user?.name || user?.nickname || 'Usuário',
@@ -861,15 +912,45 @@ export default function ChatRoomScreen() {
       translatedText: translatedText,
       targetLanguage: targetLang,
       gender: detectedGender,
-    });
+    };
 
-    socketRef.current?.emit('webrtcPlayTranslatedAudio', {
+    const audioPayload = {
+      txId,
       to: id,
       roomId: currentRoomId,
       audioUrl: audioUrl,
+      originalText: data.text,
+      language: sourceLang,
       translatedText: translatedText,
       targetLanguage: targetLang,
       gender: detectedGender,
+    };
+
+    // Feedback visual imediato na própria tela do falante (mostra que sua fala foi reconhecida e traduzida)
+    sendOrQueueCallBridge(JSON.stringify({
+      type: 'signal',
+      signal: {
+        type: 'translation_caption',
+        speakerName: 'Você',
+        speakerFlag: captionPayload.speakerFlag,
+        speakerLanguage: sourceLang,
+        originalText: data.text,
+        translatedText: translatedText,
+      }
+    }));
+
+    // Entrega dupla: eventos dedicados + fallback via webrtcSignal (garante entrega mesmo sem restart do backend)
+    socketRef.current?.emit('webrtcTranslationCaption', captionPayload);
+    socketRef.current?.emit('webrtcPlayTranslatedAudio', audioPayload);
+    socketRef.current?.emit('webrtcSignal', {
+      to: id,
+      roomId: currentRoomId,
+      signal: { type: 'translation_caption', ...captionPayload },
+    });
+    socketRef.current?.emit('webrtcSignal', {
+      to: id,
+      roomId: currentRoomId,
+      signal: { type: 'play_translated_audio', ...audioPayload },
     });
   };
 
@@ -883,6 +964,13 @@ export default function ChatRoomScreen() {
         ringtoneService.stopRingtone();
         ringtoneService.configureVoipAudioMode();
         isWebViewReadyRef.current = true;
+        // Sincroniza meu idioma com o outro participante assim que a ponte WebRTC fica pronta
+        const myLang = user?.preferredLanguage || (user as any)?.language || language || 'pt-BR';
+        socketRef.current?.emit('webrtcSignal', {
+          to: id,
+          roomId: currentRoomId,
+          signal: { type: 'set_remote_language', remoteLanguage: myLang },
+        });
         if (signalQueueRef.current.length > 0) {
           console.log(`[VoIP Signal Queue] Descarregando ${signalQueueRef.current.length} sinais acumulados...`);
           const queue = [...signalQueueRef.current];
@@ -1325,21 +1413,57 @@ export default function ChatRoomScreen() {
   };
 
   // ─── AUDIO RECORDING ─────────────────────────────────────────────────────────
+  const formatRecordingDuration = (totalSecs: number) => {
+    const mins = Math.floor(totalSecs / 60).toString().padStart(2, '0');
+    const secs = (totalSecs % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+  };
+
+  const stopRecordingTimer = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => stopRecordingTimer();
+  }, []);
+
   const startRecording = async () => {
     try {
-      // Pede permissão apenas ao pressionar o botão
-      const perm = await AudioModule.requestRecordingPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Aviso', 'Permissão de microfone necessária para enviar áudios.');
-        return;
+      // Cacheia permissão já concedida para iniciar gravação sem atraso
+      if (!hasMicPermissionRef.current) {
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Aviso', 'Permissão de microfone necessária para enviar áudios.');
+          return;
+        }
+        hasMicPermissionRef.current = true;
       }
+
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
+      setRecordingSeconds(0);
       setIsRecording(true);
+      stopRecordingTimer();
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
     } catch (e) {
       console.error('Erro ao iniciar gravação:', e);
       Alert.alert('Erro', 'Não foi possível iniciar o microfone. Verifique as permissões nas configurações do aparelho.');
     }
+  };
+
+  const cancelRecording = async () => {
+    if (!isRecording) return;
+    stopRecordingTimer();
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    try {
+      await audioRecorder.stop();
+    } catch (_) {}
   };
 
   const playTranslatedAudioTts = async (text: string, lang: string, speakerGender?: 'male' | 'female' | 'auto', msgId?: string) => {
@@ -1405,27 +1529,45 @@ export default function ChatRoomScreen() {
 
   const stopRecordingAndSend = async () => {
     if (!isRecording) return;
+    stopRecordingTimer();
     setIsRecording(false);
+    setRecordingSeconds(0);
+
+    const tempId = `temp_audio_${Date.now()}`;
     try {
       await audioRecorder.stop();
       const uri = audioRecorder.uri;
       if (uri) {
-        setIsSending(true);
+        // Feedback instantâneo na tela (Optimistic UI) — não trava o usuário esperando upload/STT
+        const optimisticAudioMsg: Message = {
+          id: tempId,
+          senderId: user?.id || '',
+          content: 'Transcrevendo áudio...',
+          type: 'AUDIO',
+          status: 'SENT',
+          mediaUrl: uri,
+          createdAt: new Date().toISOString(),
+          senderVoiceGender: user?.voiceGender || 'male',
+        };
+        setMessages((prev) => [...prev, optimisticAudioMsg]);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
 
         let transcribedText = '';
-        let detectedLang = 'pt';
+        const myLangShort = (user?.preferredLanguage || (user as any)?.language || language || 'pt').split('-')[0].toLowerCase();
+        let detectedLang = myLangShort;
 
-        // 1. Transcrição com Groq Whisper Turbo (Primária / Gratuita) e fallback Deepgram
+        // 1. Transcrição ultrarrápida com Groq Whisper Turbo (formato json + language hint) e fallback Deepgram
         try {
           const groqKey = process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
+          let cachedWebBlob: Blob | null = null;
 
           if (groqKey) {
             try {
               const formData = new FormData();
               if (Platform.OS === 'web') {
                 const fileResp = await fetch(uri);
-                const audioBlob = await fileResp.blob();
-                formData.append('file', audioBlob as any, 'audio.m4a');
+                cachedWebBlob = await fileResp.blob();
+                formData.append('file', cachedWebBlob as any, 'audio.m4a');
               } else {
                 formData.append('file', {
                   uri: uri,
@@ -1434,7 +1576,8 @@ export default function ChatRoomScreen() {
                 } as any);
               }
               formData.append('model', 'whisper-large-v3-turbo');
-              formData.append('response_format', 'verbose_json');
+              formData.append('language', myLangShort);
+              formData.append('response_format', 'json');
 
               const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
                 method: 'POST',
@@ -1447,7 +1590,6 @@ export default function ChatRoomScreen() {
               if (groqResponse.ok) {
                 const groqData = await groqResponse.json();
                 transcribedText = groqData.text?.trim() || '';
-                detectedLang = groqData.language || 'pt';
                 console.log(`[Audio STT Groq] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
               } else {
                 console.warn('[Audio STT Groq] Status:', groqResponse.status);
@@ -1461,9 +1603,8 @@ export default function ChatRoomScreen() {
           if (!transcribedText) {
             try {
               const dgKey = process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '926986400beb825901c4268a53576ad346931bb9';
-              const dgUrl = 'https://api.deepgram.com/v1/listen?detect_language=true&punctuate=true&model=nova-2';
-              const fileResp = await fetch(uri);
-              const audioBlob = await fileResp.blob();
+              const dgUrl = `https://api.deepgram.com/v1/listen?language=${myLangShort}&punctuate=true&model=nova-2`;
+              const audioBlob = cachedWebBlob || await (await fetch(uri)).blob();
               const dgResponse = await fetch(dgUrl, {
                 method: 'POST',
                 headers: {
@@ -1477,7 +1618,6 @@ export default function ChatRoomScreen() {
                 const dgData = await dgResponse.json();
                 const alternative = dgData.results?.channels?.[0]?.alternatives?.[0];
                 transcribedText = alternative?.transcript?.trim() || '';
-                detectedLang = dgData.results?.channels?.[0]?.detected_language || 'pt';
                 console.log(`[Audio STT Deepgram] Transcrição concluída: "${transcribedText}" (${detectedLang})`);
               } else {
                 console.warn('[Audio STT Deepgram] Status de erro:', dgResponse.status);
@@ -1490,10 +1630,10 @@ export default function ChatRoomScreen() {
           console.warn('[Chat] Erro na transcrição do áudio:', sttErr);
         }
 
-        // 2. Tradução para o idioma do destinatário via translateText (DeepL + Groq)
+        // 2. Tradução para o idioma do destinatário via translateText (DeepL + Google GTX)
         let translatedText = '';
-        const targetLang = (remoteUserLanguage || (user?.preferredLanguage || language || 'pt-BR')).split('-')[0];
-        const sourceLangShort = detectedLang.split('-')[0];
+        const targetLang = (remoteUserLanguageRef.current || remoteUserLanguage || myLangShort).split('-')[0].toLowerCase();
+        const sourceLangShort = detectedLang.split('-')[0].toLowerCase();
 
         if (transcribedText && sourceLangShort !== targetLang) {
           try {
@@ -1505,7 +1645,16 @@ export default function ChatRoomScreen() {
 
         const contentToSend = transcribedText || '[Áudio]';
 
-        await sendMessage({
+        // Atualiza a bolha otimista com o texto transcrito enquanto finaliza o upload
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId
+              ? { ...m, content: contentToSend, translatedContent: translatedText || undefined, translatedLanguage: targetLang }
+              : m
+          )
+        );
+
+        const sentRes = await sendMessage({
           recipientId: id as string,
           type: 'AUDIO',
           content: contentToSend,
@@ -1514,14 +1663,25 @@ export default function ChatRoomScreen() {
           senderVoiceGender: user?.voiceGender || 'male',
         } as any, uri);
 
-        loadLiveMessages(true);
+        // Substitui imediatamente a mensagem temporária pela definitiva sem precisar recarregar 200 mensagens
+        const createdRaw = sentRes?.data?.message || sentRes?.data;
+        if (createdRaw?.id) {
+          const normalized = normalizeMessage(createdRaw);
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === normalized.id)) {
+              return prev.filter((m) => m.id !== tempId);
+            }
+            return prev.map((m) => (m.id === tempId ? normalized : m));
+          });
+        } else {
+          loadLiveMessages(true);
+        }
       }
     } catch (e: any) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
       console.error('Erro ao processar gravação:', e);
       const errorMsg = e.response?.data?.message || 'Não foi possível enviar o áudio gravado.';
       Alert.alert('Falha no Envio', errorMsg);
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -2274,7 +2434,7 @@ export default function ChatRoomScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          {isRoom === 'true' && (
+          {isRoom === 'true' ? (
             <TouchableOpacity
               style={{
                 flexDirection: 'row',
@@ -2294,6 +2454,33 @@ export default function ChatRoomScreen() {
               <Feather name="maximize" size={14} color="#0369A1" />
               <Text style={{ fontSize: 12, fontWeight: '700', color: '#0369A1' }}>
                 QR Modo Guia
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                backgroundColor: '#FEF3C7',
+                paddingHorizontal: 11,
+                paddingVertical: 6,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: '#D97706',
+                marginRight: 2,
+              }}
+              onPress={() => {
+                router.push({
+                  pathname: '/(tabs)/products',
+                  params: { sellerId: id as string, sellerName: name as string },
+                });
+              }}
+              activeOpacity={0.8}
+            >
+              <Feather name="book-open" size={14} color="#B45309" />
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#B45309', letterSpacing: 0.4 }}>
+                MENU
               </Text>
             </TouchableOpacity>
           )}
@@ -2337,7 +2524,7 @@ export default function ChatRoomScreen() {
                   <Text style={{color: '#10B981', fontWeight: '700', fontSize: 13}}>Cobrar / Enviar Conta</Text>
                 </TouchableOpacity>
 
-                {/* Vitrine do Usuário */}
+                {/* MENU (Cardápio / Produtos do Estabelecimento) */}
                 <TouchableOpacity
                   style={{padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border, flexDirection: 'row', alignItems: 'center', gap: 10}}
                   onPress={() => {
@@ -2348,8 +2535,8 @@ export default function ChatRoomScreen() {
                     });
                   }}
                 >
-                  <Feather name="shopping-bag" size={16} color={Colors.primary} />
-                  <Text style={{color: Colors.primary, fontWeight: '700', fontSize: 13}}>Vitrine do Usuário</Text>
+                  <Feather name="book-open" size={16} color="#B45309" />
+                  <Text style={{color: '#B45309', fontWeight: '700', fontSize: 13}}>MENU</Text>
                 </TouchableOpacity>
 
                 {/* Bloquear */}
@@ -2532,8 +2719,16 @@ export default function ChatRoomScreen() {
 
         {isRecording && (
           <View style={styles.recordingBanner}>
-            <Feather name="mic" size={14} color="#ef4444" />
-            <Text style={styles.recordingBannerText}>Gravando... Toque para enviar</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Feather name="mic" size={14} color="#ef4444" />
+              <Text style={[styles.recordingBannerText, { fontVariant: ['tabular-nums'], fontWeight: '700' }]}>
+                {formatRecordingDuration(recordingSeconds)}
+              </Text>
+              <Text style={styles.recordingBannerText}>• Gravando... Toque no mic para enviar</Text>
+            </View>
+            <TouchableOpacity onPress={cancelRecording} style={{ marginLeft: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
+              <Text style={{ color: '#94A3B8', fontSize: 12, fontWeight: '700' }}>Cancelar</Text>
+            </TouchableOpacity>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -2579,6 +2774,8 @@ export default function ChatRoomScreen() {
                     userLanguage: user?.preferredLanguage || (user as any)?.language || language || 'pt-BR',
                     remoteLanguage: remoteUserLanguage || '',
                     roomId: currentRoomId,
+                    groqApiKey: process.env.EXPO_PUBLIC_GROQ_API_KEY || '',
+                    deepgramApiKey: process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '',
                   }),
                   style: { width: '100%', height: '100%', border: 'none', background: '#041527' },
                   allow: 'camera; microphone; autoplay; display-capture',
@@ -2599,6 +2796,8 @@ export default function ChatRoomScreen() {
                       userLanguage: user?.preferredLanguage || (user as any)?.language || language || 'pt-BR',
                       remoteLanguage: remoteUserLanguage || '',
                       roomId: currentRoomId,
+                      groqApiKey: process.env.EXPO_PUBLIC_GROQ_API_KEY || '',
+                      deepgramApiKey: process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY || '',
                     }),
                     baseUrl: 'https://localhost'
                   }}

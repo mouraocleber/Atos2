@@ -490,6 +490,15 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     let speechRecognitionInstance = null;
     let mediaRecorderInstance = null;
     let mediaRecorderTimer = null;
+    let usingMediaRecorderFallback = false;
+
+    function updateRemoteAudioDucking() {
+      const remoteAudio = document.getElementById('remoteAudio');
+      if (remoteAudio) {
+        // Quando a tradução IA está ativa, reduz o volume da voz original para a voz traduzida ficar cristalina
+        remoteAudio.volume = isTranslationActive ? 0.15 : 1.0;
+      }
+    }
 
     function showAudioUnlockBanner() {
       const banner = document.getElementById('audioUnlockBanner');
@@ -507,7 +516,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
       const remoteAudio = document.getElementById('remoteAudio');
       if (remoteAudio) {
         remoteAudio.muted = false;
-        remoteAudio.volume = 1.0;
+        updateRemoteAudioDucking();
         remoteAudio.play().then(() => {
           log('Remote audio element reproduzindo com sucesso após toque.');
         }).catch(err => log('Play remoto no toque falhou: ' + err.message));
@@ -517,12 +526,92 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     document.addEventListener('touchstart', unlockAllAudio, { passive: true });
     document.addEventListener('click', unlockAllAudio, { passive: true });
 
+    async function transcribeBlobInWebView(blob) {
+      const cfg = window.webRtcConfig || {};
+      const groqKey = cfg.groqApiKey || '';
+      const dgKey = cfg.deepgramApiKey || '';
+      let transcript = '';
+
+      if (groqKey) {
+        try {
+          const ext = (blob.type || '').includes('mp4') ? 'audio.mp4' : 'audio.webm';
+          const fd = new FormData();
+          fd.append('file', blob, ext);
+          fd.append('model', 'whisper-large-v3-turbo');
+          if (selectedLangCode) {
+            fd.append('language', selectedLangCode.split('-')[0]);
+          }
+          const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + groqKey },
+            body: fd
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            transcript = (data.text || '').trim();
+          } else {
+            log('Groq STT status ' + resp.status);
+          }
+        } catch (e) {
+          log('Groq STT erro no WebView: ' + e.message);
+        }
+      }
+
+      if (!transcript && dgKey) {
+        try {
+          const langParam = selectedLangCode ? ('language=' + selectedLangCode.split('-')[0]) : 'detect_language=true';
+          const dgUrl = 'https://api.deepgram.com/v1/listen?' + langParam + '&punctuate=true&model=nova-2';
+          const resp = await fetch(dgUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Token ' + dgKey,
+              'Content-Type': blob.type || 'audio/webm'
+            },
+            body: blob
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            transcript = (data.results && data.results.channels && data.results.channels[0] && data.results.channels[0].alternatives && data.results.channels[0].alternatives[0] && data.results.channels[0].alternatives[0].transcript || '').trim();
+          } else {
+            log('Deepgram STT status ' + resp.status);
+          }
+        } catch (e) {
+          log('Deepgram STT erro no WebView: ' + e.message);
+        }
+      }
+
+      // Filtra alucinações comuns de silêncio do Whisper
+      const lower = transcript.toLowerCase().replace(/[.!?,]/g, '').trim();
+      const hallucinations = ['obrigado', 'obrigada', 'thank you', 'thanks for watching', 'legenda', 'legendas', 'amaraorg', 'subtitles', 'you', 'tchau'];
+      if (transcript && transcript.length >= 2 && !(hallucinations.includes(lower) && blob.size < 14000)) {
+        log('Fala transcrita via IA (' + blob.size + ' bytes): "' + transcript + '"');
+        postToNative(JSON.stringify({
+          type: 'speech_recognized',
+          text: transcript,
+          language: selectedLangCode,
+          speakerName: window.webRtcConfig?.userName || targetName || 'Usuário',
+          speakerFlag: selectedLangFlag
+        }));
+        return true;
+      }
+      return false;
+    }
+
     function initMediaRecorderRecognition() {
-      if (mediaRecorderInstance || !localStream) return;
+      if (mediaRecorderInstance || !localStream || !isTranslationActive) return;
       try {
+        const audioTracks = localStream.getAudioTracks();
+        if (!audioTracks || audioTracks.length === 0) {
+          log('Nenhuma track de áudio disponível no localStream para MediaRecorder.');
+          return;
+        }
+        // Usa stream SOMENTE de áudio (evita erro em chamadas de vídeo ao usar mimeType audio/webm)
+        const audioOnlyStream = new MediaStream(audioTracks);
+
         let mimeType = '';
         if (typeof MediaRecorder !== 'undefined') {
-          if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+          else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
           else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
           else if (MediaRecorder.isTypeSupported('audio/aac')) mimeType = 'audio/aac';
         } else {
@@ -531,40 +620,47 @@ export const getWebRtcHtml = (initialConfig?: any) => {
         }
 
         const options = mimeType ? { mimeType } : {};
-        mediaRecorderInstance = new MediaRecorder(localStream, options);
+        mediaRecorderInstance = new MediaRecorder(audioOnlyStream, options);
 
         let chunks = [];
         mediaRecorderInstance.ondataavailable = (e) => {
-          if (e.data && e.data.size > 800) {
+          if (e.data && e.data.size > 500) {
             chunks.push(e.data);
           }
         };
 
-        mediaRecorderInstance.onstop = () => {
-          if (chunks.length > 0 && isTranslationActive) {
-            const blob = new Blob(chunks, { type: mediaRecorderInstance.mimeType || 'audio/webm' });
+        mediaRecorderInstance.onstop = async () => {
+          if (chunks.length > 0 && isTranslationActive && !isMuted) {
+            const blob = new Blob(chunks, { type: (mediaRecorderInstance && mediaRecorderInstance.mimeType) || mimeType || 'audio/webm' });
             chunks = [];
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const base64Data = reader.result;
-              if (base64Data && typeof base64Data === 'string') {
-                log('Enviando bloco de voz (' + blob.size + ' bytes) para IA de transcrição...');
-                postToNative(JSON.stringify({
-                  type: 'audio_chunk',
-                  base64Audio: base64Data,
-                  mimeType: blob.type,
-                  language: selectedLangCode,
-                  speakerName: window.webRtcConfig?.userName || targetName || 'Usuário',
-                  speakerFlag: selectedLangFlag
-                }));
+            if (blob.size > 2500) {
+              const cfg = window.webRtcConfig || {};
+              if (cfg.groqApiKey || cfg.deepgramApiKey) {
+                transcribeBlobInWebView(blob);
+              } else {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const base64Data = reader.result;
+                  if (base64Data && typeof base64Data === 'string') {
+                    log('Enviando bloco de voz (' + blob.size + ' bytes) para IA de transcrição...');
+                    postToNative(JSON.stringify({
+                      type: 'audio_chunk',
+                      base64Audio: base64Data,
+                      mimeType: blob.type,
+                      language: selectedLangCode,
+                      speakerName: window.webRtcConfig?.userName || targetName || 'Usuário',
+                      speakerFlag: selectedLangFlag
+                    }));
+                  }
+                };
+                reader.readAsDataURL(blob);
               }
-            };
-            reader.readAsDataURL(blob);
+            }
           } else {
             chunks = [];
           }
 
-          if (isTranslationActive) {
+          if (isTranslationActive && mediaRecorderInstance) {
             mediaRecorderTimer = setTimeout(() => {
               if (isTranslationActive && mediaRecorderInstance && mediaRecorderInstance.state === 'inactive') {
                 try {
@@ -578,7 +674,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
                   log('Erro no ciclo de MediaRecorder: ' + recErr.message);
                 }
               }
-            }, 400);
+            }, 300);
           }
         };
 
@@ -588,9 +684,10 @@ export const getWebRtcHtml = (initialConfig?: any) => {
             mediaRecorderInstance.stop();
           }
         }, 3200);
-        log('Motor alternativo MediaRecorder ativado para gravação contínua no iOS/Mobile.');
+        log('Motor MediaRecorder IA ativado no stream de áudio da chamada (' + (mimeType || 'default') + ').');
       } catch (err) {
-        log('Falha ao iniciar MediaRecorder alternativo: ' + err.message);
+        log('Falha ao iniciar MediaRecorder: ' + err.message);
+        mediaRecorderInstance = null;
       }
     }
 
@@ -610,8 +707,21 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     }
 
     function initSpeechRecognition() {
+      if (!isTranslationActive) return;
+      updateRemoteAudioDucking();
+
+      // Em WebViews móveis (Android/iOS) ou quando já caiu no fallback, usar MediaRecorder direto no localStream
+      // evita conflito de hardware de microfone entre WebRTC e SpeechRecognition
+      const isNativeWebView = !!(window.ReactNativeWebView);
+      if (isNativeWebView || usingMediaRecorderFallback) {
+        log('Ambiente WebView/Fallback detectado: iniciando captura direta via MediaRecorder IA no stream WebRTC.');
+        initMediaRecorderRecognition();
+        return;
+      }
+
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
+        if (speechRecognitionInstance) return;
         try {
           speechRecognitionInstance = new SpeechRecognition();
           speechRecognitionInstance.continuous = true;
@@ -619,7 +729,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
           speechRecognitionInstance.lang = selectedLangCode || 'pt-BR';
 
           speechRecognitionInstance.onresult = (event) => {
-            if (!isTranslationActive) return;
+            if (!isTranslationActive || isMuted) return;
             const lastIndex = event.results.length - 1;
             const transcript = event.results[lastIndex][0].transcript.trim();
             if (transcript) {
@@ -635,13 +745,21 @@ export const getWebRtcHtml = (initialConfig?: any) => {
           };
 
           speechRecognitionInstance.onerror = (e) => {
-            log('SpeechRecognition error: ' + (e.error || e.message));
+            const errCode = e.error || e.message || 'unknown';
+            log('SpeechRecognition error: ' + errCode);
+            // Se falhar por permissão, captura de áudio ou serviço indisponível, ativa MediaRecorder IA imediatamente
+            if (errCode === 'not-allowed' || errCode === 'service-not-allowed' || errCode === 'audio-capture' || errCode === 'network') {
+              usingMediaRecorderFallback = true;
+              try { speechRecognitionInstance.stop(); } catch (_) {}
+              speechRecognitionInstance = null;
+              initMediaRecorderRecognition();
+            }
           };
 
           speechRecognitionInstance.onend = () => {
             speechRecognitionInstance = null;
-            if (isTranslationActive) {
-              setTimeout(initSpeechRecognition, 800);
+            if (isTranslationActive && !usingMediaRecorderFallback) {
+              setTimeout(initSpeechRecognition, 600);
             }
           };
 
@@ -649,10 +767,12 @@ export const getWebRtcHtml = (initialConfig?: any) => {
           log('Speech Recognition ativado com sucesso para tradução simultânea.');
         } catch (e) {
           log('Erro ao inicializar SpeechRecognition, acionando fallback MediaRecorder: ' + e.message);
+          usingMediaRecorderFallback = true;
           initMediaRecorderRecognition();
         }
       } else {
-        log('Web Speech API não disponível nativamente no WebView. Ativando MediaRecorder com IA Deepgram/Groq.');
+        log('Web Speech API não disponível. Ativando MediaRecorder com IA Groq/Deepgram.');
+        usingMediaRecorderFallback = true;
         initMediaRecorderRecognition();
       }
     }
@@ -663,6 +783,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
         speechRecognitionInstance = null;
       }
       stopMediaRecorderRecognition();
+      updateRemoteAudioDucking();
     }
 
     function toggleTranslation() {
@@ -933,6 +1054,11 @@ export const getWebRtcHtml = (initialConfig?: any) => {
         localStream = acquiredStream;
         log('Local media stream ativo com ' + localStream.getTracks().length + ' tracks (' + localStream.getTracks().map(t => t.kind).join(', ') + ').');
 
+        // Se a tradução simultânea já estiver ativa (idiomas diferentes no cadastro), inicia o reconhecimento imediatamente!
+        if (isTranslationActive) {
+          initSpeechRecognition();
+        }
+
         if (callType === 'video') {
           const localVideo = document.getElementById('localVideo');
           if (localVideo) {
@@ -1016,8 +1142,8 @@ export const getWebRtcHtml = (initialConfig?: any) => {
             if (remoteAudio) {
               const audioStream = new MediaStream(stream.getAudioTracks().length > 0 ? stream.getAudioTracks() : [event.track]);
               remoteAudio.srcObject = audioStream;
-              remoteAudio.volume = 1.0;
               remoteAudio.muted = false;
+              updateRemoteAudioDucking();
 
               const playPromise = remoteAudio.play();
               if (playPromise !== undefined) {
@@ -1161,6 +1287,10 @@ export const getWebRtcHtml = (initialConfig?: any) => {
               btnTranslate.innerText = selectedLangFlag + ' IA';
             }
             log('Idioma remoto atualizado (' + remoteLangBase + '). Tradução IA ativada!');
+            if (localStream) {
+              initSpeechRecognition();
+            }
+            updateRemoteAudioDucking();
             postToNative(JSON.stringify({
               type: 'translation_toggle',
               enabled: true,
@@ -1230,6 +1360,7 @@ export const getWebRtcHtml = (initialConfig?: any) => {
     }
 
     function closeLocalStream() {
+      stopSpeechRecognition();
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;

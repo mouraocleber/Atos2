@@ -1070,19 +1070,124 @@ export async function translateText(text: string, targetLang: string = 'pt-BR'):
   return text;
 }
 
-export function formatLocalizedPrice(price: number | string, targetLang: string = 'pt-BR'): string {
-  const num = typeof price === 'number' ? price : parseFloat(String(price).replace(',', '.')) || 0;
-  const langShort = targetLang.split('-')[0].toLowerCase();
-  
-  if (langShort === 'en') {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+// Taxas de câmbio baseadas em 1 BRL -> Moeda Estrangeira (atualizadas automaticamente via API com fallback seguro)
+const brlExchangeRates: Record<string, number> = {
+  BRL: 1.0,
+  USD: 1 / 5.75,
+  EUR: 1 / 6.15,
+  GBP: 1 / 7.25,
+  JPY: 26.8,
+  CNY: 1.26,
+  KRW: 243.0,
+  RUB: 17.2,
+  INR: 14.7,
+  TRY: 6.0,
+  PLN: 0.71,
+  SEK: 1.88,
+  DKK: 1.21,
+  NOK: 1.93,
+  ILS: 0.65,
+  CZK: 4.15,
+  RON: 0.81,
+  HUF: 66.5,
+  THB: 6.0,
+  VND: 4400.0,
+  IDR: 2750.0,
+  MYR: 0.78,
+  UAH: 7.2,
+  SAR: 0.65,
+};
+
+let lastRatesFetch = 0;
+
+export async function refreshExchangeRates(): Promise<Record<string, number>> {
+  const now = Date.now();
+  if (now - lastRatesFetch < 10 * 60 * 1000) {
+    return brlExchangeRates;
   }
-  if (langShort === 'es') {
-    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(num);
+  try {
+    const resp = await fetch('https://open.er-api.com/v6/latest/BRL');
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.rates) {
+        Object.keys(data.rates).forEach((code) => {
+          if (typeof data.rates[code] === 'number' && data.rates[code] > 0) {
+            brlExchangeRates[code] = data.rates[code];
+          }
+        });
+        lastRatesFetch = now;
+      }
+    }
+  } catch (err) {
+    console.warn('[ExchangeRates] Usando taxas de fallback offline:', err);
   }
-  if (langShort === 'fr' || langShort === 'de' || langShort === 'it') {
-    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(num);
-  }
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+  return brlExchangeRates;
 }
+
+// Dispara atualização silenciosa de câmbio em background ao carregar o módulo
+refreshExchangeRates();
+
+const LANGUAGE_TO_CURRENCY: Record<string, { locale: string; currency: string }> = {
+  'pt': { locale: 'pt-BR', currency: 'BRL' },
+  'pt-br': { locale: 'pt-BR', currency: 'BRL' },
+  'pt-pt': { locale: 'pt-PT', currency: 'EUR' },
+  'en': { locale: 'en-US', currency: 'USD' },
+  'en-us': { locale: 'en-US', currency: 'USD' },
+  'en-gb': { locale: 'en-GB', currency: 'GBP' },
+  'es': { locale: 'es-ES', currency: 'EUR' },
+  'es-es': { locale: 'es-ES', currency: 'EUR' },
+  'es-mx': { locale: 'en-US', currency: 'USD' },
+  'fr': { locale: 'fr-FR', currency: 'EUR' },
+  'de': { locale: 'de-DE', currency: 'EUR' },
+  'it': { locale: 'it-IT', currency: 'EUR' },
+  'nl': { locale: 'nl-NL', currency: 'EUR' },
+  'fi': { locale: 'fi-FI', currency: 'EUR' },
+  'el': { locale: 'el-GR', currency: 'EUR' },
+  'ja': { locale: 'ja-JP', currency: 'JPY' },
+  'zh': { locale: 'zh-CN', currency: 'CNY' },
+  'ko': { locale: 'ko-KR', currency: 'KRW' },
+  'ru': { locale: 'ru-RU', currency: 'RUB' },
+  'ar': { locale: 'en-US', currency: 'USD' },
+  'hi': { locale: 'hi-IN', currency: 'INR' },
+  'tr': { locale: 'tr-TR', currency: 'TRY' },
+  'pl': { locale: 'pl-PL', currency: 'PLN' },
+  'sv': { locale: 'sv-SE', currency: 'SEK' },
+  'da': { locale: 'da-DK', currency: 'DKK' },
+  'nb': { locale: 'nb-NO', currency: 'NOK' },
+  'no': { locale: 'nb-NO', currency: 'NOK' },
+  'he': { locale: 'he-IL', currency: 'ILS' },
+  'iw': { locale: 'he-IL', currency: 'ILS' },
+  'cs': { locale: 'cs-CZ', currency: 'CZK' },
+  'ro': { locale: 'ro-RO', currency: 'RON' },
+  'hu': { locale: 'hu-HU', currency: 'HUF' },
+  'th': { locale: 'th-TH', currency: 'THB' },
+  'vi': { locale: 'vi-VN', currency: 'VND' },
+  'id': { locale: 'id-ID', currency: 'IDR' },
+  'ms': { locale: 'ms-MY', currency: 'MYR' },
+  'uk': { locale: 'uk-UA', currency: 'UAH' },
+};
+
+export function formatLocalizedPrice(price: number | string, targetLang: string = 'pt-BR'): string {
+  const numBrl = typeof price === 'number' ? price : parseFloat(String(price).replace(',', '.')) || 0;
+  const normalizedLang = (targetLang || 'pt-BR').toLowerCase();
+  const langShort = normalizedLang.split('-')[0];
+
+  const mapping =
+    LANGUAGE_TO_CURRENCY[normalizedLang] ||
+    LANGUAGE_TO_CURRENCY[langShort] ||
+    (langShort === 'pt' ? { locale: 'pt-BR', currency: 'BRL' } : { locale: 'en-US', currency: 'USD' });
+
+  const rate = brlExchangeRates[mapping.currency] ?? (mapping.currency === 'BRL' ? 1.0 : brlExchangeRates.USD);
+  const convertedValue = numBrl * rate;
+
+  try {
+    return new Intl.NumberFormat(mapping.locale, {
+      style: 'currency',
+      currency: mapping.currency,
+    }).format(convertedValue);
+  } catch (_) {
+    return `${mapping.currency} ${convertedValue.toFixed(2)}`;
+  }
+}
+
 

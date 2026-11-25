@@ -10,7 +10,7 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import api, { SERVER_URL } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocalization } from '../../contexts/LocalizationContext';
-import { translateText, formatLocalizedPrice } from '../../services/LiveTranslationService';
+import { translateText, formatLocalizedPrice, refreshExchangeRates } from '../../services/LiveTranslationService';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import CoachMark from '../../components/CoachMark';
 import CachedImage from '../../components/CachedImage';
@@ -300,11 +300,19 @@ function MarketplaceScreenInner() {
     }, [isCoachDone])
   );
 
-  // Parâmetros de navegação — recebidos ao vir do menu de chat ("Vitrine do Usuário")
+  // Parâmetros de navegação — recebidos ao vir do chat ("MENU")
   const params = useLocalSearchParams<{ sellerId?: string; sellerName?: string }>();
   const [sellerFilter, setSellerFilter] = useState<{ id: string; name: string } | null>(
-    params.sellerId ? { id: params.sellerId, name: params.sellerName || 'Usuário' } : null
+    params.sellerId ? { id: params.sellerId, name: params.sellerName || 'Estabelecimento' } : null
   );
+
+  // Sincroniza filtro sempre que o usuário clicar em MENU a partir de qualquer chat
+  useEffect(() => {
+    if (params.sellerId) {
+      setSellerFilter({ id: params.sellerId, name: params.sellerName || 'Estabelecimento' });
+      setMode('vitrine');
+    }
+  }, [params.sellerId, params.sellerName]);
 
   // Modo: 'vitrine' = mercado público | 'meus' = meus anúncios
   const [mode, setMode] = useState<'vitrine' | 'meus'>('vitrine');
@@ -322,7 +330,12 @@ function MarketplaceScreenInner() {
   const [translatedFields, setTranslatedFields] = useState<Record<string, { name?: string; category?: string; description?: string }>>({});
 
   const viewerLanguage = user?.preferredLanguage || language || 'pt-BR';
-  const isPortuguese = viewerLanguage.toLowerCase().startsWith('pt');
+  const isPortuguese = viewerLanguage.toLowerCase().startsWith('pt') && !viewerLanguage.toLowerCase().startsWith('pt-pt');
+  const [, setRatesTick] = useState(0);
+
+  useEffect(() => {
+    refreshExchangeRates().then(() => setRatesTick(t => t + 1));
+  }, []);
 
   // Lightbox
   const [lightboxVisible, setLightboxVisible] = useState(false);
@@ -647,8 +660,13 @@ function MarketplaceScreenInner() {
           )}
 
           <View style={styles.productFooter}>
-            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <Text style={styles.productPrice}>{displayPrice}</Text>
+              {!isPortuguese && (
+                <Text style={{ fontSize: 11, color: Colors.light.textMuted }}>
+                  ({formatLocalizedPrice(item.price, 'pt-BR')})
+                </Text>
+              )}
             </View>
             <Text style={styles.productStock}>Estoque: {item.stock ?? item.quantity ?? 1}</Text>
           </View>
@@ -675,12 +693,12 @@ function MarketplaceScreenInner() {
   return (
     <View style={styles.container}>
 
-      {/* Banner de Vitrine do Usuário (quando vindo do chat) */}
+      {/* Banner de MENU do Estabelecimento (quando vindo do chat) */}
       {sellerFilter && (
         <View style={styles.sellerFilterBanner}>
-          <Feather name="shopping-bag" size={14} color={Colors.primary} />
+          <Feather name="book-open" size={14} color={Colors.primary} />
           <Text style={styles.sellerFilterText} numberOfLines={1}>
-            Vitrine de <Text style={{ fontWeight: '800' }}>{sellerFilter.name}</Text>
+            MENU • <Text style={{ fontWeight: '800' }}>{sellerFilter.name}</Text>
           </Text>
           <TouchableOpacity
             onPress={() => { setSellerFilter(null); router.setParams({ sellerId: undefined, sellerName: undefined }); }}
@@ -825,6 +843,11 @@ function MarketplaceScreenInner() {
                     <Text style={styles.priceBoxValue}>
                       {selectedProduct ? formatLocalizedPrice(selectedProduct.price, viewerLanguage) : 'R$ 0,00'}
                     </Text>
+                    {!isPortuguese && selectedProduct && (
+                      <Text style={{ fontSize: 12, color: Colors.light.textMuted, marginTop: 2 }}>
+                        Valor original: {formatLocalizedPrice(selectedProduct.price, 'pt-BR')}
+                      </Text>
+                    )}
                     <Text style={styles.priceBoxLabel}>Preço do Produto</Text>
                   </View>
                 </View>

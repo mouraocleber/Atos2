@@ -86,3 +86,27 @@ export const createStripeCheckoutSession = async (params: {
     throw new Error(error?.response?.data?.message || error?.message || 'Erro ao gerar checkout Stripe');
   }
 };
+
+export interface StripeSessionStatusResult {
+  paid: boolean;
+  status: string;
+  paymentStatus: string;
+  amountTotal?: number;
+  currency?: string;
+}
+
+/**
+ * Consulta no backend o status real de uma Checkout Session da Stripe (Cartão / Apple Pay / Google Pay).
+ */
+export const checkStripeSessionStatus = async (sessionId: string): Promise<StripeSessionStatusResult> => {
+  try {
+    const response = await api.get(`/payments/stripe/session-status/${encodeURIComponent(sessionId)}`);
+    if (response.data?.success && response.data?.data) {
+      return response.data.data;
+    }
+    return { paid: false, status: 'open', paymentStatus: 'unpaid' };
+  } catch (error: any) {
+    console.warn('[StripeService] Erro ao consultar status da sessão:', error?.message);
+    throw new Error(error?.response?.data?.message || error?.message || 'Erro ao verificar pagamento na Stripe');
+  }
+};

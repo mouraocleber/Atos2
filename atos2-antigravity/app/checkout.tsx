@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   StatusBar,
   Modal,
   Alert,
+  AppState,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,20 +25,16 @@ import {
   convertBrlToUsdc,
   convertBrlToSol,
   generateSolanaPayUri,
+  generateSolanaReferenceKey,
+  fetchLiveMarketRates,
   openSolanaWalletApp,
   checkSolanaTransactionStatus,
+  LiveMarketRates,
 } from '../services/solana';
-import { createStripeCheckoutSession } from '../services/stripe';
+import { createStripeCheckoutSession, checkStripeSessionStatus } from '../services/stripe';
 
 type PaymentMethodType = 'pix' | 'solana' | 'card' | 'internal_p2p';
 type SupportedCurrency = 'BRL' | 'USD' | 'EUR' | 'GBP';
-
-const CURRENCY_RATES: Record<SupportedCurrency, { symbol: string; rateFromBrl: number; label: string }> = {
-  BRL: { symbol: 'R$', rateFromBrl: 1.0, label: 'Real (BRL)' },
-  USD: { symbol: '$', rateFromBrl: 1 / 5.60, label: 'Dólar (USD)' },
-  EUR: { symbol: '€', rateFromBrl: 1 / 6.10, label: 'Euro (EUR)' },
-  GBP: { symbol: '£', rateFromBrl: 1 / 7.15, label: 'Libra (GBP)' },
-};
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -47,6 +44,26 @@ export default function CheckoutScreen() {
   useEffect(() => {
     setLinkAccess(true);
   }, []);
+
+  // Cotações ao vivo (USD, EUR, GBP e SOL/USD) com fallback seguro
+  const [marketRates, setMarketRates] = useState<LiveMarketRates>({
+    usdBrl: 5.75,
+    eurBrl: 6.15,
+    gbpBrl: 7.25,
+    solUsd: 165.0,
+    updatedAt: 0,
+  });
+
+  useEffect(() => {
+    fetchLiveMarketRates().then((rates) => setMarketRates(rates)).catch(() => {});
+  }, []);
+
+  const CURRENCY_RATES: Record<SupportedCurrency, { symbol: string; rateFromBrl: number; label: string }> = {
+    BRL: { symbol: 'R$', rateFromBrl: 1.0, label: 'Real (BRL)' },
+    USD: { symbol: '$', rateFromBrl: 1 / marketRates.usdBrl, label: 'Dólar (USD)' },
+    EUR: { symbol: '€', rateFromBrl: 1 / marketRates.eurBrl, label: 'Euro (EUR)' },
+    GBP: { symbol: '£', rateFromBrl: 1 / marketRates.gbpBrl, label: 'Libra (GBP)' },
+  };
 
   const rawAmount = (params.amount as string) || '100.00';
   const table = (params.table as string) || '01';
@@ -65,16 +82,20 @@ export default function CheckoutScreen() {
   const [copiedKey, setCopiedKey] = useState<boolean>(false);
   const [dynamicPixCode, setDynamicPixCode] = useState<string>('');
   const [isGeneratingPix, setIsGeneratingPix] = useState<boolean>(false);
-  const [solanaToken, setSolanaToken] = useState<'SOL' | 'USDC'>('SOL');
+  const [solanaToken, setSolanaToken] = useState<'USDC' | 'SOL'>('USDC');
+  const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
+
+  // Chave de referência Base58 única por cobrança (padrão Solana Pay para verificação real on-chain)
+  const solanaReference = useMemo(() => generateSolanaReferenceKey(), [table, rawAmount]);
 
   // Cálculos financeiros
   const tipAmountBrl = (baseAmountBrl * selectedTip) / 100;
   const subtotalWithTipBrl = baseAmountBrl + tipAmountBrl;
 
-  // Novas Regras de Taxas do AtoS2:
-  // - PIX: 0% taxa do turista (Comerciante paga apenas 1%)
-  // - Solana Pay: +2% taxa do turista (+ 2% do comerciante = 4% total da plataforma)
-  // - Cartão Internacional: +3.9% taxa de processamento do turista (2% do comerciante)
+  // Regras de Taxas do AtoS2:
+  // - PIX: 0% taxa do turista (Comerciante paga 1.99%)
+  // - Solana Pay (USDC): +2% taxa do turista (+ 2% do comerciante = 4% total)
+  // - Cartão Internacional (Stripe): +5.9% taxa de processamento internacional do turista (+ 2.5% do comerciante)
   // - Transferência entre usuários Atos2 P2P: TAXA ZERO (0%)
   const touristFeeRate =
     selectedMethod === 'solana'
@@ -90,21 +111,23 @@ export default function CheckoutScreen() {
   const merchantFeeRate =
     selectedMethod === 'pix'
       ? ATOS2_FEES.MERCHANT_FEE_PIX
+      : selectedMethod === 'card'
+      ? ATOS2_FEES.MERCHANT_FEE_CARD
       : selectedMethod === 'internal_p2p'
       ? 0.0
       : ATOS2_FEES.MERCHANT_FEE_SOLANA;
   const merchantFeeBrl = subtotalWithTipBrl * merchantFeeRate;
   const merchantNetBrl = subtotalWithTipBrl - merchantFeeBrl;
 
-  // Conversões
+  // Conversões em tempo real
   const currInfo = CURRENCY_RATES[selectedCurrency];
   const convertedTotal = (totalFinalBrl * currInfo.rateFromBrl).toFixed(2);
   const convertedSubtotal = (baseAmountBrl * currInfo.rateFromBrl).toFixed(2);
   const convertedFee = (touristFeeBrl * currInfo.rateFromBrl).toFixed(2);
 
-  // Valores Solana USDC e SOL
-  const totalUsdc = convertBrlToUsdc(totalFinalBrl, 5.60);
-  const totalSol = convertBrlToSol(totalFinalBrl, 150, 5.60);
+  // Valores Solana USDC e SOL com câmbio real
+  const totalUsdc = convertBrlToUsdc(totalFinalBrl, marketRates.usdBrl);
+  const totalSol = convertBrlToSol(totalFinalBrl, marketRates.solUsd, marketRates.usdBrl);
 
   // Geração de chaves e links
   const simulatedPixCode = `00020126580014br.gov.bcb.pix0136atos2-checkout-${table}-${Date.now()}520400005303986540${totalFinalBrl.toFixed(2)}5802BR5925ATOS2 MEIOS DE PAGAMENTO6009SAO PAULO62070503***6304`;
@@ -144,8 +167,39 @@ export default function CheckoutScreen() {
     amountSol: totalSol,
     label: `AtoS2 - ${merchant}`,
     message: `Conta Mesa/Ref ${table}`,
-    reference: `atos2_${Date.now()}`,
+    reference: solanaReference,
   });
+
+  // Verifica automaticamente o status da Stripe quando o usuário retorna ao app após pagar no navegador
+  useEffect(() => {
+    if (!pendingStripeSessionId) return;
+    const sub = AppState.addEventListener('change', async (nextState) => {
+      if (nextState === 'active' && pendingStripeSessionId && !isPaid) {
+        try {
+          const st = await checkStripeSessionStatus(pendingStripeSessionId);
+          if (st.paid) {
+            setReceiptData({
+              methodName: 'Cartão Internacional / Apple Pay (Stripe)',
+              txHash: pendingStripeSessionId,
+              fee: touristFeeBrl,
+              merchantFee: merchantFeeBrl,
+              merchantNet: merchantNetBrl,
+              totalBrl: totalFinalBrl,
+              totalConverted: `${currInfo.symbol} ${convertedTotal}`,
+              merchant,
+              table,
+              date: new Date().toLocaleString(),
+              payoutEta: 'até 5 dias corridos (D+5)',
+            });
+            setPendingStripeSessionId(null);
+            setPaymentModalVisible(false);
+            setIsPaid(true);
+          }
+        } catch (_) {}
+      }
+    });
+    return () => sub.remove();
+  }, [pendingStripeSessionId, isPaid, totalFinalBrl]);
 
   const handleCopy = async (text: string) => {
     await Clipboard.setStringAsync(text);
@@ -163,10 +217,19 @@ export default function CheckoutScreen() {
     if (selectedMethod === 'solana') {
       try {
         const solResult = await checkSolanaTransactionStatus(
-          `ref_${table}`,
+          solanaReference,
           solanaToken === 'SOL' ? totalSol : totalUsdc,
           solanaToken
         );
+
+        if (!solResult.success) {
+          setIsProcessing(false);
+          Alert.alert(
+            'Aguardando Confirmação na Blockchain',
+            solResult.errorMessage || 'Pagamento ainda não encontrado na Solana Mainnet. Aprove na carteira Phantom/Solflare e toque em verificar novamente em alguns segundos.'
+          );
+          return;
+        }
 
         // Registra o recebimento na carteira com o valor líquido fiduciário (sem os 2% do Atos2)
         try {
@@ -208,18 +271,51 @@ export default function CheckoutScreen() {
           table,
           date: new Date().toLocaleString(),
           isCryptoSettlement: true,
+          payoutEta: 'até 24 horas (D+1)',
         });
         setIsProcessing(false);
         setPaymentModalVisible(false);
         setIsPaid(true);
         return;
-      } catch (e) {
+      } catch (e: any) {
         console.warn('Erro ao verificar Solana:', e);
+        Alert.alert('Erro Solana RPC', e?.message || 'Falha ao consultar a rede Solana. Tente novamente.');
+        setIsProcessing(false);
+        return;
       }
     }
 
     if (selectedMethod === 'card') {
       try {
+        // Se já abriu a sessão Stripe antes, verifica o status real do pagamento
+        if (pendingStripeSessionId) {
+          const statusRes = await checkStripeSessionStatus(pendingStripeSessionId);
+          if (statusRes.paid) {
+            setReceiptData({
+              methodName: 'Cartão Internacional / Apple Pay (Stripe)',
+              txHash: pendingStripeSessionId,
+              fee: touristFeeBrl,
+              merchantFee: merchantFeeBrl,
+              merchantNet: merchantNetBrl,
+              totalBrl: totalFinalBrl,
+              totalConverted: `${currInfo.symbol} ${convertedTotal}`,
+              merchant,
+              table,
+              date: new Date().toLocaleString(),
+              payoutEta: 'até 5 dias corridos (D+5)',
+            });
+            setPendingStripeSessionId(null);
+            setIsProcessing(false);
+            setPaymentModalVisible(false);
+            setIsPaid(true);
+            return;
+          } else {
+            Alert.alert('Pagamento Pendente', 'O pagamento na Stripe ainda não foi concluído. Finalize no navegador e toque em verificar novamente.');
+            setIsProcessing(false);
+            return;
+          }
+        }
+
         const session = await createStripeCheckoutSession({
           amount: totalFinalBrl,
           currency: selectedCurrency.toLowerCase(),
@@ -228,24 +324,24 @@ export default function CheckoutScreen() {
         });
 
         if (session?.sessionUrl) {
+          if (session.sessionId) {
+            setPendingStripeSessionId(session.sessionId);
+          }
           await Linking.openURL(session.sessionUrl);
           setIsProcessing(false);
-          setPaymentModalVisible(false);
           return;
         }
       } catch (err: any) {
         console.warn('[Stripe Checkout] Falha ao gerar sessão de pagamento:', err?.message || err);
-        Alert.alert('Checkout Internacional', 'Não foi possível iniciar a sessão Stripe. Tente novamente ou selecione PIX.');
+        Alert.alert('Checkout Internacional', 'Não foi possível iniciar a sessão Stripe. Tente novamente ou selecione PIX/USDC.');
         setIsProcessing(false);
         return;
       }
     }
 
-    // Simulação de confirmação instantânea
+    // Confirmação PIX / P2P
     setTimeout(() => {
       let methodName = 'PIX Instantâneo';
-      if (selectedMethod === 'card') methodName = 'Cartão Internacional / Apple Pay';
-      if (selectedMethod === 'solana') methodName = 'Solana Pay (USDC)';
       if (selectedMethod === 'internal_p2p') methodName = 'Transferência Direta Atos2 (Taxa Zero)';
 
       setReceiptData({
@@ -306,7 +402,7 @@ export default function CheckoutScreen() {
                 <Text style={styles.receiptLabel}>
                   {selectedMethod === 'pix' && 'Taxa Turista (PIX):'}
                   {selectedMethod === 'solana' && 'Taxa Turista (Solana 2%):'}
-                  {selectedMethod === 'card' && 'Taxa Cartão (3.9%):'}
+                  {selectedMethod === 'card' && 'Taxa Cartão Internacional (5.9%):'}
                   {selectedMethod === 'internal_p2p' && 'Taxa Atos2 P2P:'}
                 </Text>
                 <Text style={[styles.receiptVal, { color: receiptData.fee === 0 ? '#4ADE80' : '#F59E0B' }]}>
@@ -315,7 +411,7 @@ export default function CheckoutScreen() {
               </View>
 
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Taxa Estabelecimento ({selectedMethod === 'pix' ? '1%' : selectedMethod === 'internal_p2p' ? '0%' : '2%'}):</Text>
+                <Text style={styles.receiptLabel}>Taxa Estabelecimento ({selectedMethod === 'pix' ? '1.99%' : selectedMethod === 'card' ? '2.5%' : selectedMethod === 'internal_p2p' ? '0%' : '2%'}):</Text>
                 <Text style={[styles.receiptVal, { color: '#94A3B8' }]}>
                   - R$ {receiptData.merchantFee.toFixed(2)}
                 </Text>
@@ -745,7 +841,7 @@ export default function CheckoutScreen() {
                       🔒 Proteção Antifraude 3D Secure
                     </Text>
                     <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center' }}>
-                      Taxa de processamento de cartão internacional de 3.9% inclusa no total.
+                      Taxa de processamento de cartão internacional de 5.9% inclusa no total. Liquidação PIX para o estabelecimento em até 5 dias corridos (D+5).
                     </Text>
                   </View>
                 </View>
@@ -789,8 +885,8 @@ export default function CheckoutScreen() {
                     <Ionicons name="checkmark-done" size={20} color="#FFF" />
                     <Text style={styles.modalConfirmButtonText}>
                       {selectedMethod === 'pix' && 'Já paguei o Pix / Confirmar'}
-                      {selectedMethod === 'solana' && 'Confirmar Pagamento Solana'}
-                      {selectedMethod === 'card' && 'Pagar com Cartão / Apple Pay'}
+                      {selectedMethod === 'solana' && `Verificar Pagamento ${solanaToken} na Blockchain`}
+                      {selectedMethod === 'card' && (pendingStripeSessionId ? 'Verificar Confirmação Stripe' : 'Pagar com Cartão / Apple Pay')}
                       {selectedMethod === 'internal_p2p' && 'Confirmar Transferência P2P'}
                     </Text>
                   </>
